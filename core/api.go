@@ -168,9 +168,8 @@ func (gj *graphjinEngine) anyDatabaseReady() bool {
 
 type GraphJin struct {
 	atomic.Value
-	done     chan bool
-	stopOnce sync.Once
-	reloadMu sync.Mutex // serializes reload operations
+	lifecycle *engine.Lifecycle
+	reloadMu  sync.Mutex // serializes reload operations
 
 	// Schema change callbacks
 	schemaCallbacks engine.SchemaCallbacks
@@ -256,7 +255,7 @@ func NewGraphJin(conf *Config, db *sql.DB, options ...Option) (g *GraphJin, err 
 		return
 	}
 
-	g = &GraphJin{done: make(chan bool)}
+	g = &GraphJin{lifecycle: engine.NewLifecycle()}
 	if err = g.newGraphJin(conf, db, nil, fs, options...); err != nil {
 		g = nil
 		return
@@ -273,7 +272,7 @@ func NewGraphJin(conf *Config, db *sql.DB, options ...Option) (g *GraphJin, err 
 
 // NewGraphJinWithFS creates the GraphJin struct, this involves querying the database to learn its
 func NewGraphJinWithFS(conf *Config, db *sql.DB, fs FS, options ...Option) (g *GraphJin, err error) {
-	g = &GraphJin{done: make(chan bool)}
+	g = &GraphJin{lifecycle: engine.NewLifecycle()}
 	if err = g.newGraphJin(conf, db, nil, fs, options...); err != nil {
 		g = nil
 		return
@@ -330,13 +329,10 @@ func (g *GraphJin) InvalidateCacheRefs(ctx context.Context, refs []RowRef) error
 
 // Close stops GraphJin background tasks. It is safe to call multiple times.
 func (g *GraphJin) Close() {
-	if g == nil || g.done == nil {
+	if g == nil || g.lifecycle == nil {
 		return
 	}
-
-	g.stopOnce.Do(func() {
-		close(g.done)
-	})
+	g.lifecycle.Close()
 }
 
 // newGraphJinWithDBInfo creates the GraphJin struct, this involves querying the database to learn its
@@ -372,7 +368,7 @@ func (g *GraphJin) newGraphJin(conf *Config,
 		opts:        options,
 		fs:          fs,
 		trace:       &tracer{},
-		done:        g.done,
+		done:        g.lifecycle.Done(),
 	}
 
 	if gj.conf.DisableProdSecurity {
@@ -1277,7 +1273,7 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 		fs:          base.fs,
 		trace:       trace,
 		namespace:   base.namespace,
-		done:        g.done,
+		done:        g.lifecycle.Done(),
 	}
 	if gj.conf.DisableProdSecurity {
 		gj.prodSec = false
@@ -1430,7 +1426,7 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 		fs:          base.fs,
 		trace:       trace,
 		namespace:   base.namespace,
-		done:        g.done,
+		done:        g.lifecycle.Done(),
 	}
 	if gj.conf.DisableProdSecurity {
 		gj.prodSec = false

@@ -42,7 +42,7 @@ func (g *GraphJin) startDBWatcher(ps time.Duration) {
 
 	for {
 		select {
-		case <-g.done:
+		case <-g.lifecycle.Done():
 			return
 		case <-ticker.C:
 		}

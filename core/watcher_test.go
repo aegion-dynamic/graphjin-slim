@@ -3,10 +3,12 @@ package core
 import (
 	"testing"
 	"time"
+
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
 )
 
 func TestGraphJinCloseStopsWatcherPromptly(t *testing.T) {
-	g := &GraphJin{done: make(chan bool)}
+	g := &GraphJin{lifecycle: engine.NewLifecycle()}
 
 	stopped := make(chan struct{})
 	go func() {

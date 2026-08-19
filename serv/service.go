@@ -77,34 +77,34 @@ type HookFn func(*core.Result)
 type graphjinService struct {
 	artifactProjectionRefreshes atomic.Int64
 
-	log                   *zap.SugaredLogger // logger
-	zlog                  *zap.Logger        // faster logger
-	logLevel              int                // log level
-	conf                  *Config            // parsed config
-	dbs                   map[string]*sql.DB // named database connections (all equal)
-	columnValuesMu        sync.Mutex         // guards the enum-value sampling attempt
-	columnValuesSampled   bool               // true once an attempt actually ran
-	columnValues          map[string][]string
-	runtimeCore           *core.Config
-	secretStore           *localKeystore
-	metadataDB            string
-	managedArtifactDB     string
-	systemNanoDB          *core.NanoDB
-	gj                    *core.GraphJin
-	srv                   *http.Server
-	srvMu                 sync.Mutex // guards srv: written by startHTTP, read by Shutdown
-	fs                    core.FS
-	coreOptions           []core.Option
-	closeFn               func()
-	chash                 string
-	state                 servState
-	hook                  HookFn
-	prod                  bool
-	namespace             *string
-	tracer                trace.Tracer
-	cache                 ResponseCache // Response cache (Redis or in-memory)
-	configPreviews        *configPreviewStore
-	configMu              sync.Mutex
+	log                 *zap.SugaredLogger // logger
+	zlog                *zap.Logger        // faster logger
+	logLevel            int                // log level
+	conf                *Config            // parsed config
+	dbs                 map[string]*sql.DB // named database connections (all equal)
+	columnValuesMu      sync.Mutex         // guards the enum-value sampling attempt
+	columnValuesSampled bool               // true once an attempt actually ran
+	columnValues        map[string][]string
+	runtimeCore         *core.Config
+	secretStore         *localKeystore
+	metadataDB          string
+	managedArtifactDB   string
+	systemNanoDB        *core.NanoDB
+	gj                  *core.GraphJin
+	srv                 *http.Server
+	srvMu               sync.Mutex // guards srv: written by startHTTP, read by Shutdown
+	fs                  core.FS
+	coreOptions         []core.Option
+	closeFn             func()
+	chash               string
+	state               servState
+	hook                HookFn
+	prod                bool
+	namespace           *string
+	tracer              trace.Tracer
+	cache               ResponseCache // Response cache (Redis or in-memory)
+	configPreviews      *configPreviewStore
+	configMu            sync.Mutex
 }
 
 // anyDB returns any single connection from the dbs map (for callers
@@ -263,6 +263,7 @@ func (s *graphjinService) closeServResources() {
 		}
 	}
 }
+
 // OptionSetDB sets a new db client. The connection is stored under the
 // DefaultDBName key in the dbs map for backward compatibility.
 func OptionSetDB(db *sql.DB) Option {

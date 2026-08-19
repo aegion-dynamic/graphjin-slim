@@ -167,4 +167,3 @@ func printDevModeInfo(s *graphjinService) {
 	fmt.Printf("  REST API:    http://%s/api/v1/rest/<name>\n", displayHost)
 	fmt.Println()
 }
-

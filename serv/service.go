@@ -48,6 +48,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
+	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 
 	"go.opentelemetry.io/otel"
@@ -87,6 +88,7 @@ const (
 func redactRuntimeStringValue(value string) string { return value }
 
 type ResponseCache = cache.ResponseCache
+type Mux = httpapi.Mux
 
 const defaultMemoryCacheSize = cache.DefaultMemoryCacheSize
 
@@ -108,6 +110,16 @@ func newDB(conf *Config, openDB, _ bool, log *zap.SugaredLogger, fs core.FS) (*s
 
 func newDBOnce(conf *Config, openDB, _ bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {
 	return database.Open(database.Options{Config: conf.DB, AppName: conf.AppName, OpenDBName: openDB, Filesystem: fs, Logger: log})
+}
+
+func routesHandler(s1 *HttpService, mux Mux, ns *string) (Mux, error) {
+	gs := s1.Load().(*graphjinService)
+	return httpapi.Register(mux, httpapi.Handlers{
+		GraphQL: s1.apiV1GraphQL(ns, nil),
+		REST:    s1.apiV1Rest(ns, nil),
+		WebUI:   s1.WebUI("/", httpapi.GraphQLPath),
+		WebUIOn: gs.conf.Serv.WebUI,
+	}), nil
 }
 
 type graphjinService struct {

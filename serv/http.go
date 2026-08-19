@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/etags"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/rs/cors"
@@ -194,7 +195,7 @@ func (s1 *HttpService) apiV1GraphQL(ns *string, ah HandlerFunc) http.Handler {
 
 // apiV1Rest returns a handler that handles the REST API requests
 func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
-	rLen := len(routeREST)
+	rLen := len(httpapi.RESTPath)
 	dtrace := otel.GetTextMapPropagator()
 
 	h := func(w http.ResponseWriter, r *http.Request) {

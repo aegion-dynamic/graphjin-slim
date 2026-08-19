@@ -10,6 +10,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
+	configmodule "github.com/aegion-dynamic/graphjin-slim/serv/v3/config"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 	"github.com/go-viper/mapstructure/v2"
@@ -380,24 +381,11 @@ func webUISettingExplicit(v *viper.Viper) bool {
 }
 
 func applyConfigNameMode(v *viper.Viper, mode string) {
-	if mode == "" {
-		return
-	}
-	if !v.IsSet("mode") {
-		v.Set("mode", mode)
-	}
+	configmodule.ApplyFilenameMode(v, mode)
 }
 
 func modeFromConfigName(configFile string) string {
-	name := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(filepath.Base(configFile), filepath.Ext(configFile))))
-	switch name {
-	case "development", "dev":
-		return "dev"
-	case "production", "prod":
-		return "prod"
-	default:
-		return ""
-	}
+	return configmodule.ModeFromFilename(configFile)
 }
 
 func normalizeConfigMode(c *Config) error {
@@ -411,38 +399,11 @@ func normalizeConfigMode(c *Config) error {
 }
 
 func productionFromViperMode(v *viper.Viper) (bool, error) {
-	mode, err := core.CanonicalMode(v.GetString("mode"))
-	if err != nil {
-		return false, err
-	}
-	switch mode {
-	case "":
-		return v.GetBool("production"), nil
-	case "dev":
-		return false, nil
-	case "prod":
-		return true, nil
-	default:
-		return false, nil
-	}
+	return configmodule.ProductionFromViperMode(v)
 }
 
 func normalizeAutoBoolSetting(v *viper.Viper, key string, autoValue bool) error {
-	if !v.IsSet(key) {
-		return nil
-	}
-	raw := strings.TrimSpace(strings.ToLower(v.GetString(key)))
-	switch raw {
-	case "", "auto":
-		v.Set(key, autoValue)
-	case "true", "1", "yes", "on":
-		v.Set(key, true)
-	case "false", "0", "no", "off":
-		v.Set(key, false)
-	default:
-		return fmt.Errorf("%s must be true, false, or auto", key)
-	}
-	return nil
+	return configmodule.NormalizeAutoBoolSetting(v, key, autoValue)
 }
 
 func newViperWithDefaults() *viper.Viper {

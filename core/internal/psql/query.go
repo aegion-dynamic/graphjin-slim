@@ -71,66 +71,8 @@ func (c *Compiler) SetSchemaInfo(tables []sdata.DBTable) {
 func NewCompiler(conf Config) *Compiler {
 	var d dialect.Dialect
 	switch conf.DBType {
-	case "mysql":
-		d = &dialect.MySQLDialect{
-			EnableCamelcase: conf.EnableCamelcase,
-			DBVersion:       conf.DBVersion,
-		}
-	case "mariadb":
-		d = &dialect.MariaDBDialect{
-			MySQLDialect: dialect.MySQLDialect{
-				EnableCamelcase: conf.EnableCamelcase,
-				DBVersion:       conf.DBVersion,
-			},
-			DBVersion: conf.DBVersion,
-		}
 	case "sqlite":
 		d = &dialect.SQLiteDialect{DBVersion: conf.DBVersion}
-	case "oracle":
-		d = &dialect.OracleDialect{EnableCamelcase: conf.EnableCamelcase}
-	case "mssql":
-		d = &dialect.MSSQLDialect{
-			DBVersion:       conf.DBVersion,
-			EnableCamelcase: conf.EnableCamelcase,
-		}
-	case "snowflake":
-		d = &dialect.SnowflakeDialect{
-			PostgresDialect: dialect.PostgresDialect{
-				DBVersion:       conf.DBVersion,
-				EnableCamelcase: conf.EnableCamelcase,
-				SecPrefix:       conf.SecPrefix,
-			},
-		}
-	case "bigquery":
-		d = &dialect.BigQueryDialect{
-			SnowflakeDialect: dialect.SnowflakeDialect{
-				PostgresDialect: dialect.PostgresDialect{
-					DBVersion:       conf.DBVersion,
-					EnableCamelcase: conf.EnableCamelcase,
-					SecPrefix:       conf.SecPrefix,
-				},
-			},
-		}
-	case "redshift":
-		d = &dialect.RedshiftDialect{
-			SnowflakeDialect: dialect.SnowflakeDialect{
-				PostgresDialect: dialect.PostgresDialect{
-					DBVersion:       conf.DBVersion,
-					EnableCamelcase: conf.EnableCamelcase,
-					SecPrefix:       conf.SecPrefix,
-				},
-			},
-		}
-	case "mongodb":
-		d = &dialect.MongoDBDialect{EnableCamelcase: conf.EnableCamelcase}
-	case "cassandra":
-		d = &dialect.CassandraDialect{
-			MongoDBDialect: dialect.MongoDBDialect{EnableCamelcase: conf.EnableCamelcase},
-		}
-	case "clickhouse":
-		d = &dialect.ClickHouseDialect{
-			MongoDBDialect: dialect.MongoDBDialect{EnableCamelcase: conf.EnableCamelcase},
-		}
 	default:
 		d = &dialect.PostgresDialect{
 			DBVersion:       conf.DBVersion,

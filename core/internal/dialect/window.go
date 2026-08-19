@@ -20,30 +20,6 @@ func (d *PostgresDialect) ValidateWindowFunction(f qcode.Field) error {
 	return validateStandardWindowFunction(d.Name(), f, true)
 }
 
-func (d *SnowflakeDialect) ValidateWindowFunction(f qcode.Field) error {
-	return validateStandardWindowFunction(d.Name(), f, true)
-}
-
-func (d *OracleDialect) ValidateWindowFunction(f qcode.Field) error {
-	return validateStandardWindowFunction(d.Name(), f, true)
-}
-
-func (d *MySQLDialect) ValidateWindowFunction(f qcode.Field) error {
-	if d.DBVersion > 0 && d.DBVersion < 80000 {
-		return fmt.Errorf("analytics directive on field %q is not supported by MySQL %d; MySQL 8.0+ is required",
-			f.FieldName, d.DBVersion)
-	}
-	return validateStandardWindowFunction(d.Name(), f, false)
-}
-
-func (d *MariaDBDialect) ValidateWindowFunction(f qcode.Field) error {
-	if d.DBVersion > 0 && d.DBVersion < 100200 {
-		return fmt.Errorf("analytics directive on field %q is not supported by MariaDB %d; MariaDB 10.2+ is required",
-			f.FieldName, d.DBVersion)
-	}
-	return validateStandardWindowFunction(d.Name(), f, false)
-}
-
 func (d *SQLiteDialect) ValidateWindowFunction(f qcode.Field) error {
 	if sqliteVersionLess(d.DBVersion, 32500, 3025000) {
 		return fmt.Errorf("analytics directive on field %q is not supported by SQLite %d; SQLite 3.25+ is required",
@@ -56,22 +32,6 @@ func (d *SQLiteDialect) ValidateWindowFunction(f qcode.Field) error {
 	return nil
 }
 
-func (d *MSSQLDialect) ValidateWindowFunction(f qcode.Field) error {
-	if mssqlVersionLessThan2012(d.DBVersion) {
-		return fmt.Errorf("analytics directive on field %q is not supported by MSSQL %d; SQL Server 2012+ is required",
-			f.FieldName, d.DBVersion)
-	}
-	return validateStandardWindowFunction(d.Name(), f, false)
-}
-
-func (d *MongoDBDialect) ValidateWindowFunction(f qcode.Field) error {
-	return fmt.Errorf("analytics directive on field %q is not supported by MongoDB", f.FieldName)
-}
-
-func (d *ClickHouseDialect) ValidateWindowFunction(f qcode.Field) error {
-	return validateStandardWindowFunction(d.Name(), f, true)
-}
-
 func sqliteVersionLess(v, compactMin, libMin int) bool {
 	if v == 0 {
 		return false
@@ -80,17 +40,4 @@ func sqliteVersionLess(v, compactMin, libMin int) bool {
 		return v < libMin
 	}
 	return v < compactMin
-}
-
-func mssqlVersionLessThan2012(v int) bool {
-	if v == 0 {
-		return false
-	}
-	if v < 100 {
-		return v < 11
-	}
-	if v < 10000 {
-		return v < 2012
-	}
-	return v < 110000
 }

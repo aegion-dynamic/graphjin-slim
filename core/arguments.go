@@ -10,6 +10,12 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
 )
 
+// prepareQueryArgsForDB preserves the common database/sql argument path for
+// the supported Postgres and SQLite drivers.
+func prepareQueryArgsForDB(_ string, query string, args []interface{}) (string, []interface{}, error) {
+	return query, args, nil
+}
+
 // argList function is used to create a list of arguments to pass
 // to a prepared statement.
 

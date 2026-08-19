@@ -1175,26 +1175,8 @@ func subscriptionCursorValues(cnames []string, cursor string) map[string]string 
 // getDialectForType returns a dialect instance for the given database type.
 func getDialectForType(ct string) dialect.Dialect {
 	switch ct {
-	case "mysql":
-		return &dialect.MySQLDialect{}
-	case "mariadb":
-		return &dialect.MariaDBDialect{}
-	case "oracle":
-		return &dialect.OracleDialect{}
 	case "sqlite":
 		return &dialect.SQLiteDialect{}
-	case "mssql":
-		return &dialect.MSSQLDialect{}
-	case "snowflake":
-		return &dialect.SnowflakeDialect{}
-	case "redshift":
-		return &dialect.RedshiftDialect{}
-	case "mongodb":
-		return &dialect.MongoDBDialect{}
-	case "cassandra":
-		return &dialect.CassandraDialect{}
-	case "clickhouse":
-		return &dialect.ClickHouseDialect{}
 	default:
 		return &dialect.PostgresDialect{}
 	}
@@ -1236,24 +1218,9 @@ func (c *stringContext) AddParam(p dialect.Param) string {
 	return ""
 }
 func (c *stringContext) Quote(s string) {
-	switch c.ct {
-	case "mysql":
-		c.sb.WriteString("`")
-		c.sb.WriteString(s)
-		c.sb.WriteString("`")
-	case "oracle":
-		c.sb.WriteString(`"`)
-		c.sb.WriteString(strings.ToUpper(s))
-		c.sb.WriteString(`"`)
-	case "mssql":
-		c.sb.WriteString(`[`)
-		c.sb.WriteString(s)
-		c.sb.WriteString(`]`)
-	default:
-		c.sb.WriteString(`"`)
-		c.sb.WriteString(s)
-		c.sb.WriteString(`"`)
-	}
+	c.sb.WriteString(`"`)
+	c.sb.WriteString(s)
+	c.sb.WriteString(`"`)
 }
 func (c *stringContext) ColWithTable(table, col string) {
 	if table != "" {

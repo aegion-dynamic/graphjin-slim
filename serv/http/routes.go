@@ -3,6 +3,13 @@ package http
 
 import stdhttp "net/http"
 
+// UnavailableWebUI returns the slim-build response for the removed embedded UI.
+func UnavailableWebUI(_ string, _ string) stdhttp.Handler {
+	return stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, _ *stdhttp.Request) {
+		stdhttp.Error(w, "web ui not available in slim build", stdhttp.StatusNotFound)
+	})
+}
+
 // Mux is the minimal multiplexer required by the service routes.
 type Mux interface {
 	Handle(string, stdhttp.Handler)

@@ -681,7 +681,7 @@ func (s *HttpService) apiHandler(ns *string, ah HandlerFunc, rest bool) http.Han
 
 // WebUI is the http handler the web ui endpoint
 func (s *HttpService) WebUI(routePrefix, gqlEndpoint string) http.Handler {
-	return webuiHandler(routePrefix, gqlEndpoint)
+	return httpapi.UnavailableWebUI(routePrefix, gqlEndpoint)
 }
 
 // GetGraphJin fetching internal GraphJin core

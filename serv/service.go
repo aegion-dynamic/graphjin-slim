@@ -46,6 +46,7 @@ import (
 	"sync/atomic"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 
 	"go.opentelemetry.io/otel"
@@ -73,6 +74,18 @@ const (
 )
 
 type HookFn func(*core.Result)
+
+type ResponseCache = cache.ResponseCache
+
+const defaultMemoryCacheSize = cache.DefaultMemoryCacheSize
+
+func NewMemoryCache(conf CachingConfig, maxEntries int) (*cache.MemoryCache, error) {
+	return cache.NewMemoryCache(conf, maxEntries)
+}
+
+func NewRedisCache(redisURL string, conf CachingConfig) (*cache.RedisCache, error) {
+	return cache.NewRedisCache(redisURL, conf)
+}
 
 type graphjinService struct {
 	artifactProjectionRefreshes atomic.Int64

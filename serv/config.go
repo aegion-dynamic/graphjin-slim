@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 	"github.com/go-viper/mapstructure/v2"
@@ -17,8 +18,9 @@ import (
 )
 
 type (
-	Core     = core.Config
-	Database = database.Config
+	Core          = core.Config
+	Database      = database.Config
+	CachingConfig = cache.Config
 )
 
 //go:generate go run ./internal/tools -o config.schema.json
@@ -143,14 +145,6 @@ type RateLimiter struct {
 // RedisConfig configures Redis connection
 type RedisConfig struct {
 	URL string `mapstructure:"url" jsonschema:"title=Redis URL"`
-}
-
-// CachingConfig configures response caching
-type CachingConfig struct {
-	Disable       bool     `mapstructure:"disable" jsonschema:"title=Disable Caching,default=false"`
-	TTL           int      `mapstructure:"ttl" jsonschema:"title=Cache TTL,default=3600"`
-	FreshTTL      int      `mapstructure:"fresh_ttl" jsonschema:"title=Fresh TTL for SWR,default=300"`
-	ExcludeTables []string `mapstructure:"exclude_tables" jsonschema:"title=Exclude Tables"`
 }
 
 // ReadInConfig reads the config file for the environment.

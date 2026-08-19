@@ -55,9 +55,16 @@ router.Handle("/rest/*", gjs.REST(nil))
 db := gjs.GetDB()
 ```
 
-## Configuration
+## Package Documentation
 
-See [CONFIG.md](CONFIG.md) and [FEATURES.md](FEATURES.md) for the full config reference. The postgres path is configured with `database.type: postgres` and `database.schema`. Production uses an allow list of saved queries in `config/queries`.
+- [Architecture](docs/architecture.md)
+- [Core package](core/README.md)
+- [Service package](serv/README.md)
+- [Development guide](docs/development.md)
+
+Configuration is loaded through `serv.ReadInConfig` or `serv.NewConfig`. The
+supported database types are Postgres and SQLite. See [serv/README.md](serv/README.md)
+for configuration examples and service ownership.
 
 ## Development
 
@@ -66,7 +73,9 @@ go vet ./core/... ./serv/...
 go test ./core/... ./serv/...
 ```
 
-The stable public API is in `core/api.go`. See upstream docs for compiler details.
+The stable public interfaces are documented in [core/README.md](core/README.md)
+and [serv/README.md](serv/README.md). Implementation packages under
+`core/internal` are not public extension points.
 
 ## License
 

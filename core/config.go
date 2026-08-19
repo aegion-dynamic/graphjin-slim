@@ -21,10 +21,10 @@ import (
 const DefaultDBName = "default"
 
 // SupportedDBTypes lists the database types supported for single-database mode
-var SupportedDBTypes = []string{"postgres", "mysql", "mariadb", "sqlite", "oracle", "mssql", "mongodb", "snowflake", "bigquery", "redshift", "nanodb", "cassandra", "clickhouse"}
+var SupportedDBTypes = []string{"postgres", "sqlite"}
 
 // SupportedMultiDBTypes lists the database types supported for multi-database mode
-var SupportedMultiDBTypes = []string{"postgres", "mysql", "mariadb", "sqlite", "oracle", "mongodb", "mssql", "snowflake", "bigquery", "redshift", "nanodb", "cassandra", "clickhouse"}
+var SupportedMultiDBTypes = []string{"postgres", "sqlite"}
 
 // CanonicalMode normalizes the public top-level mode value.
 func CanonicalMode(mode string) (string, error) {
@@ -1782,10 +1782,8 @@ type FilesystemConfig struct {
 	// Name is the table name surfaced in GraphQL (e.g. "avatars").
 	Name string `mapstructure:"name" json:"name" yaml:"name" jsonschema:"title=Table Name"`
 
-	// Backend selects the implementation: "local", "s3", or "gcs".
-	// S3 and GCS are gated by build tags; on a slim build, configuring
-	// them produces a clear error.
-	Backend string `mapstructure:"backend" json:"backend" yaml:"backend" jsonschema:"title=Backend,enum=local,enum=s3,enum=gcs"`
+	// Backend selects the implementation: "local" or "s3".
+	Backend string `mapstructure:"backend" json:"backend" yaml:"backend" jsonschema:"title=Backend,enum=local,enum=s3"`
 
 	// Bucket is the S3 bucket / GCS bucket name. Ignored for local.
 	Bucket string `mapstructure:"bucket" json:"bucket" yaml:"bucket" jsonschema:"title=Bucket"`

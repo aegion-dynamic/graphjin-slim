@@ -1,4 +1,5 @@
-package serv
+// Package names allocates service-owned runtime identifiers.
+package names
 
 import (
 	"database/sql"
@@ -8,14 +9,8 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
-const (
-	internalSystemDatabaseBase   = "__gj_internal_system"
-	internalArtifactDatabaseBase = "__gj_internal_artifacts"
-)
-
-// allocateRuntimeDatabaseName returns a collision-free, runtime-only database
-// identifier. Internal identifiers never reserve names in public sources.
-func allocateRuntimeDatabaseName(base string, conf *core.Config, runtime *core.Config, active map[string]*sql.DB) string {
+// Allocate returns a collision-free runtime database identifier.
+func Allocate(base string, conf, runtime *core.Config, active map[string]*sql.DB) string {
 	used := make(map[string]struct{})
 	add := func(name string) {
 		if name = strings.ToLower(strings.TrimSpace(name)); name != "" {

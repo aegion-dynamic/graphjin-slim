@@ -9,7 +9,10 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/names"
 )
+
+const internalArtifactDatabaseBase = "__gj_internal_artifacts"
 
 const managedArtifactRelativePath = ".graphjin/artifacts.sqlite3"
 
@@ -17,7 +20,7 @@ func (s *graphjinService) initManagedArtifactStore() error {
 	if s == nil || s.conf == nil || !s.conf.managedArtifactStore || !s.conf.Core.Artifacts.Enabled {
 		return nil
 	}
-	name := allocateRuntimeDatabaseName(internalArtifactDatabaseBase, &s.conf.Core, s.runtimeCore, s.dbs)
+	name := names.Allocate(internalArtifactDatabaseBase, &s.conf.Core, s.runtimeCore, s.dbs)
 
 	base, err := s.basePath()
 	if err != nil {

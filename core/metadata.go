@@ -6,94 +6,16 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 )
 
-type MetadataSnapshot struct {
-	Databases     []MetadataDatabase
-	Tables        []MetadataTable
-	Columns       []MetadataColumn
-	Relationships []MetadataRelationship
-	Functions     []MetadataFunction
-	Indexes       []MetadataIndex
-}
-
-type MetadataDatabase struct {
-	ID        string
-	Name      string
-	Type      string
-	IsDefault bool
-	ReadOnly  bool
-}
-
-type MetadataTable struct {
-	ID           string
-	DatabaseName string
-	SchemaName   string
-	TableName    string
-	Type         string
-	Comment      string
-	PrimaryKey   string
-	ColumnCount  int
-	TableKey     string
-}
-
-type MetadataColumn struct {
-	ID           string
-	TableID      string
-	DatabaseName string
-	SchemaName   string
-	TableName    string
-	ColumnName   string
-	Type         string
-	Array        bool
-	NotNull      bool
-	PrimaryKey   bool
-	UniqueKey    bool
-	Indexed      bool
-	IndexName    string
-	DefaultValue string
-	Comment      string
-	Ordinal      int
-	TableKey     string
-	ColumnKey    string
-}
-
-type MetadataRelationship struct {
-	ID               string
-	FromDatabaseName string
-	FromSchemaName   string
-	FromTableName    string
-	FromColumnName   string
-	FromColumnID     string
-	ToDatabaseName   string
-	ToSchemaName     string
-	ToTableName      string
-	ToColumnName     string
-	ToColumnID       string
-	RelType          string
-	IsCrossDatabase  bool
-	Source           string
-}
-
-type MetadataFunction struct {
-	ID           string
-	DatabaseName string
-	SchemaName   string
-	Name         string
-	ReturnType   string
-	Aggregate    bool
-	Comment      string
-}
-
-type MetadataIndex struct {
-	ID           string
-	DatabaseName string
-	SchemaName   string
-	TableName    string
-	ColumnName   string
-	Name         string
-	Unique       bool
-}
+type MetadataSnapshot = schemapkg.MetadataSnapshot
+type MetadataDatabase = schemapkg.MetadataDatabase
+type MetadataTable = schemapkg.MetadataTable
+type MetadataColumn = schemapkg.MetadataColumn
+type MetadataRelationship = schemapkg.MetadataRelationship
+type MetadataFunction = schemapkg.MetadataFunction
+type MetadataIndex = schemapkg.MetadataIndex
 
 // MetadataSnapshot returns a stable, queryable projection of the schemas that
 // GraphJin discovered. Excluded database names are skipped, which the service

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 )
 
@@ -320,30 +321,11 @@ func (s *graphjinService) initResponseCache() error {
 		return nil
 	}
 
-	if s.conf.Redis.URL != "" {
-		// Try to use Redis
-		cache, err := NewRedisCache(s.conf.Redis.URL, s.conf.Caching)
-		if err != nil {
-			s.log.Warnf("Redis unavailable, falling back to in-memory cache: %s", err)
-			s.cache, err = NewMemoryCache(s.conf.Caching, defaultMemoryCacheSize)
-			if err != nil {
-				s.log.Warnf("Failed to initialize memory cache: %s", err)
-				return nil
-			}
-			s.log.Info("Using in-memory response cache (Redis unavailable)")
-		} else {
-			s.cache = cache
-			s.log.Info("Redis response cache enabled")
-		}
-	} else {
-		// No Redis URL - use in-memory cache
-		var err error
-		s.cache, err = NewMemoryCache(s.conf.Caching, defaultMemoryCacheSize)
-		if err != nil {
-			s.log.Warnf("Failed to initialize memory cache: %s", err)
-			return nil
-		}
-		s.log.Info("Using in-memory response cache (no Redis URL configured)")
+	var err error
+	s.cache, err = cache.New(s.conf.Caching, s.conf.Redis.URL, defaultMemoryCacheSize, s.log)
+	if err != nil {
+		s.log.Warnf("Failed to initialize response cache: %s", err)
+		return nil
 	}
 
 	// Enable cache tracking in qcode compiler (injects __gj_id fields)

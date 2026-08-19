@@ -35,6 +35,43 @@ type ResponseCache interface {
 	Close() error
 }
 
+// Logger is the small logging surface needed while selecting a cache adapter.
+type Logger interface {
+	Info(args ...any)
+	Infof(template string, args ...any)
+	Warnf(template string, args ...any)
+}
+
+// New selects Redis when configured and falls back to memory when Redis is
+// unavailable. Adapter selection and fallback policy stay inside the cache
+// module rather than leaking into service startup.
+func New(conf Config, redisURL string, maxEntries int, log Logger) (ResponseCache, error) {
+	if redisURL != "" {
+		redis, err := NewRedisCache(redisURL, conf)
+		if err == nil {
+			if log != nil {
+				log.Infof("Redis response cache enabled")
+			}
+			return redis, nil
+		}
+		if log != nil {
+			log.Warnf("Redis unavailable, falling back to in-memory cache: %s", err)
+		}
+	}
+	memory, err := NewMemoryCache(conf, maxEntries)
+	if err != nil {
+		return nil, err
+	}
+	if log != nil {
+		if redisURL == "" {
+			log.Infof("Using in-memory response cache (no Redis URL configured)")
+		} else {
+			log.Infof("Using in-memory response cache (Redis unavailable)")
+		}
+	}
+	return memory, nil
+}
+
 func cacheIndexRefs(refs []core.RowRef, includeExact bool) []core.RowRef {
 	if len(refs) == 0 {
 		return nil

@@ -1,4 +1,0 @@
-[mcp_servers]
-[mcp_servers.graphjin]
-args = ['mcp', '--path', '/Users/vr/src/graphjin/config']
-command = '/Users/vr/go/bin/graphjin'

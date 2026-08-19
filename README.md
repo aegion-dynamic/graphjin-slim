@@ -7,23 +7,26 @@ Slim fork of [dosco/graphjin](https://github.com/dosco/graphjin) focused on the 
 
 GraphJin is a compiler and runtime that turns GraphQL into a single optimized SQL query. No resolvers, no ORM, no N+1. It discovers your schema, exposes relationships as nested fields, and compiles every request directly to Postgres. This fork keeps that compiler and the embeddable Go service, without the extra surfaces that live in upstream.
 
-Upstream remains the full project with its broader feature set including agent, MCP, CodeSQL, filesystem tables, and multi database support. This repo tracks upstream and removes what the slim postgres embed does not need.
+Upstream remains the full project with its broader feature set. This repo tracks upstream and removes what the slim postgres embed does not need.
 
 ## What this fork keeps
 
-- `core/` - GraphQL parsing, schema discovery (`sdata`), IR (`qcode`), SQL generation (`psql`, postgres dialect), allow list, roles, and the stable public API in `core/api.go`
+- `core/` - GraphQL parsing, schema discovery (`sdata`), IR (`qcode`), SQL generation (`psql`, postgres and sqlite dialects), allow list, roles, and the stable public API in `core/api.go`
 - `serv/` - `NewGraphJinService`, `GraphQL` and `REST` handlers, `GetDB`, `Attach`, postgres `initDB`, health, and config
 - `auth/` - `HandlerFunc` type and the `core.UserIDKey` bridge used to set request identity for row level audit
 - `conf/` - config loading
-- `core/internal/*` - `graph`, `jsn`, `sdata`, `qcode`, `psql`, `dialect` (postgres), `allow`, `valid`, and other internals
+- `core/internal/*` - `graph`, `jsn`, `sdata`, `qcode`, `psql`, `dialect` (postgres and sqlite), `allow`, `valid`, and other internals
+- Databases: postgres and sqlite
+- Sources: database, file, api
+- File backends: local and s3
 
 ## What was removed
 
 - `wasm/` - WASM build for NodeJS, nothing in the data path imports it
 - `website/` - Hugo docs site
-- `benchmark/` - standalone bench scripts, not a Go module
-
-Follow up commits will continue to trim surfaces not needed for the postgres data path. See git log for details.
+- `benchmark/` - standalone bench scripts
+- IDE plugin configs: `.claude-plugin/`, `.codex/`, `.cursor/`
+- Other databases and file backends: mysql, mariadb, oracle, mssql, mongodb, snowflake, bigquery, redshift, nanodb, cassandra, clickhouse, gcs (config enum narrowed to supported ones, dialect and driver removal to follow)
 
 ## How it works
 

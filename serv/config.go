@@ -18,9 +18,14 @@ import (
 )
 
 type (
-	Core          = core.Config
-	Database      = database.Config
-	CachingConfig = cache.Config
+	Core           = core.Config
+	Database       = database.Config
+	CachingConfig  = cache.Config
+	Serv           = configmodule.Service
+	SecretsConfig  = configmodule.SecretsConfig
+	KeystoreConfig = configmodule.KeystoreConfig
+	RateLimiter    = configmodule.RateLimiter
+	RedisConfig    = configmodule.RedisConfig
 )
 
 //go:generate go run ./internal/tools -o config.schema.json
@@ -47,104 +52,6 @@ type Config struct {
 	parsedConfig         bool
 	managedArtifactStore bool
 	explicitSettings     map[string]bool
-}
-
-// Configuration for the GraphJin Service
-type Serv struct {
-	// Application name is used in log and debug messages
-	AppName string `mapstructure:"app_name" jsonschema:"title=Application Name"`
-
-	// Legacy production switch. Prefer top-level mode for new configs.
-	Production bool `jsonschema:"title=Production Mode,default=false"`
-
-	// Stops the catalog from sampling the small value sets of enum-like columns
-	DisableColumnValueSampling bool `mapstructure:"disable_column_value_sampling" jsonschema:"title=Disable Catalog Column Value Sampling,default=false"`
-
-	// The default path to find all configuration files and scripts
-	ConfigPath string `mapstructure:"config_path" jsonschema:"title=Config Path"`
-
-	// Logging level must be one of debug, error, warn, info
-	LogLevel string `mapstructure:"log_level" jsonschema:"title=Log Level,enum=debug,enum=error,enum=warn,enum=info"`
-
-	// Logging Format: "auto", "json", or "simple"
-	LogFormat string `mapstructure:"log_format" jsonschema:"title=Logging Format,enum=auto,enum=json,enum=simple"`
-
-	// The host and port the service runs on. Example localhost:8080
-	HostPort string `mapstructure:"host_port" jsonschema:"title=Host and Port"`
-
-	// Host to run the service on
-	Host string `jsonschema:"title=Host"`
-
-	// Port to run the service on
-	Port string `jsonschema:"title=Port"`
-
-	// Enables HTTP compression
-	HTTPGZip bool `mapstructure:"http_compress" jsonschema:"title=Enable Compression,default=true"`
-
-	// Sets the API rate limits
-	RateLimiter RateLimiter `mapstructure:"rate_limiter" jsonschema:"title=Set API Rate Limiting"`
-
-	// Enables the Server-Timing HTTP header
-	ServerTiming bool `mapstructure:"server_timing" jsonschema:"title=Server Timing HTTP Header,default=true"`
-
-	// Enable the web UI
-	WebUI bool `mapstructure:"web_ui" jsonschema:"title=Enable Web UI,default=false"`
-
-	// Enable OpenTrace request tracing
-	EnableTracing bool `mapstructure:"enable_tracing" jsonschema:"title=Enable Tracing,default=true"`
-
-	// Enables reloading the service on config changes
-	WatchAndReload bool `mapstructure:"reload_on_config_change" jsonschema:"title=Reload Config"`
-
-	// Enable blocking requests with a HTTP 401 on auth failure
-	AuthFailBlock bool `mapstructure:"auth_fail_block" jsonschema:"title=Block Request on Authorization Failure"`
-
-	// Sets the HTTP CORS Access-Control-Allow-Origin header
-	AllowedOrigins []string `mapstructure:"cors_allowed_origins" jsonschema:"title=HTTP CORS Allowed Origins"`
-
-	// Sets the HTTP CORS Access-Control-Allow-Headers header
-	AllowedHeaders []string `mapstructure:"cors_allowed_headers" jsonschema:"title=HTTP CORS Allowed Headers"`
-
-	// Enables debug logs for CORS
-	DebugCORS bool `mapstructure:"cors_debug" jsonschema:"title=Log CORS"`
-
-	// Sets the HTTP Cache-Control header
-	CacheControl string `mapstructure:"cache_control" jsonschema:"title=Enable Cache-Control"`
-
-	// Database configuration
-	DB Database `mapstructure:"database" jsonschema:"title=Database"`
-
-	// Local encrypted secrets configuration
-	Secrets SecretsConfig `mapstructure:"secrets" jsonschema:"title=Secrets"`
-
-	// Redis configuration
-	Redis RedisConfig `mapstructure:"redis" jsonschema:"title=Redis Configuration"`
-
-	// Response caching configuration
-	Caching CachingConfig `mapstructure:"caching" jsonschema:"title=Caching Configuration"`
-}
-
-// SecretsConfig configures secret storage for write-only config inputs.
-type SecretsConfig struct {
-	Keystore KeystoreConfig `mapstructure:"keystore" jsonschema:"title=Encrypted Keystore"`
-}
-
-// KeystoreConfig configures the local encrypted keystore.
-type KeystoreConfig struct {
-	Key  string `mapstructure:"key" jsonschema:"title=Keystore Key" jsonschema_extras:"x-graphjin-sensitive=secret"`
-	Path string `mapstructure:"path" jsonschema:"title=Keystore Path"`
-}
-
-// RateLimiter sets the API rate limits
-type RateLimiter struct {
-	Rate     float64 `jsonschema:"title=Connection Rate"`
-	Bucket   int     `jsonschema:"title=Bucket Size"`
-	IPHeader string  `mapstructure:"ip_header" jsonschema:"title=IP From HTTP Header,example=X-Forwarded-For"`
-}
-
-// RedisConfig configures Redis connection
-type RedisConfig struct {
-	URL string `mapstructure:"url" jsonschema:"title=Redis URL"`
 }
 
 // ReadInConfig reads the config file for the environment.
@@ -423,22 +330,12 @@ func (c *Config) ShouldUseJSONLogs() bool {
 	return c.Serv.LogFormat == "json" || (!c.Serv.DevMode() && c.Serv.LogFormat == "auto")
 }
 
-// DevMode returns true if the config is in development mode.
-func (s Serv) DevMode() bool {
-	return !s.Production
-}
-
 // AbsolutePath returns the absolute path of the file.
 func (c *Config) AbsolutePath(p string) string {
 	if filepath.IsAbs(p) {
 		return p
 	}
 	return filepath.Join(c.ConfigPath, p)
-}
-
-// rateLimiterEnable returns true if rate limiting is enabled.
-func (s Serv) rateLimiterEnable() bool {
-	return s.RateLimiter.Rate > 0
 }
 
 // GetConfigName returns the config file name.

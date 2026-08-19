@@ -78,7 +78,7 @@ func apiV1Handler(s1 *HttpService, ns *string, h http.Handler, ah HandlerFunc) h
 
 	h = etags.Handler(h, false)
 
-	if s.conf.rateLimiterEnable() {
+	if s.conf.Serv.RateLimiterEnabled() {
 		h = rateLimiter(s1, h)
 	}
 

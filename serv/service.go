@@ -47,6 +47,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 
 	"go.opentelemetry.io/otel"
@@ -75,6 +76,16 @@ const (
 
 type HookFn func(*core.Result)
 
+const (
+	logLevelNone int = iota
+	logLevelInfo
+	logLevelWarn
+	logLevelError
+	logLevelDebug
+)
+
+func redactRuntimeStringValue(value string) string { return value }
+
 type ResponseCache = cache.ResponseCache
 
 const defaultMemoryCacheSize = cache.DefaultMemoryCacheSize
@@ -85,6 +96,18 @@ func NewMemoryCache(conf CachingConfig, maxEntries int) (*cache.MemoryCache, err
 
 func NewRedisCache(redisURL string, conf CachingConfig) (*cache.RedisCache, error) {
 	return cache.NewRedisCache(redisURL, conf)
+}
+
+func NewDB(conf *Config, openDB bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {
+	return database.Open(database.Options{Config: conf.DB, AppName: conf.AppName, OpenDBName: openDB, Filesystem: fs, Logger: log, Retry: true})
+}
+
+func newDB(conf *Config, openDB, _ bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {
+	return NewDB(conf, openDB, log, fs)
+}
+
+func newDBOnce(conf *Config, openDB, _ bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {
+	return database.Open(database.Options{Config: conf.DB, AppName: conf.AppName, OpenDBName: openDB, Filesystem: fs, Logger: log})
 }
 
 type graphjinService struct {

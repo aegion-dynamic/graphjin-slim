@@ -12,7 +12,6 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	configmodule "github.com/aegion-dynamic/graphjin-slim/serv/v3/config"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -197,7 +196,7 @@ func readInConfig(configFile string, fs afero.Fs) (*Config, error) {
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GJ_") || strings.HasPrefix(e, "SJ_") {
 			kv := strings.SplitN(e, "=", 2)
-			util.SetKeyValue(viper, kv[0], kv[1])
+			configmodule.SetEnvironmentValue(viper, kv[0], kv[1])
 		}
 	}
 	applyConfigNameMode(viper, selectedMode)

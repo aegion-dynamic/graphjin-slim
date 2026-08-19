@@ -931,7 +931,7 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 						break
 					}
 					if dbType == "snowflake" {
-						err = wrapSnowflakeScriptError(i, stmt, isReturning || isSelect || gjIdsKey != "", err)
+						err = wrapScriptError(i, stmt, isReturning || isSelect || gjIdsKey != "", err)
 					}
 					if err != sql.ErrNoRows {
 						span.Error(err)
@@ -1082,7 +1082,7 @@ func isSQLiteLockError(err error) bool {
 	return strings.Contains(msg, "database is locked") || strings.Contains(msg, "database table is locked")
 }
 
-func wrapSnowflakeScriptError(stmtIdx int, stmt string, usesQueryPath bool, err error) error {
+func wrapScriptError(stmtIdx int, stmt string, usesQueryPath bool, err error) error {
 	kind := "exec"
 	if usesQueryPath {
 		kind = "query"
@@ -1094,10 +1094,7 @@ func wrapSnowflakeScriptError(stmtIdx int, stmt string, usesQueryPath bool, err 
 		preview = preview[:maxPreview-3] + "..."
 	}
 
-	msg := fmt.Sprintf("snowflake script statement %d (%s) failed", stmtIdx+1, kind)
-	if qid := snowflakeQueryID(err); qid != "" {
-		msg += fmt.Sprintf(" [query_id=%s]", qid)
-	}
+	msg := fmt.Sprintf("database script statement %d (%s) failed", stmtIdx+1, kind)
 	if preview != "" {
 		msg += fmt.Sprintf(": %s", preview)
 	}

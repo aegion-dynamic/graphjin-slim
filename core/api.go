@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
@@ -172,8 +173,7 @@ type GraphJin struct {
 	reloadMu sync.Mutex // serializes reload operations
 
 	// Schema change callbacks
-	schemaCallbacks []func(dbName string, hash string)
-	callbackMu      sync.RWMutex
+	schemaCallbacks engine.SchemaCallbacks
 }
 
 type Option func(*graphjinEngine) error
@@ -208,23 +208,13 @@ type SavedQuerySaveHook func(context.Context, SavedQuerySaveRequest) (handled bo
 // The callback receives the database name and a hex-encoded hash of the schema.
 // Callbacks also fire once at startup after initial schema discovery.
 func (g *GraphJin) OnSchemaChange(fn func(dbName string, hash string)) {
-	g.callbackMu.Lock()
-	defer g.callbackMu.Unlock()
-	g.schemaCallbacks = append(g.schemaCallbacks, fn)
+	g.schemaCallbacks.Register(fn)
 }
 
 // fireSchemaCallbacks invokes all registered schema change callbacks.
 // Runs each callback in a goroutine to avoid blocking the caller (which may hold reloadMu).
 func (g *GraphJin) fireSchemaCallbacks(dbName string, hash string) {
-	g.callbackMu.RLock()
-	callbacks := make([]func(string, string), len(g.schemaCallbacks))
-	copy(callbacks, g.schemaCallbacks)
-	g.callbackMu.RUnlock()
-
-	for _, fn := range callbacks {
-		fn := fn
-		go fn(dbName, hash)
-	}
+	g.schemaCallbacks.Fire(dbName, hash)
 }
 
 // DefaultDatabase returns the name of the default (primary) database.

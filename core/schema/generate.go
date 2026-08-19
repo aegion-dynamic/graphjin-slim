@@ -1,4 +1,4 @@
-package core
+package schema
 
 import (
 	"bytes"
@@ -14,36 +14,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/introspection"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
-	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 )
-
-const (
-	SchemaDDLFile           = schemapkg.SchemaDDLFile
-	LegacySchemaGraphQLFile = schemapkg.LegacySchemaGraphQLFile
-	SourceSchemaDDLDir      = schemapkg.SourceSchemaDDLDir
-	LocalStateDir           = schemapkg.LocalStateDir
-)
-
-// SourceSchemaDDLPath returns the canonical source-local DDL path.
-func SourceSchemaDDLPath(source string) string {
-	return schemapkg.SourceDDLPath(source)
-}
-
-// RuntimeSchemaDDLPath returns the generated runtime-cache DDL path.
-func RuntimeSchemaDDLPath(source string) string {
-	return schemapkg.RuntimeDDLPath(source)
-}
-
-// RuntimeSchemaSnapshotPath returns the generated full-fidelity runtime schema
-// snapshot path. The JSON snapshot is the machine cache; DDL remains the
-// human-readable companion artifact.
-func RuntimeSchemaSnapshotPath(source string) string {
-	return schemapkg.RuntimeSnapshotPath(source)
-}
-
-func sanitizeSchemaDDLName(name string) string {
-	return schemapkg.SanitizeName(name)
-}
 
 const schemaTemplate = `# dbinfo:{{if .Type}}{{ .Type }}{{else}}postgres{{end}},{{- .Version }},{{- .Schema }}
 
@@ -125,7 +96,7 @@ type {{.Name}}
 `
 
 // writeSchema writes the schema to the given writer
-func writeSchema(s *sdata.DBInfo, out io.Writer) (err error) {
+func WriteSchema(s *sdata.DBInfo, out io.Writer) (err error) {
 	fn := template.FuncMap{
 		"pascal": toPascalCase,
 		"dbtype": parseDBType,
@@ -178,7 +149,7 @@ func GenerateSchema(db *sql.DB, dbType string, blocklist []string) ([]byte, erro
 	}
 
 	var buf bytes.Buffer
-	if err := writeSchema(dbinfo, &buf); err != nil {
+	if err := WriteSchema(dbinfo, &buf); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

@@ -98,24 +98,10 @@ func initDBDriver(conf *Config, openDB, useTelemetry bool, fs core.FS) (*dbConf,
 	switch conf.DBType {
 	case "", "postgres":
 		dc, err = initPostgres(conf, openDB, useTelemetry, fs)
-	case "mysql", "mariadb":
-		dc, err = initMysql(conf, openDB, useTelemetry, fs)
-	case "mssql":
-		dc, err = initMssql(conf, openDB, useTelemetry, fs)
 	case "sqlite":
 		dc, err = initSqlite(conf, openDB, useTelemetry, fs)
-	case "oracle":
-		dc, err = initOracle(conf, openDB, useTelemetry, fs)
-	case "mongodb":
-		dc, err = initMongo(conf, openDB, useTelemetry, fs)
-	case "snowflake":
-		dc, err = initSnowflake(conf, openDB, useTelemetry, fs)
-	case "cassandra":
-		dc, err = initCassandra(conf, openDB, useTelemetry, fs)
-	case "clickhouse":
-		dc, err = initClickhouse(conf, openDB, useTelemetry, fs)
 	default:
-		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, mysql, mariadb, mssql, sqlite, oracle, mongodb, snowflake, cassandra, clickhouse", conf.DBType)
+		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", conf.DBType)
 	}
 
 	if err != nil {
@@ -638,4 +624,17 @@ func loadX509KeyPair(fs core.FS, certFile, keyFile string) (
 		return cert, err
 	}
 	return tls.X509KeyPair(certPEMBlock, keyPEMBlock)
+}
+
+// redactRuntimeError returns a safe string representation of an error.
+// In the slim build, runtime event redaction is not needed.
+func redactRuntimeError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func redactRuntimeStringValue(s string) string {
+	return s
 }

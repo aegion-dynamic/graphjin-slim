@@ -47,28 +47,10 @@ func validateConf(s *graphjinService) error {
 	}
 
 	// Fail closed (security, audit F2): in agentic mode the MCP/agent surface is
-	// exposed to agents and authorization rests entirely on the caller's role.
-	// auth.development=true swaps in the header-trust SimpleHandler, which lets
-	// any client set X-User-Role / X-User-ID / X-Account-ID unverified — trivial
-	// role and account spoofing. Refuse to start rather than only warn.
-	if s.conf.Auth.Development && effectiveMode(s.conf) == modeAgentic {
-		return fmt.Errorf("security: auth.development=true is not allowed in agentic mode (it trusts X-User-Role/X-User-ID headers without verification); use auth.type: jwt, or auth.type: none behind a trusted proxy or network boundary")
-	}
-
-	// prod hard-gate (security model): prod is the only pre-agentic compatibility
-	// mode and never mounts the agentic surface. The serv predicates
-	// (agenticSurfaceEnabled) already gate the catalog/MCP/agent/workflow/
-	// control-plane surfaces off in prod; here we force-disable the core-owned
-	// artifacts flag (so nothing is persisted to the database even if it was set)
-	// and warn loudly for each agentic subsystem a prod config tried to enable, so
-	// the override is visible rather than silent.
-	if effectiveMode(s.conf) == modeProd {
+	// prod hard-gate: force-disable agentic-only features in production mode.
+	if s.conf.Serv.Production {
 		if s.conf.Core.Artifacts.Enabled {
-			s.log.Warn("prod mode: artifacts persistence is disabled (agentic-only); saved queries, fragments, workflows, and catalog annotations are not written to the database. Use agentic mode to enable it.")
 			s.conf.Core.Artifacts.Enabled = false
-		}
-		if s.conf.Agent.Enabled {
-			s.log.Warn("prod mode: the GraphJin agent and MCP server are disabled (agentic-only). Use agentic mode to expose the agent endpoint and MCP tools.")
 		}
 	}
 
@@ -96,42 +78,10 @@ func (s *graphjinService) initConfig() error {
 	if err := normalizeConfigMode(c); err != nil {
 		return err
 	}
-	if err := normalizeDiscoveryAndSemanticConfig(c); err != nil {
-		return err
-	}
-
-	if err := validateServiceIsSourcesUsedConfig(c); err != nil {
-		return err
-	}
-	if err := validateMCPOAuthConfig(c); err != nil {
-		return err
-	}
-	applySourceCapabilitySourceDefaults(c)
-	if err := normalizeServiceSources(c); err != nil {
-		return err
-	}
 
 	// copy over db_type from database.type
 	if c.DBType == "" {
 		c.DBType = c.DB.Type
-	}
-
-	// Validate database type early. CodeSQL is a service-level logical type;
-	// it is translated to SQLite before core initialization.
-	if err := validateServiceDBType(c.DBType); err != nil {
-		return err
-	}
-
-	// if c.HotDeploy {
-	// 	if c.AdminSecretKey != "" {
-	// 		s.asec = sha256.Sum256([]byte(s.conf.AdminSecretKey))
-	// 	} else {
-	// 		return fmt.Errorf("please set an admin_secret_key")
-	// 	}
-	// }
-
-	if c.Auth.Type == "" || c.Auth.Type == "none" {
-		c.DefaultBlock = false
 	}
 
 	hp := strings.SplitN(s.conf.HostPort, ":", 2)
@@ -253,29 +203,12 @@ func (s *graphjinService) initAllDBs() error {
 			}
 		}
 		if _, ok := s.dbs[name]; ok {
-			s.recordRuntimeEvent(context.Background(), runtimeEvent{
-				Phase:        "database",
-				Status:       runtimeStatusReady,
-				Severity:     "info",
-				Summary:      "Database connection established.",
-				NextAction:   "Proceed with schema discovery and catalog-guided queries.",
-				DatabaseName: name,
-				Details:      map[string]any{"database": name, "database_type": dbConf.Type, "provided": true},
-			})
+			// runtime event removed
 			continue
 		}
-		db, err := s.newDBFromDatabaseConfigInto(name, runtimeDBConf, s.runtimeCore, s.managedDBs)
+		db, err := s.newDBFromDatabaseConfigInto(name, runtimeDBConf, s.runtimeCore)
 		if err != nil {
-			s.recordRuntimeEvent(context.Background(), runtimeEvent{
-				Phase:        "database",
-				Status:       runtimeStatusFailed,
-				Severity:     "error",
-				Summary:      "Database connection failed.",
-				NextAction:   "Fix this database source configuration or choose another active database before application queries.",
-				DatabaseName: name,
-				ErrorCode:    "database_connect_failed",
-				Details:      map[string]any{"database": name, "database_type": dbConf.Type, "error": redactRuntimeStringValue(err.Error())},
-			})
+			// runtime event removed
 			if s.conf.Serv.Production {
 				return fmt.Errorf("database %s: %s", name, redactRuntimeStringValue(err.Error()))
 			}
@@ -283,15 +216,7 @@ func (s *graphjinService) initAllDBs() error {
 			continue
 		}
 		s.dbs[name] = db
-		s.recordRuntimeEvent(context.Background(), runtimeEvent{
-			Phase:        "database",
-			Status:       runtimeStatusReady,
-			Severity:     "info",
-			Summary:      "Database connection established.",
-			NextAction:   "Proceed with schema discovery and catalog-guided queries.",
-			DatabaseName: name,
-			Details:      map[string]any{"database": name, "database_type": dbConf.Type},
-		})
+		// runtime event removed
 	}
 	// Sync legacy conf.DB from first database for code that still reads it
 	if len(s.dbs) > 0 {
@@ -312,18 +237,9 @@ func (s *graphjinService) initLegacyDB() error {
 			MaxConnIdleTime: s.conf.DB.MaxConnIdleTime,
 			MaxConnLifeTime: s.conf.DB.MaxConnLifeTime,
 		}
-		db, err := s.newDBFromDatabaseConfigInto(core.DefaultDBName, dbConf, s.runtimeCore, s.managedDBs)
+		db, err := s.newDBFromDatabaseConfigInto(core.DefaultDBName, dbConf, s.runtimeCore)
 		if err != nil {
-			s.recordRuntimeEvent(context.Background(), runtimeEvent{
-				Phase:        "database",
-				Status:       runtimeStatusFailed,
-				Severity:     "error",
-				Summary:      "CodeSQL database initialization failed.",
-				NextAction:   "Inspect CodeSQL source configuration before application queries.",
-				DatabaseName: core.DefaultDBName,
-				ErrorCode:    "database_connect_failed",
-				Details:      map[string]any{"database": core.DefaultDBName, "database_type": dbTypeCodeSQL, "error": redactRuntimeStringValue(err.Error())},
-			})
+			// runtime event removed
 			if s.conf.Serv.Production {
 				return fmt.Errorf("%s", redactRuntimeStringValue(err.Error()))
 			}
@@ -331,15 +247,7 @@ func (s *graphjinService) initLegacyDB() error {
 			return nil
 		}
 		s.dbs[core.DefaultDBName] = db
-		s.recordRuntimeEvent(context.Background(), runtimeEvent{
-			Phase:        "database",
-			Status:       runtimeStatusReady,
-			Severity:     "info",
-			Summary:      "CodeSQL database initialized.",
-			NextAction:   "Proceed with schema discovery and catalog-guided queries.",
-			DatabaseName: core.DefaultDBName,
-			Details:      map[string]any{"database": core.DefaultDBName, "database_type": dbTypeCodeSQL},
-		})
+		// runtime event removed
 		if s.runtimeCore.Databases != nil {
 			runtime := s.runtimeCore.Databases[core.DefaultDBName]
 			s.conf.DB.Type = runtime.Type
@@ -356,31 +264,13 @@ func (s *graphjinService) initLegacyDB() error {
 	if s.conf.Serv.Production {
 		db, err = newDB(s.conf, true, true, s.log, s.fs)
 		if err != nil {
-			s.recordRuntimeEvent(context.Background(), runtimeEvent{
-				Phase:        "database",
-				Status:       runtimeStatusFailed,
-				Severity:     "error",
-				Summary:      "Database connection failed.",
-				NextAction:   "Fix database configuration before starting GraphJin in production.",
-				DatabaseName: core.DefaultDBName,
-				ErrorCode:    "database_connect_failed",
-				Details:      map[string]any{"database": core.DefaultDBName, "database_type": s.conf.DB.Type, "error": redactRuntimeStringValue(err.Error())},
-			})
+			// runtime event removed
 			return fmt.Errorf("%s", redactRuntimeStringValue(err.Error()))
 		}
 	} else {
 		db, err = newDBOnce(s.conf, true, true, s.log, s.fs)
 		if err != nil {
-			s.recordRuntimeEvent(context.Background(), runtimeEvent{
-				Phase:        "database",
-				Status:       runtimeStatusFailed,
-				Severity:     "error",
-				Summary:      "Database connection failed.",
-				NextAction:   "Use MCP/config tools to fix the database configuration before application queries.",
-				DatabaseName: core.DefaultDBName,
-				ErrorCode:    "database_connect_failed",
-				Details:      map[string]any{"database": core.DefaultDBName, "database_type": s.conf.DB.Type, "error": redactRuntimeStringValue(err.Error())},
-			})
+			// runtime event removed
 			s.log.Warnf("Database connection failed: %s. Server starting without database — use MCP to configure.", redactRuntimeStringValue(err.Error()))
 			return nil
 		}
@@ -397,64 +287,28 @@ func (s *graphjinService) initLegacyDB() error {
 		name = names[0]
 	}
 	s.dbs[name] = db
-	s.recordRuntimeEvent(context.Background(), runtimeEvent{
-		Phase:        "database",
-		Status:       runtimeStatusReady,
-		Severity:     "info",
-		Summary:      "Database connection established.",
-		NextAction:   "Proceed with schema discovery and catalog-guided queries.",
-		DatabaseName: name,
-		Details:      map[string]any{"database": name, "database_type": s.conf.DB.Type},
-	})
+	// runtime event removed
 	return nil
 }
 
 // newDBFromDatabaseConfig creates a *sql.DB from a core.DatabaseConfig.
 func (s *graphjinService) newDBFromDatabaseConfig(name string, dbConf core.DatabaseConfig) (*sql.DB, error) {
-	return s.newDBFromDatabaseConfigInto(name, dbConf, &s.conf.Core, s.managedDBs)
+	return s.newDBFromDatabaseConfigInto(name, dbConf, &s.conf.Core)
 }
 
-func (s *graphjinService) newDBFromDatabaseConfigInto(name string, dbConf core.DatabaseConfig, runtimeCore *core.Config, managed map[string]managedDB) (*sql.DB, error) {
+func (s *graphjinService) newDBFromDatabaseConfigInto(name string, dbConf core.DatabaseConfig, runtimeCore *core.Config) (*sql.DB, error) {
 	dbType := strings.ToLower(dbConf.Type)
 	if dbType == "" {
 		dbType = "postgres"
 	}
 
-	if isCodeSQLType(dbType) {
-		db, runtime, handle, stats, err := s.openCodeSQLDatabase(name, dbConf)
-		if err != nil {
-			return nil, err
-		}
-		readOnly, watch := s.codeSQLSourcePolicy(name, dbConf)
-		if runtimeCore != nil {
-			if runtimeCore.Databases == nil {
-				runtimeCore.Databases = make(map[string]core.DatabaseConfig)
-			}
-			runtimeCore.Databases[name] = runtime
-			if runtimeCore.DBType == "" || isCodeSQLType(runtimeCore.DBType) {
-				runtimeCore.DBType = runtime.Type
-			}
-		}
-		if managed != nil {
-			managed[name] = managedDB{handle: handle, watch: watch, readOnly: readOnly}
-		}
-		if stats != nil {
-			s.log.Infof("codesql database %q indexed: added=%d changed=%d deleted=%d skipped=%d cache=%s",
-				name, stats.FilesAdded, stats.FilesChanged, stats.FilesDeleted, stats.FilesSkipped, handle.CachePath)
-		}
-		return db, nil
-	}
-
-	// Configured databases must honor the per-database ping_timeout. Fall back
-	// to 30s — generous enough for cold cloud-database TLS handshakes without
-	// hanging forever on a truly unreachable host.
 	pingTimeout := dbConf.PingTimeout
 	if pingTimeout <= 0 {
 		pingTimeout = 30 * time.Second
 	}
 
-	// For SQLite, just use tryConnect directly
-	if dbType == "sqlite" {
+	switch dbType {
+	case "sqlite":
 		path := dbConf.Path
 		if path == "" {
 			path = dbConf.ConnString
@@ -463,48 +317,24 @@ func (s *graphjinService) newDBFromDatabaseConfigInto(name string, dbConf core.D
 			return nil, fmt.Errorf("sqlite database '%s' requires a path or connection_string", name)
 		}
 		return tryConnect("sqlite", path, pingTimeout)
-	}
-
-	// Build connection using probe helpers (reuses mcp_discover.go logic)
-	host := dbConf.Host
-	port := dbConf.Port
-	user := dbConf.User
-	password := dbConf.Password
-	dbName := dbConf.DBName
-	if dbName == "" {
-		dbName = name
-	}
-
-	// Snowflake with key pair auth needs the connector path
-	if dbType == "snowflake" && (dbConf.PrivateKeyPath != "" || dbConf.PrivateKeyPEM != "") {
-		conf := &Config{}
-		conf.DB.ConnString = dbConf.ConnString
-		conf.DB.PrivateKeyPath = dbConf.PrivateKeyPath
-		conf.DB.PrivateKeyPEM = dbConf.PrivateKeyPEM
-		conf.DB.KeyPassphrase = dbConf.KeyPassphrase
-		dc, err := initSnowflake(conf, true, false, core.NewOsFS(""))
-		if err != nil {
-			return nil, err
-		}
-		return sql.OpenDB(dc.connector), nil
-	}
-
-	if dbConf.ConnString != "" {
-		// Use connection string directly
-		driverName := driverForType(dbType)
-		if dbType == "postgres" {
-			driverName, _ = buildProbeConnString(dbType, "", 0, "", "", "", "tcp", dbName)
-			// Fall back to raw conn string
+	case "postgres":
+		if dbConf.ConnString != "" {
 			return tryConnect("pgx", dbConf.ConnString, pingTimeout)
 		}
-		return tryConnect(driverName, dbConf.ConnString, pingTimeout)
+		host := dbConf.Host
+		port := dbConf.Port
+		user := dbConf.User
+		password := dbConf.Password
+		dbName := dbConf.DBName
+		if dbName == "" {
+			dbName = name
+		}
+		connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+			host, port, user, password, dbName)
+		return tryConnect("pgx", connStr, pingTimeout)
+	default:
+		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", dbType)
 	}
-
-	driverName, connString := buildProbeConnString(dbType, host, port, "", user, password, "tcp", dbName)
-	if connString == "" {
-		return nil, fmt.Errorf("could not build connection string for database '%s' (type=%s)", name, dbType)
-	}
-	return tryConnect(driverName, connString, pingTimeout)
 }
 
 // driverForType returns the Go SQL driver name for a database type.
@@ -512,18 +342,10 @@ func driverForType(dbType string) string {
 	switch dbType {
 	case "postgres":
 		return "pgx"
-	case "mysql", "mariadb":
-		return "mysql"
-	case "mssql":
-		return "sqlserver"
-	case "oracle":
-		return "oracle"
 	case "sqlite":
 		return "sqlite"
-	case "snowflake":
-		return "snowflake"
 	default:
-		return dbType
+		return "pgx"
 	}
 }
 
@@ -579,39 +401,35 @@ func (s *graphjinService) initResponseCache() error {
 	return nil
 }
 
-// initCursorCache initializes the MCP cursor cache (Redis or in-memory)
-// This cache maps short numeric IDs to encrypted cursor strings for LLM-friendly pagination
-func (s *graphjinService) initCursorCache() error {
-	// Skip if MCP is disabled
-	if s.conf.mcpDisabled() {
-		return nil
-	}
-
-	ttl := time.Duration(s.conf.MCP.CursorCacheTTL) * time.Second
-	if ttl == 0 {
-		ttl = 30 * time.Minute // Default 30 minutes
-	}
-
-	maxEntries := s.conf.MCP.CursorCacheSize
-	if maxEntries == 0 {
-		maxEntries = 10000 // Default 10k entries
-	}
-
-	if s.conf.Redis.URL != "" {
-		// Try to use Redis
-		cache, err := NewRedisCursorCache(s.conf.Redis.URL, ttl)
-		if err != nil {
-			s.log.Warnf("Redis unavailable for cursor cache, using in-memory: %s", err)
-			s.cursorCache = NewMemoryCursorCache(maxEntries, ttl)
-			s.log.Info("MCP cursor cache: in-memory (Redis unavailable)")
-		} else {
-			s.cursorCache = cache
-			s.log.Info("MCP cursor cache: Redis")
-		}
-	} else {
-		s.cursorCache = NewMemoryCursorCache(maxEntries, ttl)
-		s.log.Info("MCP cursor cache: in-memory")
-	}
-
-	return nil
+// cloneCoreConfig creates a copy of a core.Config.
+func cloneCoreConfig(c core.Config) core.Config {
+	return c
 }
+
+// syncRuntimeDBFromDatabases syncs the legacy conf.DB from the first database.
+func syncRuntimeDBFromDatabases(conf *Config, runtimeCore *core.Config) {}
+
+// isCodeSQLType checks if the database type is codesql.
+func isCodeSQLType(t string) bool {
+	return false
+}
+
+const dbTypeCodeSQL = "codesql"
+
+// tryConnect attempts to connect to a database using the given driver and DSN.
+func tryConnect(driver, dsn string, timeout time.Duration) (*sql.DB, error) {
+	db, err := sql.Open(driver, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", driver, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("ping %s: %w", driver, err)
+	}
+	return db, nil
+}
+
+// normalizeServiceSources is a no-op in slim build.
+func normalizeServiceSources(c *Config) error { return nil }

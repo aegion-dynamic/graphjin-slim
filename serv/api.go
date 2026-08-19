@@ -8,8 +8,7 @@
 	import (
 		"database/sql"
 		"fmt"
-		"time"
-		"github.com/aegion-dynamic/graphjin-slim/core/v3"
+			"github.com/aegion-dynamic/graphjin-slim/core/v3"
 		_ "github.com/jackc/pgx/v5/stdlib"
 	)
 
@@ -36,7 +35,6 @@ package serv
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -46,10 +44,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
-	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
-	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	otelPlugin "github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
@@ -60,6 +55,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+// HandlerFunc is the signature for auth handler functions that run before each request.
+// In the slim build, auth is handled externally by the caller.
+type HandlerFunc func(w http.ResponseWriter, r *http.Request) (context.Context, error)
 
 type HttpService struct {
 	atomic.Value
@@ -87,54 +86,26 @@ type graphjinService struct {
 	columnValuesMu        sync.Mutex         // guards the enum-value sampling attempt
 	columnValuesSampled   bool               // true once an attempt actually ran
 	columnValues          map[string][]string
-	managedDBs            map[string]managedDB
 	runtimeCore           *core.Config
 	secretStore           *localKeystore
 	metadataDB            string
 	managedArtifactDB     string
 	systemNanoDB          *core.NanoDB
 	gj                    *core.GraphJin
-	disc                  *DiscoveryManager
-	discovery             *discoveryGenerationManager
-	semantic              *semanticCatalogIndex
-	semanticEmbedder      SemanticEmbeddingClient
-	agentClientFactory    gjagent.ClientFactory
-	watchSubscribeForTest func(context.Context, watchRuntimeDefinition, json.RawMessage) (*core.Member, error)
 	srv                   *http.Server
 	srvMu                 sync.Mutex // guards srv: written by startHTTP, read by Shutdown
 	fs                    core.FS
 	coreOptions           []core.Option
-	// asec         [32]byte
-	closeFn func()
-	chash   string
-	state   servState
-	hook    HookFn
-	prod    bool
-	// deployActive bool
-	// adminCount   int32
-	namespace            *string
-	tracer               trace.Tracer
-	cache                ResponseCache // Response cache (Redis or in-memory)
-	cursorCache          CursorCache   // MCP cursor cache for short numeric IDs
-	runtimeEvents        runtimeEventStore
-	runtimeEventsMu      sync.RWMutex
-	configPreviews       *configPreviewStore
-	configMu             sync.Mutex
-	workflowMu           sync.Mutex
-	workflowCache        *workflowRegistrySnapshot
-	mcpHTTPMu            sync.Mutex
-	mcpHTTP              *mcpHTTPTransportCache
-	watchCoordMu         sync.Mutex
-	watchCoord           watchCoordinator
-	watchSnoozeMu        sync.Mutex
-	watchSnoozeLastSweep time.Time
-	revisionSignalWG     sync.WaitGroup
-	revisionConsumerWG   sync.WaitGroup
-	catalogMu            sync.Mutex
-	catalogCache         *catalogCacheEntry
-	onboardingMu         sync.RWMutex
-	onboardingCandidates map[string]cachedDiscoveredCandidate
-	authLogin            *authLoginService // built-in OIDC login (optional)
+	closeFn               func()
+	chash                 string
+	state                 servState
+	hook                  HookFn
+	prod                  bool
+	namespace             *string
+	tracer                trace.Tracer
+	cache                 ResponseCache // Response cache (Redis or in-memory)
+	configPreviews        *configPreviewStore
+	configMu              sync.Mutex
 }
 
 // anyDB returns any single connection from the dbs map (for callers
@@ -161,126 +132,17 @@ func (s *graphjinService) buildCoreOptions() []core.Option {
 }
 
 func (s *graphjinService) buildCoreOptionsWithDBs(dbs map[string]*sql.DB) []core.Option {
-	return s.buildCoreOptionsFor(dbs, s.managedDBs)
+	return s.buildCoreOptionsFor(dbs)
 }
 
-func (s *graphjinService) buildCoreOptionsFor(dbs map[string]*sql.DB, managedDBs map[string]managedDB) []core.Option {
-	controlPlane := newControlPlaneGraphQL(s)
-	artifacts := newArtifactControlPlane(s)
-	watches := newWatchControlPlane(s)
-	tasks := newTaskControlPlane(s)
-	revisions := revisionSignalHandler{service: s}
+func (s *graphjinService) buildCoreOptionsFor(dbs map[string]*sql.DB) []core.Option {
 	opts := []core.Option{
 		core.OptionSetFS(s.fs),
 		core.OptionSetTrace(otelPlugin.NewTracerFrom(s.tracer)),
-		core.OptionSetSavedQuerySaveHook(s.saveSavedQueryArtifactOrFallback),
-		core.OptionSetReservedRoleAuthorizer(s.authorizeReservedRole),
 	}
 	opts = append(opts, s.coreOptions...)
-	if s.conf != nil && (s.conf.systemControlPlaneEnabled() || s.conf.workflowsEnabled()) {
-		targetDB := s.metadataDB
-		if targetDB == "" {
-			targetDB = core.DefaultDBName
-		}
-		for _, dbName := range s.managedSystemRootDatabases(targetDB) {
-			opts = append(opts, core.OptionSetManagedMutationHandler(dbName, controlPlane))
-		}
-		if s.conf.Core.Artifacts.Enabled {
-			for _, dbName := range s.managedSystemRootDatabases(targetDB) {
-				opts = append(opts, core.OptionSetManagedQueryHandler(dbName, controlPlane))
-			}
-		}
-	}
-	if s.conf != nil && s.conf.runtimeRootRegistered() {
-		targetDB := s.metadataDB
-		if targetDB == "" {
-			targetDB = core.DefaultDBName
-		}
-		opts = append(opts, core.OptionSetManagedQueryHandler(targetDB, runtimeQueryHandler{service: s}))
-	}
-	if s.conf != nil && s.conf.Core.Artifacts.Enabled {
-		targetDB := s.metadataDB
-		if targetDB == "" {
-			targetDB = core.DefaultDBName
-		}
-		opts = append(opts, core.OptionSetManagedQueryHandler(targetDB, revisions))
-		for _, dbName := range s.managedSystemRootDatabases(targetDB) {
-			if s.systemNanoDB == nil {
-				opts = append(opts, core.OptionSetManagedQueryHandler(dbName, artifacts))
-			}
-			opts = append(opts, core.OptionSetManagedMutationHandler(dbName, artifacts))
-		}
-	}
-	if s.conf != nil && s.watchesEnabled() {
-		targetDB := s.metadataDB
-		if targetDB == "" {
-			targetDB = core.DefaultDBName
-		}
-		for _, dbName := range s.managedSystemRootDatabases(targetDB) {
-			if s.systemNanoDB == nil {
-				opts = append(opts, core.OptionSetManagedQueryHandler(dbName, watches))
-			}
-			opts = append(opts, core.OptionSetManagedMutationHandler(dbName, watches))
-		}
-	}
-	if s.conf != nil && s.tasksEnabled() {
-		targetDB := s.metadataDB
-		if targetDB == "" {
-			targetDB = core.DefaultDBName
-		}
-		for _, dbName := range s.managedSystemRootDatabases(targetDB) {
-			if s.systemNanoDB == nil {
-				opts = append(opts, core.OptionSetManagedQueryHandler(dbName, tasks))
-			}
-			opts = append(opts, core.OptionSetManagedMutationHandler(dbName, tasks))
-		}
-	}
-	if s.namespace != nil {
-		opts = append(opts, core.OptionSetNamespace(*s.namespace))
-	}
-	if s.cache != nil {
-		opts = append(opts, core.OptionSetResponseCache(s.cache))
-	}
-	if len(dbs) > 0 {
-		opts = append(opts, core.OptionSetDatabases(dbs))
-	}
-	if s.systemNanoDB != nil && s.metadataDB != "" {
-		opts = append(opts, core.OptionSetNanoDatabases(map[string]*core.NanoDB{s.metadataDB: s.systemNanoDB}))
-	}
-	for name, managed := range managedDBs {
-		if managed.handle != nil {
-			opts = append(opts, core.OptionSetManagedMutationHandler(name, codeSQLMutationAdapter{
-				managed:  managed.handle,
-				readOnly: managed.readOnly,
-			}))
-		}
-	}
-	// Register filesystem backends contributed by this package's
-	// init() blocks (s3, gcs) — gated by build tags. Local lives in
-	// core itself and is always available.
-	opts = append(opts, filesystemBackendOptions()...)
 	return opts
 }
-
-func (s *graphjinService) buildCoreOptionsForState(
-	dbs map[string]*sql.DB,
-	managedDBs map[string]managedDB,
-	conf *Config,
-	metadataDB string,
-	managedArtifactDB string,
-	systemNanoDB *core.NanoDB,
-) []core.Option {
-	if s == nil {
-		return nil
-	}
-	scoped := *s
-	scoped.conf = conf
-	scoped.metadataDB = metadataDB
-	scoped.managedArtifactDB = managedArtifactDB
-	scoped.systemNanoDB = systemNanoDB
-	return scoped.buildCoreOptionsFor(dbs, managedDBs)
-}
-
 func (s *graphjinService) managedSystemRootDatabases(primary string) []string {
 	seen := map[string]struct{}{}
 	var out []string
@@ -339,13 +201,6 @@ func (s *HttpService) Close() error {
 	if !ok || gs == nil {
 		return nil
 	}
-	gs.closeMCPHTTPTransport()
-	if gs.semantic != nil {
-		gs.semantic.Close()
-	}
-	if gs.discovery != nil {
-		gs.discovery.Close()
-	}
 	if gs.gj != nil {
 		gs.gj.Close()
 	}
@@ -355,12 +210,7 @@ func (s *HttpService) Close() error {
 	if gs.cache != nil {
 		gs.cache.Close() //nolint:errcheck
 	}
-	gs.closeRuntimeEvents()
-	closedManaged := gs.closeManagedDBs(nil)
-	for name, db := range gs.dbs {
-		if _, ok := closedManaged[name]; ok {
-			continue
-		}
+	for _, db := range gs.dbs {
 		if db != nil {
 			db.Close() //nolint:errcheck
 		}
@@ -400,37 +250,21 @@ func (s *HttpService) Shutdown(ctx context.Context) error {
 // its HTTP listener has stopped: the MCP transport, the user close hook, the
 // response cache, runtime event streams and all database connections.
 func (s *graphjinService) closeServResources() {
-	s.closeMCPHTTPTransport()
-	if s.semantic != nil {
-		s.semantic.Close()
-	}
-	if s.discovery != nil {
-		s.discovery.Close()
-	}
 	if s.closeFn != nil {
 		s.closeFn()
 	}
-	s.revisionConsumerWG.Wait()
-	s.revisionSignalWG.Wait()
 	if s.gj != nil {
 		s.gj.Close()
 	}
 	if s.cache != nil {
 		s.cache.Close() //nolint:errcheck
 	}
-	s.closeRuntimeEvents()
-	closedManaged := s.closeManagedDBs(nil)
-	for name, db := range s.dbs {
-		if _, ok := closedManaged[name]; ok {
-			continue
-		}
+	for _, db := range s.dbs {
 		if db != nil {
 			db.Close() //nolint:errcheck
-			s.log.Infof("closed database connection: %s", name)
 		}
 	}
 }
-
 // OptionSetDB sets a new db client. The connection is stored under the
 // DefaultDBName key in the dbs map for backward compatibility.
 func OptionSetDB(db *sql.DB) Option {
@@ -481,24 +315,6 @@ func OptionSetNamespace(namespace string) Option {
 func OptionSetFS(fs core.FS) Option {
 	return func(s *graphjinService) error {
 		s.fs = fs
-		return nil
-	}
-}
-
-// OptionSetSemanticEmbeddingClient replaces the Ax embedding adapter. It is
-// primarily intended for deterministic tests and private provider adapters.
-func OptionSetSemanticEmbeddingClient(client SemanticEmbeddingClient) Option {
-	return func(s *graphjinService) error {
-		s.semanticEmbedder = client
-		return nil
-	}
-}
-
-// OptionSetAgentClientFactory injects a server-side agent model client. An
-// injected client is treated exactly like configured provider credentials.
-func OptionSetAgentClientFactory(factory gjagent.ClientFactory) Option {
-	return func(s *graphjinService) error {
-		s.agentClientFactory = factory
 		return nil
 	}
 }
@@ -572,7 +388,6 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 		zlog:           zlog,
 		log:            zlog.Sugar(),
 		dbs:            dbs,
-		managedDBs:     make(map[string]managedDB),
 		configPreviews: newConfigPreviewStore(),
 		chash:          conf.hash,
 		prod:           prod,
@@ -586,66 +401,6 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 		return nil, err
 	}
 
-	// Default raw MCP execution to true in dev mode when MCP is enabled.
-	if !s.conf.Serv.Production && !s.conf.mcpDisabled() {
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_raw_queries") {
-			s.conf.MCP.AllowRawQueries = true
-			s.log.Info("MCP raw GraphQL execution enabled by default (dev mode)")
-		}
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_mutations") {
-			s.conf.MCP.AllowMutations = true
-			s.log.Info("MCP raw GraphQL mutations enabled by default (dev mode)")
-		}
-	}
-
-	// Default AllowConfigUpdates to true in dev mode when MCP is enabled
-	if !s.conf.Serv.Production && !s.conf.mcpDisabled() {
-		// Only set default if not explicitly configured by user
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_config_updates") {
-			s.conf.MCP.AllowConfigUpdates = true
-			s.log.Info("MCP config updates enabled by default (dev mode)")
-		}
-	}
-
-	// Default AllowSchemaReload to true in dev mode when MCP is enabled
-	if !s.conf.Serv.Production && !s.conf.mcpDisabled() {
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_schema_reload") {
-			s.conf.MCP.AllowSchemaReload = true
-			s.log.Info("MCP schema reload enabled by default (dev mode)")
-		}
-	}
-
-	// Default AllowSchemaUpdates to true in dev mode when MCP is enabled
-	if !s.conf.Serv.Production && !s.conf.mcpDisabled() {
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_schema_updates") {
-			s.conf.MCP.AllowSchemaUpdates = true
-			s.log.Info("MCP schema updates enabled by default (dev mode)")
-		}
-	}
-
-	// Default AllowWorkflowUpdates to true in dev mode when MCP is enabled
-	if !s.conf.Serv.Production && !s.conf.mcpDisabled() {
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_workflow_updates") {
-			s.conf.MCP.AllowWorkflowUpdates = true
-			s.log.Info("MCP workflow updates enabled by default (dev mode)")
-		}
-	}
-
-	// Default legacy MCP workflow execution to true in dev mode when MCP is enabled.
-	if !s.conf.Serv.Production && !s.conf.mcpDisabled() {
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_workflow_execution") {
-			s.conf.MCP.AllowWorkflowExecution = true
-			s.log.Info("MCP workflow execution enabled by default (dev mode)")
-		}
-	}
-
-	// Default AllowDevTools to true in dev mode when MCP is enabled
-	if !s.conf.Serv.Production && !s.conf.mcpDisabled() {
-		if s.conf.viper != nil && !s.conf.viper.IsSet("mcp.allow_dev_tools") {
-			s.conf.MCP.AllowDevTools = true
-			s.log.Info("MCP dev tools enabled by default (dev mode)")
-		}
-	}
 	applySourceCapabilityMCPDefaults(s.conf)
 
 	if err := s.initFS(); err != nil {
@@ -663,92 +418,27 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 		return nil, err
 	}
 
-	if err := s.initRuntimeObservability(); err != nil {
-		s.log.Warnf("runtime observability init error: %s", err)
+	if err := s.initDB(); err != nil {
+		return nil, err
 	}
 
-	if err := s.initDB(); err != nil {
-		s.recordRuntimeEvent(context.Background(), runtimeEvent{
-			Phase:      "database",
-			Status:     runtimeStatusFailed,
-			Severity:   "error",
-			Summary:    "Database initialization failed.",
-			NextAction: "Inspect database configuration and retry GraphJin initialization.",
-			ErrorCode:  "database_init_failed",
-			Details:    map[string]any{"error": err.Error()},
-		})
-		return nil, err
-	}
 	if err := s.initManagedArtifactStore(); err != nil {
-		return nil, err
+		s.log.Warnf("artifact store init error: %s", err)
 	}
 
 	// Initialize Redis cache (non-fatal if unavailable)
 	if err := s.initResponseCache(); err != nil {
 		s.log.Warnf("response cache init error: %s", err)
 	}
-	s.bindCodeSQLCacheHooks()
 
-	// Initialize MCP cursor cache (non-fatal if unavailable)
-	if err := s.initCursorCache(); err != nil {
-		s.log.Warnf("cursor cache init error: %s", err)
-	}
-
-	// Initialize built-in OIDC login (non-fatal if disabled)
-	if s.conf.AuthLogin.Enabled {
-		als, err := newAuthLoginService(context.Background(), s.conf)
-		if err != nil {
-			return nil, fmt.Errorf("auth_login: %w", err)
-		}
-		s.authLogin = als
-		s.log.Infof("auth_login: enabled (oidc issuer: %s)", s.conf.AuthLogin.OIDC.IssuerURL)
-	}
-
-	// if s.deployActive {
-	// 	err = s.hotStart()
-	// } else {
 	err = s.normalStart()
-	// }
-
 	if err != nil {
-		s.recordRuntimeEvent(context.Background(), runtimeEvent{
-			Phase:      "graphjin_init",
-			Status:     runtimeStatusFailed,
-			Severity:   "error",
-			Summary:    "GraphJin core initialization failed.",
-			NextAction: "Inspect gj_runtime events and repair configuration or database connectivity before retrying.",
-			ErrorCode:  "graphjin_init_failed",
-			Details:    map[string]any{"error": err.Error()},
-		})
-		if isNonRecoverableStartupError(err) {
-			return nil, err
-		}
 		if !s.conf.Serv.Production {
-			s.gj = nil // Ensure gj is nil so checkGraphJinInitialized() works
+			s.gj = nil
 			s.log.Warnf("GraphJin core initialization failed: %s", err)
-			s.log.Warn("Server starting without query engine — use MCP to fix the configuration")
-			// Continue with gj = nil, MCP tools still work
 		} else {
 			return nil, err
 		}
-	}
-	if err == nil {
-		s.recordRuntimeEvent(context.Background(), runtimeEvent{
-			Phase:       "graphjin_init",
-			Status:      runtimeStatusReady,
-			Severity:    "info",
-			Summary:     "GraphJin core initialized successfully.",
-			NextAction:  "Use gj_runtime after errors or before guarded workflow, config, or schema actions.",
-			SchemaReady: s.gj != nil && s.gj.SchemaReady(),
-		})
-		s.registerRuntimeSchemaCallbacks()
-		if werr := s.startLocalFilesystemCacheWatchers(); werr != nil {
-			s.log.Warnf("filesystem cache watcher init error: %s", werr)
-		}
-		s.startProjectionPoller(context.Background())
-		s.startWatchCoordinator(context.Background())
-		s.startWatchRunner(context.Background())
-		s.startTaskVerifier(context.Background())
 	}
 
 	s.state = servStarted
@@ -757,23 +447,12 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 
 // normalStart starts the service in normal mode
 func (s *graphjinService) normalStart() error {
-	if err := s.initArtifactsBeforeCore(); err != nil {
-		return err
-	}
-	if err := s.initMetadataGraphBeforeCore(); err != nil {
-		return err
-	}
-	if s.systemNanoDB == nil {
-		if err := s.ensureSystemHostDBBeforeCore(); err != nil {
-			return err
-		}
-	}
 	// Skip GraphJin core initialization if no database is configured (dev mode only)
-	if len(s.dbs) == 0 && (s.systemNanoDB == nil || !s.conf.Core.IsSourcesUsed()) {
-		if !s.conf.Serv.Production {
-			s.log.Info("GraphJin core not initialized - waiting for database configuration via MCP")
-			return nil
-		}
+	if len(s.dbs) == 0 && !s.conf.Serv.Production {
+		s.log.Info("GraphJin core not initialized - waiting for database configuration")
+		return nil
+	}
+	if len(s.dbs) == 0 {
 		return fmt.Errorf("no database source configured")
 	}
 
@@ -781,47 +460,12 @@ func (s *graphjinService) normalStart() error {
 	if s.runtimeCore != nil {
 		coreConf = s.runtimeCore
 	}
-	s.injectInternalStoreRole()
 	opts := s.buildCoreOptions()
-	if s.conf.DiscoveryCache.enabled() {
-		manager, err := newDiscoveryGenerationManager(s)
-		if err != nil {
-			return err
-		}
-		dir, err := manager.InitialGeneration(context.Background(), coreConf, opts)
-		if err != nil {
-			manager.Close()
-			return err
-		}
-		s.discovery = manager
-		opts = append(opts,
-			core.OptionSetDBSchemaWatcherDisabled(true),
-			core.OptionSetRuntimeSchemaDDLDir(dir),
-			core.OptionSetRuntimeSchemaCacheFirst(true),
-			core.OptionSetRuntimeSchemaCacheRequired(true),
-		)
-	}
 
 	var err error
 	s.gj, err = core.NewGraphJin(coreConf, s.anyDB(), opts...)
 	if err != nil {
 		return err
-	}
-	if err := s.refreshMetadataGraph(); err != nil {
-		return err
-	}
-	s.disc = NewDiscoveryManager(s.gj)
-	if s.conf.CatalogSearch.Semantic.Enabled {
-		semantic, err := newSemanticCatalogIndex(s)
-		if err != nil {
-			s.log.Warnf("semantic catalog initialization failed; using lexical search: %s", redactRuntimeError(err))
-		} else {
-			s.semantic = semantic
-			semantic.Start()
-		}
-	}
-	if s.discovery != nil {
-		s.discovery.Start()
 	}
 	return nil
 }
@@ -888,7 +532,6 @@ func (s *HttpService) Deploy(conf *Config, options ...Option) error {
 	}
 	s1.srv = os.srv
 	s1.namespace = os.namespace
-	os.closeMCPHTTPTransport()
 	if os.closeFn != nil {
 		os.closeFn()
 	}
@@ -950,35 +593,23 @@ func (s *HttpService) attach(mux Mux, ns *string) error {
 }
 
 // GraphQLis the http handler the GraphQL endpoint
-func (s *HttpService) GraphQL(ah auth.HandlerFunc) http.Handler {
+func (s *HttpService) GraphQL(ah HandlerFunc) http.Handler {
 	return s.apiHandler(nil, ah, false)
 }
 
 // GraphQLWithNS is the http handler the namespaced GraphQL endpoint
-func (s *HttpService) GraphQLWithNS(ah auth.HandlerFunc, ns string) http.Handler {
+func (s *HttpService) GraphQLWithNS(ah HandlerFunc, ns string) http.Handler {
 	return s.apiHandler(&ns, ah, false)
 }
 
 // REST is the http handler the REST endpoint
-func (s *HttpService) REST(ah auth.HandlerFunc) http.Handler {
+func (s *HttpService) REST(ah HandlerFunc) http.Handler {
 	return s.apiHandler(nil, ah, true)
 }
 
 // RESTWithNS is the http handler the namespaced REST endpoint
-func (s *HttpService) RESTWithNS(ah auth.HandlerFunc, ns string) http.Handler {
+func (s *HttpService) RESTWithNS(ah HandlerFunc, ns string) http.Handler {
 	return s.apiHandler(&ns, ah, true)
-}
-
-// Workflows is the http handler for named JS workflows.
-func (s *HttpService) Workflows(ah auth.HandlerFunc) http.Handler {
-	h := s.apiV1Workflows(nil)
-	return apiV1Handler(s, nil, h, ah)
-}
-
-// WorkflowsWithNS is the namespaced http handler for named JS workflows.
-func (s *HttpService) WorkflowsWithNS(ah auth.HandlerFunc, ns string) http.Handler {
-	h := s.apiV1Workflows(&ns)
-	return apiV1Handler(s, &ns, h, ah)
 }
 
 // OpenAPI is the http handler for the OpenAPI specification endpoint
@@ -991,7 +622,7 @@ func (s *HttpService) OpenAPIWithNS(ns string) http.Handler {
 	return s.openAPIHandler(&ns)
 }
 
-func (s *HttpService) apiHandler(ns *string, ah auth.HandlerFunc, rest bool) http.Handler {
+func (s *HttpService) apiHandler(ns *string, ah HandlerFunc, rest bool) http.Handler {
 	var h http.Handler
 	if rest {
 		h = s.apiV1Rest(ns, ah)
@@ -1024,9 +655,6 @@ func (s *HttpService) Reload() error {
 	if s1.gj == nil {
 		return errors.New("graphjin: engine not initialized")
 	}
-	if s1.discovery != nil {
-		return s1.discovery.RefreshNow(context.Background())
-	}
 	return s1.gj.Reload()
 }
 
@@ -1045,3 +673,6 @@ func spanError(span trace.Span, err error) {
 		span.SetStatus(codes.Error, err.Error())
 	}
 }
+
+// applySourceCapabilityMCPDefaults is a no-op in slim build.
+func applySourceCapabilityMCPDefaults(c *Config) {}

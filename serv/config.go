@@ -10,7 +10,6 @@ import (
 	"time"
 
 	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
-	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 	"github.com/go-viper/mapstructure/v2"
@@ -19,9 +18,7 @@ import (
 )
 
 type (
-	Core      = core.Config
-	Auth      = auth.Auth
-	JWTConfig = auth.JWTConfig
+	Core = core.Config
 )
 
 //go:generate go run ./internal/tools -o config.schema.json
@@ -139,9 +136,6 @@ type Serv struct {
 
 	// Telemetry struct contains OpenCensus metrics and tracing related config
 	// Telemetry Telemetry
-
-	// Sets the default authentication used by the service
-	Auth Auth `jsonschema:"title=Authentication"`
 
 	// Database configuration
 	DB Database `mapstructure:"database" jsonschema:"title=Database"`
@@ -1276,6 +1270,7 @@ func newViper(configPath, configFile string) *viper.Viper {
 // func (c *Config) telemetryEnabled() bool {
 // 	return c.Telemetry.Debug || c.Telemetry.Metrics.Exporter != "" || c.Telemetry.Tracing.Exporter != ""
 // }
+
 
 // AbsolutePath returns the absolute path of the file
 func (c *Config) AbsolutePath(p string) string {

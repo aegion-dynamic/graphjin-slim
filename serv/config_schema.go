@@ -35,6 +35,10 @@ const (
 // derived once by reflection so it stays in sync with the struct definition.
 var servTopLevelKeys = buildTopLevelKeys(reflect.TypeOf(Serv{}))
 
+// servWritableReload maps config keys to their reload behavior ("hot" or "restart").
+// Stubbed for slim build; MCP config updates are not available.
+var servWritableReload = map[string]string{}
+
 func buildTopLevelKeys(t reflect.Type) map[string]bool {
 	keys := map[string]bool{}
 	for i := 0; i < t.NumField(); i++ {

@@ -722,3 +722,9 @@ func compactStrings(values []string) []string {
 	}
 	return out
 }
+
+// isSensitiveConfigKey checks if a config key contains sensitive data.
+func isSensitiveConfigKey(key string) bool {
+	lower := strings.ToLower(key)
+	return strings.Contains(lower, "secret") || strings.Contains(lower, "password") || strings.Contains(lower, "key")
+}

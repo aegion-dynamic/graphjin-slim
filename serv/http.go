@@ -12,9 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/etags"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/rs/cors"
@@ -56,23 +54,8 @@ type errorResp struct {
 }
 
 // apiV1Handler is the main handler for all API requests
-func apiV1Handler(s1 *HttpService, ns *string, h http.Handler, ah auth.HandlerFunc) http.Handler {
-	var zlog *zap.Logger
+func apiV1Handler(s1 *HttpService, ns *string, h http.Handler, ah HandlerFunc) http.Handler {
 	s := s1.Load().(*graphjinService)
-
-	if s.conf.Debug {
-		zlog = s.zlog
-	}
-
-	if ah != nil {
-		ah = s.observeAuthHandler(ah)
-		authOpt := auth.Options{AuthFailBlock: s.conf.AuthFailBlock}
-		useAuth, err := auth.NewAuth(s.conf.Auth, zlog, authOpt, ah)
-		if err != nil {
-			s.log.Fatalf("api: error with auth: %s", err)
-		}
-		h = useAuth(h)
-	}
 
 	if len(s.conf.AllowedOrigins) != 0 {
 		allowedHeaders := []string{
@@ -113,7 +96,7 @@ func apiV1Handler(s1 *HttpService, ns *string, h http.Handler, ah auth.HandlerFu
 }
 
 // apiV1GraphQLHandler handles the GraphQL API requests
-func (s1 *HttpService) apiV1GraphQL(ns *string, ah auth.HandlerFunc) http.Handler {
+func (s1 *HttpService) apiV1GraphQL(ns *string, ah HandlerFunc) http.Handler {
 	dtrace := otel.GetTextMapPropagator()
 
 	h := func(w http.ResponseWriter, r *http.Request) {
@@ -124,11 +107,6 @@ func (s1 *HttpService) apiV1GraphQL(ns *string, ah auth.HandlerFunc) http.Handle
 
 		w.Header().Set("Content-Type", "application/json")
 
-		if isWebSocketUpgrade(r) {
-			s.apiV1Ws(w, r, ah)
-			return
-		}
-
 		var req gqlReq
 
 		ctx, opts := newDTrace(dtrace, r)
@@ -137,23 +115,6 @@ func (s1 *HttpService) apiV1GraphQL(ns *string, ah auth.HandlerFunc) http.Handle
 
 		switch r.Method {
 		case "POST":
-			if isMultipartRequest(r) {
-				if !s.conf.Uploads.Enabled {
-					err = errMultipartDisabled
-					break
-				}
-				var backend fstable.Backend
-				if name := s.conf.Uploads.Storage; name != "" {
-					b, ok := s.gj.FilesystemBackend(name)
-					if !ok {
-						err = fmt.Errorf("uploads: storage filesystem %q not configured", name)
-						break
-					}
-					backend = b
-				}
-				req, err = parseMultipartGraphQL(r, s.conf.Uploads, backend)
-				break
-			}
 			var b []byte
 			b, err = io.ReadAll(io.LimitReader(r.Body, maxReadBytes))
 			if err == nil {
@@ -191,17 +152,9 @@ func (s1 *HttpService) apiV1GraphQL(ns *string, ah auth.HandlerFunc) http.Handle
 		if ns != nil {
 			rc.SetNamespace(*ns)
 		}
-		ctx = s.applyIdentityContext(ctx)
-
-		if isSSERequest(r) {
-			s.apiV1SSE(ctx, w, r, req, &rc)
-			return
-		}
-
 		if req.OpName == "subscription" {
-			err := errors.New("use websockets or SSE (Accept: text/event-stream) for subscriptions")
+			err := errors.New("subscriptions not supported in slim build")
 			spanError(span, err)
-			renderErr(w, err)
 			return
 		}
 
@@ -211,7 +164,6 @@ func (s1 *HttpService) apiV1GraphQL(ns *string, ah auth.HandlerFunc) http.Handle
 		}
 
 		res, err := s.gj.GraphQL(ctx, req.Query, req.Vars, &rc)
-		s.recordGraphQLAccessFailures(ctx, req.Query, res, err)
 		if res == nil && err != nil {
 			renderErr(w, err)
 			return
@@ -241,7 +193,7 @@ func (s1 *HttpService) apiV1GraphQL(ns *string, ah auth.HandlerFunc) http.Handle
 }
 
 // apiV1Rest returns a handler that handles the REST API requests
-func (s1 *HttpService) apiV1Rest(ns *string, ah auth.HandlerFunc) http.Handler {
+func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
 	rLen := len(routeREST)
 	dtrace := otel.GetTextMapPropagator()
 
@@ -252,11 +204,6 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah auth.HandlerFunc) http.Handler {
 		s := s1.Load().(*graphjinService)
 
 		w.Header().Set("Content-Type", "application/json")
-
-		if isWebSocketUpgrade(r) {
-			s.apiV1Ws(w, r, ah)
-			return
-		}
 
 		var vars json.RawMessage
 		var span trace.Span
@@ -300,14 +247,13 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah auth.HandlerFunc) http.Handler {
 		if ns != nil {
 			rc.SetNamespace(*ns)
 		}
-		ctx = s.applyIdentityContext(ctx)
 
 		if err := s.checkGraphJinInitialized(); err != nil {
 			renderErr(w, err)
 			return
 		}
 
-		res, err := s.executeSavedQueryByName(ctx, queryName, vars, &rc)
+		res, err := s.gj.GraphQLByName(ctx, queryName, vars, &rc)
 		s.responseHandler(
 			ctx,
 			w,

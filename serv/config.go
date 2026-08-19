@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/afero"
@@ -16,7 +17,8 @@ import (
 )
 
 type (
-	Core = core.Config
+	Core     = core.Config
+	Database = database.Config
 )
 
 //go:generate go run ./internal/tools -o config.schema.json

@@ -1,9 +1,10 @@
-package serv
+// Package database contains service database configuration and adapters.
+package database
 
 import "time"
 
-// Database contains connection and pool settings for the supported drivers.
-type Database struct {
+// Config contains connection and pool settings for the supported drivers.
+type Config struct {
 	ConnString string `mapstructure:"connection_string" jsonschema:"title=Connection String"`
 	Type       string `jsonschema:"title=Type,enum=postgres,enum=sqlite"`
 	Host       string `jsonschema:"title=Host"`

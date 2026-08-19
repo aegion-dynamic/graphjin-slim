@@ -20,9 +20,6 @@ import (
 	"github.com/snowflakedb/gosnowflake"
 	"go.uber.org/zap"
 
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/microsoft/go-mssqldb"
-	_ "github.com/sijms/go-ora/v2"
 	_ "modernc.org/sqlite"
 )
 
@@ -55,27 +52,8 @@ func detectDBType(conf *Config) {
 		if strings.HasPrefix(cs, "postgres://") || strings.HasPrefix(cs, "postgresql://") || conf.DB.Type == "postgres" {
 			conf.DBType = "postgres"
 		}
-		if strings.HasPrefix(cs, "mysql://") {
-			conf.DBType = "mysql"
-			conf.DB.ConnString = strings.TrimPrefix(cs, "mysql://")
-		}
-		if strings.HasPrefix(cs, "sqlserver://") {
-			conf.DBType = "mssql"
-		}
-		if strings.HasPrefix(cs, "oracle://") {
-			conf.DBType = "oracle"
-		}
-		if strings.HasPrefix(cs, "mongodb://") || strings.HasPrefix(cs, "mongodb+srv://") {
-			conf.DBType = "mongodb"
-		}
-		if strings.HasPrefix(cs, "snowflake://") {
-			conf.DBType = "snowflake"
-		}
-		if strings.HasPrefix(cs, "cassandra://") {
-			conf.DBType = "cassandra"
-		}
-		if strings.HasPrefix(cs, "clickhouse://") {
-			conf.DBType = "clickhouse"
+		if strings.HasPrefix(cs, "sqlite:") || strings.HasPrefix(cs, "file:") {
+			conf.DBType = "sqlite"
 		}
 	}
 }

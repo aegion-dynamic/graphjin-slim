@@ -13,16 +13,9 @@ func TestValidateDBType(t *testing.T) {
 	}{
 		{"empty string defaults to postgres", "", false},
 		{"postgres is valid", "postgres", false},
-		{"mysql is valid", "mysql", false},
-		{"mariadb is valid", "mariadb", false},
 		{"sqlite is valid", "sqlite", false},
-		{"oracle is valid", "oracle", false},
 		{"case insensitive", "PostgreS", false},
 		{"invalid type", "invalid", true},
-		{"mongodb is valid", "mongodb", false},
-		{"mssql is valid", "mssql", false},
-		{"snowflake is valid", "snowflake", false},
-		{"redshift is valid", "redshift", false},
 	}
 
 	for _, tt := range tests {
@@ -46,14 +39,7 @@ func TestValidateMultiDBType(t *testing.T) {
 	}{
 		{"empty string defaults to postgres", "", false},
 		{"postgres is valid", "postgres", false},
-		{"mysql is valid", "mysql", false},
-		{"mariadb is valid", "mariadb", false},
 		{"sqlite is valid", "sqlite", false},
-		{"oracle is valid", "oracle", false},
-		{"mongodb is valid for multi-db", "mongodb", false},
-		{"mssql is valid for multi-db", "mssql", false},
-		{"snowflake is valid for multi-db", "snowflake", false},
-		{"redshift is valid for multi-db", "redshift", false},
 		{"case insensitive", "PostgreS", false},
 		{"invalid type", "invalid", true},
 	}
@@ -131,7 +117,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				DBType: "postgres",
 				Databases: map[string]DatabaseConfig{
-					"secondary": {Type: "mysql"},
+					"secondary": {Type: "sqlite"},
 				},
 			},
 			wantErr: false,
@@ -146,36 +132,6 @@ func TestConfigValidate(t *testing.T) {
 			},
 			wantErr: true,
 			errMsg:  "database \"secondary\"",
-		},
-		{
-			name: "mongodb valid in multi-db",
-			config: Config{
-				DBType: "postgres",
-				Databases: map[string]DatabaseConfig{
-					"mongo": {Type: "mongodb"},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "snowflake valid in multi-db",
-			config: Config{
-				DBType: "postgres",
-				Databases: map[string]DatabaseConfig{
-					"snowflake": {Type: "snowflake"},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "redshift valid in multi-db",
-			config: Config{
-				DBType: "postgres",
-				Databases: map[string]DatabaseConfig{
-					"redshift": {Type: "redshift"},
-				},
-			},
-			wantErr: false,
 		},
 		{
 			name: "legacy codesql database rejected",
@@ -300,15 +256,6 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Sources:   []SourceConfig{{Name: "code", Kind: "code", Type: "sqlite"}},
 				Artifacts: ArtifactsConfig{Enabled: true, Source: "code"},
-			},
-			wantErr: true,
-			errMsg:  "writable SQL database source",
-		},
-		{
-			name: "sources used rejects artifact source on mongodb",
-			config: Config{
-				Sources:   []SourceConfig{{Name: "mongo", Kind: "database", Type: "mongodb"}},
-				Artifacts: ArtifactsConfig{Enabled: true, Source: "mongo"},
 			},
 			wantErr: true,
 			errMsg:  "writable SQL database source",
@@ -461,14 +408,6 @@ func TestValidateNormalizedRuntimeArtifactSource(t *testing.T) {
 		}
 	})
 
-	t.Run("non-SQL runtime database is rejected", func(t *testing.T) {
-		conf := base()
-		conf.Databases[conf.Artifacts.Source] = DatabaseConfig{Type: "nanodb"}
-		err := conf.ValidateIsSourcesUsed()
-		if err == nil || !strings.Contains(err.Error(), "must be a writable SQL database source") {
-			t.Fatalf("ValidateIsSourcesUsed error = %v, want SQL source rejection", err)
-		}
-	})
 }
 
 // TestNormalizeModeFailsClosedInSourceMode locks in audit finding F1: a source-mode

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/lifecycle"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -58,14 +59,7 @@ func startHTTP(s1 *HttpService) {
 		s.log.Fatalf("error setting up routes: %s", err)
 	}
 
-	srv := &http.Server{
-		Addr:              s.conf.hostPort,
-		Handler:           routes,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		MaxHeaderBytes:    1 << 20,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
+	srv := lifecycle.NewServer(s.conf.hostPort, routes)
 	// Publish srv under srvMu so a concurrent Shutdown (signal handler or an
 	// external caller, e.g. demo mode) observes it safely.
 	s.srvMu.Lock()

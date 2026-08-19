@@ -46,7 +46,6 @@ import (
 	"sync/atomic"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
-	otelPlugin "github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 
 	"go.opentelemetry.io/otel"
@@ -138,7 +137,6 @@ func (s *graphjinService) buildCoreOptionsWithDBs(dbs map[string]*sql.DB) []core
 func (s *graphjinService) buildCoreOptionsFor(dbs map[string]*sql.DB) []core.Option {
 	opts := []core.Option{
 		core.OptionSetFS(s.fs),
-		core.OptionSetTrace(otelPlugin.NewTracerFrom(s.tracer)),
 	}
 	opts = append(opts, s.coreOptions...)
 	return opts
@@ -501,7 +499,7 @@ func (s *graphjinService) normalStart() error {
 //
 // 	opts := []core.Option{
 // 		core.OptionSetFS(newAferoFS(bfs.fs, "/")),
-// 		core.OptionSetTrace(otelPlugin.NewTracerFrom(s.tracer)),
+// 		core.OptionSetTrace(trace.NewNoopTracerProvider().Tracer("noop")),
 // 	}
 //
 // 	if s.namespace != nil {

@@ -15,12 +15,9 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
-	"github.com/aegion-dynamic/graphjin-slim/mongodriver"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/snowflakedb/gosnowflake"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -392,36 +389,6 @@ func initOracle(conf *Config, openDB, useTelemetry bool, fs core.FS) (*dbConf, e
 }
 
 // initMongo initializes the mongodb database using the mongodriver connector
-func initMongo(conf *Config, openDB, useTelemetry bool, fs core.FS) (*dbConf, error) {
-	connString := conf.DB.ConnString
-	if connString == "" {
-		if conf.DB.Host == "" {
-			return nil, fmt.Errorf("mongodb requires a connection string or host")
-		}
-		port := conf.DB.Port
-		if port == 0 || (conf.DB.Type != "postgres" && port == 5432) {
-			port = 27017
-		}
-		connString = fmt.Sprintf("mongodb://%s:%d", conf.DB.Host, port)
-		if conf.DB.User != "" {
-			connString = fmt.Sprintf("mongodb://%s:%s@%s:%d",
-				conf.DB.User, conf.DB.Password, conf.DB.Host, port)
-		}
-	}
-
-	dbName := conf.DB.DBName
-	if dbName == "" {
-		dbName = "graphjin"
-	}
-
-	client, err := mongo.Connect(options.Client().ApplyURI(connString))
-	if err != nil {
-		return nil, fmt.Errorf("mongodb connect: %w", err)
-	}
-
-	connector := mongodriver.NewConnector(client, dbName)
-	return &dbConf{driverName: "mongodb", connector: connector}, nil
-}
 
 var snowflakeLogOnce sync.Once
 

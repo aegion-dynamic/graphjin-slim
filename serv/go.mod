@@ -8,14 +8,7 @@ require (
 	github.com/ax-llm/ax/packages/go v0.0.0-20260817012209-94681b903c12
 	github.com/coder/websocket v1.8.15
 	github.com/dop251/goja v0.0.0-20260219130522-0ba9a5494a59
-	github.com/aegion-dynamic/graphjin-slim/agent/v3 v3.20.29
-	github.com/aegion-dynamic/graphjin-slim/auth/v3 v3.20.29
-	github.com/aegion-dynamic/graphjin-slim/cassandradriver v0.0.0
-	github.com/aegion-dynamic/graphjin-slim/clickhousedriver v0.0.0
-	github.com/aegion-dynamic/graphjin-slim/codesql v0.0.0
 	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.20.29
-	github.com/aegion-dynamic/graphjin-slim/mongodriver v0.0.0
-	github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3 v3.20.29
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a
 	github.com/go-pkgz/expirable-cache v1.0.0
@@ -52,14 +45,7 @@ require (
 )
 
 replace (
-	github.com/aegion-dynamic/graphjin-slim/agent/v3 => ../agent
-	github.com/aegion-dynamic/graphjin-slim/auth/v3 => ../auth
-	github.com/aegion-dynamic/graphjin-slim/cassandradriver => ../cassandradriver
-	github.com/aegion-dynamic/graphjin-slim/clickhousedriver => ../clickhousedriver
-	github.com/aegion-dynamic/graphjin-slim/codesql => ../codesql
 	github.com/aegion-dynamic/graphjin-slim/core/v3 => ../core
-	github.com/aegion-dynamic/graphjin-slim/mongodriver => ../mongodriver
-	github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3 => ../plugin/otel
 )
 
 require (

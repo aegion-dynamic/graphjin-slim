@@ -1,5 +1,0 @@
-query recent_usage_quantity {
-  usage_events {
-    sum_quantity
-  }
-}

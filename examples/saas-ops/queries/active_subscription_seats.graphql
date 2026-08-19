@@ -1,5 +1,0 @@
-query active_subscription_seats {
-  subscriptions(where: { status: { eq: "active" } }) {
-    sum_seats
-  }
-}

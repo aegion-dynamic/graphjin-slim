@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 )
 
 // initLogLevel initializes the log level
@@ -297,56 +297,7 @@ func (s *graphjinService) newDBFromDatabaseConfig(name string, dbConf core.Datab
 }
 
 func (s *graphjinService) newDBFromDatabaseConfigInto(name string, dbConf core.DatabaseConfig, runtimeCore *core.Config) (*sql.DB, error) {
-	dbType := strings.ToLower(dbConf.Type)
-	if dbType == "" {
-		dbType = "postgres"
-	}
-
-	pingTimeout := dbConf.PingTimeout
-	if pingTimeout <= 0 {
-		pingTimeout = 30 * time.Second
-	}
-
-	switch dbType {
-	case "sqlite":
-		path := dbConf.Path
-		if path == "" {
-			path = dbConf.ConnString
-		}
-		if path == "" {
-			return nil, fmt.Errorf("sqlite database '%s' requires a path or connection_string", name)
-		}
-		return tryConnect("sqlite", path, pingTimeout)
-	case "postgres":
-		if dbConf.ConnString != "" {
-			return tryConnect("pgx", dbConf.ConnString, pingTimeout)
-		}
-		host := dbConf.Host
-		port := dbConf.Port
-		user := dbConf.User
-		password := dbConf.Password
-		dbName := dbConf.DBName
-		if dbName == "" {
-			dbName = name
-		}
-		connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			host, port, user, password, dbName)
-		return tryConnect("pgx", connStr, pingTimeout)
-	default:
-		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", dbType)
-	}
-}
-
-// driverForType returns the Go SQL driver name for a database type.
-func driverForType(dbType string) string {
-	switch dbType {
-	case "postgres":
-		return "pgx"
-	case "sqlite":
-		return "sqlite"
-	default:
-		return "pgx"
-	}
+	return database.OpenCore(context.Background(), name, dbConf)
 }
 
 // basePath returns the base path
@@ -415,21 +366,6 @@ func isCodeSQLType(t string) bool {
 }
 
 const dbTypeCodeSQL = "codesql"
-
-// tryConnect attempts to connect to a database using the given driver and DSN.
-func tryConnect(driver, dsn string, timeout time.Duration) (*sql.DB, error) {
-	db, err := sql.Open(driver, dsn)
-	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", driver, err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("ping %s: %w", driver, err)
-	}
-	return db, nil
-}
 
 // normalizeServiceSources is a no-op in slim build.
 func normalizeServiceSources(c *Config) error { return nil }

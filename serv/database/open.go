@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -25,6 +26,54 @@ type Options struct {
 	Filesystem core.FS
 	Logger     *zap.SugaredLogger
 	Retry      bool
+}
+
+// OpenCore opens a named database from the core source configuration. It is
+// used for multi-source service startup where each source has its own name.
+func OpenCore(ctx context.Context, name string, c core.DatabaseConfig) (*sql.DB, error) {
+	dbType := strings.ToLower(strings.TrimSpace(c.Type))
+	if dbType == "" {
+		dbType = "postgres"
+	}
+	timeout := c.PingTimeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	var driverName, dsn string
+	switch dbType {
+	case "sqlite":
+		dsn = c.Path
+		if dsn == "" {
+			dsn = c.ConnString
+		}
+		if dsn == "" {
+			return nil, fmt.Errorf("sqlite database %q requires a path or connection_string", name)
+		}
+		driverName = "sqlite"
+	case "postgres":
+		dsn = c.ConnString
+		if dsn == "" {
+			dbName := c.DBName
+			if dbName == "" {
+				dbName = name
+			}
+			dsn = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", c.Host, c.Port, c.User, c.Password, dbName)
+		}
+		driverName = "pgx"
+	default:
+		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", c.Type)
+	}
+	db, err := sql.Open(driverName, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", driverName, err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		db.Close() //nolint:errcheck
+		return nil, fmt.Errorf("ping %s: %w", driverName, err)
+	}
+	return db, nil
 }
 
 // Open opens and pings a supported database.

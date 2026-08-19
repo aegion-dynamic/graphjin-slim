@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -18,8 +19,7 @@ import (
 var version string
 
 const (
-	serverName = "GraphJin"
-	defaultHP  = "0.0.0.0:8080"
+	defaultHP = httpapi.DefaultHostPort
 )
 
 // Initialize the watcher for the graphjin config file
@@ -133,15 +133,6 @@ func startHTTP(s1 *HttpService) {
 	// HttpService.Shutdown) was requested. Release the service resources.
 	s.closeServResources()
 	s.log.Info("shutdown complete")
-}
-
-// Set the server header
-func setServerHeader(h http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", serverName)
-		h.ServeHTTP(w, r)
-	}
-	return http.HandlerFunc(fn)
 }
 
 // printDevModeInfo prints useful development information on startup

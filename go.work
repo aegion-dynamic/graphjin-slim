@@ -16,5 +16,4 @@ use (
 	./plugin/otel
 	./serv
 	./tests
-	./wasm
 )

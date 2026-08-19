@@ -1,3 +1,0 @@
-{{- $css := readFile "static/css/site.css" -}}
-{{- $js := readFile "static/js/site.js" -}}
-{{- substr (md5 (print $css $js)) 0 10 -}}

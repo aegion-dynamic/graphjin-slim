@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/core/v3/featurecap"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/featurecap"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap/zaptest"

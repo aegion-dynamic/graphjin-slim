@@ -16,8 +16,8 @@ import (
 
 	"go.uber.org/zap/zapcore"
 
-	"github.com/dosco/graphjin/auth/v3"
-	"github.com/dosco/graphjin/serv/v3"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	_ "modernc.org/sqlite"
 )
 

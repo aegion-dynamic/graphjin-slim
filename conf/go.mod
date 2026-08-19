@@ -1,13 +1,13 @@
-module github.com/dosco/graphjin/conf/v3
+module github.com/aegion-dynamic/graphjin-slim/conf/v3
 
 go 1.25.0
 
 require (
-	github.com/dosco/graphjin/core/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.20.29
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-replace github.com/dosco/graphjin/core/v3 => ../core
+replace github.com/aegion-dynamic/graphjin-slim/core/v3 => ../core
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect

@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3/fstable"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 )
 
 type cacheInvalidatingFilesystemBackend struct {

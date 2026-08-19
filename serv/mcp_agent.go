@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 	"go.opentelemetry.io/otel/trace"
 )
 

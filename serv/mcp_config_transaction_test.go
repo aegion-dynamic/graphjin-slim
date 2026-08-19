@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/core/v3/featurecap"
-	"github.com/dosco/graphjin/core/v3/sourcecap"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/featurecap"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"

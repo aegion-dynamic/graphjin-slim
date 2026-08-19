@@ -3,7 +3,7 @@ package serv_test
 import (
 	"testing"
 
-	"github.com/dosco/graphjin/serv/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )

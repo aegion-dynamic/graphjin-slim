@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
-	"github.com/dosco/graphjin/core/v3"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 func TestEvalReportsMissingDirectoryIsHonestEmptyState(t *testing.T) {

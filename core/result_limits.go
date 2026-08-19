@@ -3,7 +3,7 @@ package core
 import (
 	"encoding/json"
 
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 // RootLimitInfo describes the compiled paging posture of one rendered select

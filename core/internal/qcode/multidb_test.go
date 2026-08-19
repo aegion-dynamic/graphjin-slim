@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
 // TestSelectDatabaseField verifies that Select has a Database field.

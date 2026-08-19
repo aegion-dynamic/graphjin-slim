@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/core/v3/fstable"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 )
 
 // s3Backend implements fstable.Backend on top of AWS S3 (or any

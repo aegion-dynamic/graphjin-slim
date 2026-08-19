@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/dosco/graphjin/clickhousedriver"
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/clickhousedriver"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 // initClickhouse builds a clickhouse-go *sql.DB and wraps it in the

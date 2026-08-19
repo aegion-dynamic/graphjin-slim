@@ -13,8 +13,8 @@ import (
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/core/v3/fstable"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 )
 
 // gcsBackend implements fstable.Backend on top of Google Cloud Storage.

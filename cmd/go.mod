@@ -1,17 +1,17 @@
-module github.com/dosco/graphjin/cmd/v3
+module github.com/aegion-dynamic/graphjin-slim/cmd/v3
 
 go 1.25.5
 
 require (
 	github.com/brianvoe/gofakeit/v6 v6.28.0
 	github.com/dop251/goja v0.0.0-20260219130522-0ba9a5494a59
-	github.com/dosco/graphjin/agent/v3 v3.20.29
-	github.com/dosco/graphjin/auth/v3 v3.20.29
-	github.com/dosco/graphjin/core/v3 v3.20.29
-	github.com/dosco/graphjin/examples v0.0.0
-	github.com/dosco/graphjin/hostedemu v0.0.0
-	github.com/dosco/graphjin/mongodriver v0.0.0
-	github.com/dosco/graphjin/serv/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/agent/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/auth/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/examples v0.0.0
+	github.com/aegion-dynamic/graphjin-slim/hostedemu v0.0.0
+	github.com/aegion-dynamic/graphjin-slim/mongodriver v0.0.0
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.20.29
 	github.com/gosimple/slug v1.15.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jvatic/goja-babel v0.0.0-20250906111304-06c40d6b931b
@@ -32,14 +32,14 @@ require (
 )
 
 replace (
-	github.com/dosco/graphjin/agent/v3 => ../agent
-	github.com/dosco/graphjin/auth/v3 => ../auth
-	github.com/dosco/graphjin/core/v3 => ../core
-	github.com/dosco/graphjin/examples => ../examples
-	github.com/dosco/graphjin/hostedemu => ../hostedemu
-	github.com/dosco/graphjin/mongodriver => ../mongodriver
-	github.com/dosco/graphjin/plugin/otel/v3 => ../plugin/otel
-	github.com/dosco/graphjin/serv/v3 => ../serv
+	github.com/aegion-dynamic/graphjin-slim/agent/v3 => ../agent
+	github.com/aegion-dynamic/graphjin-slim/auth/v3 => ../auth
+	github.com/aegion-dynamic/graphjin-slim/core/v3 => ../core
+	github.com/aegion-dynamic/graphjin-slim/examples => ../examples
+	github.com/aegion-dynamic/graphjin-slim/hostedemu => ../hostedemu
+	github.com/aegion-dynamic/graphjin-slim/mongodriver => ../mongodriver
+	github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3 => ../plugin/otel
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 => ../serv
 )
 
 require (
@@ -111,7 +111,7 @@ require (
 	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dosco/graphjin/plugin/otel/v3 v3.20.29 // indirect
+	github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3 v3.20.29 // indirect
 	github.com/duckdb/duckdb-go-bindings v0.10502.0 // indirect
 	github.com/duckdb/duckdb-go-bindings/lib/darwin-amd64 v0.10502.0 // indirect
 	github.com/duckdb/duckdb-go-bindings/lib/darwin-arm64 v0.10502.0 // indirect

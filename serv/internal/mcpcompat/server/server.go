@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	compat "github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	compat "github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

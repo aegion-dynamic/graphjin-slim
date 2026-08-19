@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dosco/graphjin.git"
+    "url": "git+https://github.com/aegion-dynamic/graphjin-slim.git"
   },
   "keywords": [
     "graphql",
@@ -31,7 +31,7 @@
   "author": "Vikram <https://twitter.com/dosco>",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/dosco/graphjin/issues"
+    "url": "https://github.com/aegion-dynamic/graphjin-slim/issues"
   },
   "homepage": "https://graphjin.com",
   "dependencies": {

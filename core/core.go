@@ -8,9 +8,9 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/allow"
-	"github.com/dosco/graphjin/core/v3/internal/jsn"
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/allow"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/jsn"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 var (

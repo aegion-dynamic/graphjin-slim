@@ -1,4 +1,4 @@
-module github.com/dosco/graphjin/hostedemu
+module github.com/aegion-dynamic/graphjin-slim/hostedemu
 
 go 1.25.0
 

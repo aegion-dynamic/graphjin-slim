@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/serv/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/spf13/cobra"
 )
 

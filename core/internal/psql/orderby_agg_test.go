@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3/internal/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
 )
 
 // compileToSQL compiles a GraphQL query through the shared qcode + psql

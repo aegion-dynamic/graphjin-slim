@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	ax "github.com/ax-llm/ax/packages/go"
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	"github.com/dosco/graphjin/core/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 func TestWatchFlowReviewPreviewThenStoredApproval(t *testing.T) {

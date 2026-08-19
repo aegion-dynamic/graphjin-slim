@@ -156,7 +156,7 @@ main() {
 
     # Build download URL candidates. New releases include version in the
     # archive filename; keep legacy fallback names for older tags.
-    local release_base="https://github.com/dosco/graphjin/releases/download/v${version}"
+    local release_base="https://github.com/aegion-dynamic/graphjin-slim/releases/download/v${version}"
     local filenames=()
     if [ "$os" = "windows" ]; then
         filenames=(

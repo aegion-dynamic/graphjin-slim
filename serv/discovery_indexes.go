@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	core "github.com/dosco/graphjin/core/v3"
-	corediscovery "github.com/dosco/graphjin/core/v3/discovery"
+	core "github.com/aegion-dynamic/graphjin-slim/core/v3"
+	corediscovery "github.com/aegion-dynamic/graphjin-slim/core/v3/discovery"
 )
 
 // loadIndexes runs one dialect-specific catalog query. nil on failure or

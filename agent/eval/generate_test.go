@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
 )
 
 type staticCatalogSource struct{ snapshot CatalogSnapshot }

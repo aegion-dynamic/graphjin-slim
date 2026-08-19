@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dosco/graphjin/core/v3/internal/dialect"
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/dialect"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
 const (

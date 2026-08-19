@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dosco/graphjin/tests/v3/snowflakeemu"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/snowflakeemu"
 	"github.com/snowflakedb/gosnowflake"
 )
 

@@ -3,7 +3,7 @@ package core
 import (
 	"sort"
 
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
 // NewTestGraphJin creates a GraphJin instance backed by named test DB schemas,

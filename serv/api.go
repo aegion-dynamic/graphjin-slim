@@ -9,7 +9,7 @@
 		"database/sql"
 		"fmt"
 		"time"
-		"github.com/dosco/graphjin/core/v3"
+		"github.com/aegion-dynamic/graphjin-slim/core/v3"
 		_ "github.com/jackc/pgx/v5/stdlib"
 	)
 
@@ -48,11 +48,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	"github.com/dosco/graphjin/auth/v3"
-	"github.com/dosco/graphjin/core/v3"
-	otelPlugin "github.com/dosco/graphjin/plugin/otel/v3"
-	"github.com/dosco/graphjin/serv/v3/internal/util"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	otelPlugin "github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"

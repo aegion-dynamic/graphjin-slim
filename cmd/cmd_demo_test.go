@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/hostedemu"
-	hostedbigquery "github.com/dosco/graphjin/hostedemu/bigquery"
-	hostedsnowflake "github.com/dosco/graphjin/hostedemu/snowflake"
-	"github.com/dosco/graphjin/serv/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/hostedemu"
+	hostedbigquery "github.com/aegion-dynamic/graphjin-slim/hostedemu/bigquery"
+	hostedsnowflake "github.com/aegion-dynamic/graphjin-slim/hostedemu/snowflake"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/spf13/cobra"
 )
 

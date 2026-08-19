@@ -14,9 +14,9 @@ import (
 	"time"
 
 	ax "github.com/ax-llm/ax/packages/go"
-	"github.com/dosco/graphjin/core/v3"
-	compatmcp "github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
-	compatserver "github.com/dosco/graphjin/serv/v3/internal/mcpcompat/server"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	compatmcp "github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
+	compatserver "github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/server"
 	officialmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

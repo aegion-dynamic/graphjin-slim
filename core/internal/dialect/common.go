@@ -3,7 +3,7 @@ package dialect
 import (
 	"fmt"
 
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 // RenderStandardArithOp returns the standard SQL infix token for the

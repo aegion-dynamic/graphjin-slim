@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
-	"github.com/dosco/graphjin/auth/v3"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
 )
 
 const evalReportsCapability = "eval.reports"

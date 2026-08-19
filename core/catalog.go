@@ -3,8 +3,8 @@ package core
 import (
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/catalog"
-	"github.com/dosco/graphjin/core/v3/sourcecap"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/catalog"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
 )
 
 type CatalogSnapshot catalog.Snapshot

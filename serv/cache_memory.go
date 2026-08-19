@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"

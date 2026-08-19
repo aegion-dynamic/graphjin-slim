@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dosco/graphjin/tests/v3/hostedemu"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	bq "google.golang.org/api/bigquery/v2"

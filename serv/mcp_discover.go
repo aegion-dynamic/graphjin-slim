@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"go.mongodb.org/mongo-driver/v2/bson"

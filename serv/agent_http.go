@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	"github.com/dosco/graphjin/auth/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -469,7 +469,7 @@ func agentBuildIdentity() string {
 	parts := []string{info.Main.Path + "@" + info.Main.Version}
 	for _, dep := range info.Deps {
 		switch dep.Path {
-		case "github.com/ax-llm/ax/packages/go", "github.com/dosco/graphjin/agent/v3", "github.com/dosco/graphjin/serv/v3":
+		case "github.com/ax-llm/ax/packages/go", "github.com/aegion-dynamic/graphjin-slim/agent/v3", "github.com/aegion-dynamic/graphjin-slim/serv/v3":
 			parts = append(parts, dep.Path+"@"+dep.Version)
 		}
 	}

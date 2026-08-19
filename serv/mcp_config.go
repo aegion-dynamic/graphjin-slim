@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/core/v3/openapi"
-	"github.com/dosco/graphjin/core/v3/sourcecap"
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/openapi"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 	"github.com/spf13/viper"
 )
 

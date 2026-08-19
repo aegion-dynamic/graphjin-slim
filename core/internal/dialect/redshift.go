@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 // RedshiftDialect is intentionally Redshift-owned even where it reuses the

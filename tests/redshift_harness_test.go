@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/dosco/graphjin/tests/v3/redshiftemu"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/redshiftemu"
 )
 
 func startRedshiftDB(context.Context) (func(context.Context) error, *sql.DB, error) {

@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dosco/graphjin/auth/v3"
-	"github.com/dosco/graphjin/auth/v3/oidc"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3/oidc"
 )
 
 const (

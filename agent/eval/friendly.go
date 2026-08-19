@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
 )
 
 // FriendlySummary is the plain-language projection of a canonical evaluation

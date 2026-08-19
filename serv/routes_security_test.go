@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dosco/graphjin/auth/v3"
-	core "github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
+	core "github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/spf13/afero"
 	"go.uber.org/zap"
 	_ "modernc.org/sqlite"

@@ -81,14 +81,14 @@ async function install() {
 
   if (!platform || !arch) {
     console.error(`Unsupported platform: ${process.platform} ${process.arch}`);
-    console.error('Please download manually from: https://github.com/dosco/graphjin/releases');
+    console.error('Please download manually from: https://github.com/aegion-dynamic/graphjin-slim/releases');
     process.exit(1);
   }
 
   const binDir = __dirname;
   const binaryName = platform === 'windows' ? 'graphjin.exe' : 'graphjin';
   const binaryPath = path.join(binDir, binaryName);
-  const releaseBase = `https://github.com/dosco/graphjin/releases/download/v${version}`;
+  const releaseBase = `https://github.com/aegion-dynamic/graphjin-slim/releases/download/v${version}`;
 
   // New releases include version in the archive name. Keep legacy fallback
   // names to remain backward compatible with older tags.
@@ -146,7 +146,7 @@ async function install() {
     console.log('GraphJin installed successfully!');
   } catch (err) {
     console.error(`Failed to install GraphJin: ${err.message}`);
-    console.error('Please download manually from: https://github.com/dosco/graphjin/releases');
+    console.error('Please download manually from: https://github.com/aegion-dynamic/graphjin-slim/releases');
     // Clean up on failure
     try {
       fs.unlinkSync(archivePath);

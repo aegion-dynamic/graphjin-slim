@@ -10,8 +10,8 @@ import (
 	"time"
 
 	ax "github.com/ax-llm/ax/packages/go"
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
 )
 
 // Trajectory replay: re-run the exact executor programs a model emitted in a

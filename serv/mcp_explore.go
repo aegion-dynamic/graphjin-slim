@@ -3,7 +3,7 @@ package serv
 import (
 	"context"
 
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 )
 
 // registerExploreTools is retained as an inert compatibility hook.

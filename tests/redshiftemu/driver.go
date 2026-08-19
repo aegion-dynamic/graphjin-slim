@@ -3,8 +3,8 @@ package redshiftemu
 import (
 	"database/sql/driver"
 
-	"github.com/dosco/graphjin/tests/v3/hostedemu"
-	"github.com/dosco/graphjin/tests/v3/hostedemu/redshift"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu/redshift"
 )
 
 const (

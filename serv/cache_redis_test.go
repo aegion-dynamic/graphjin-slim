@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 func TestCacheEntry_Serialization(t *testing.T) {

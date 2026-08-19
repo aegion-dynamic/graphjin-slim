@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dosco/graphjin/cassandradriver"
+	"github.com/aegion-dynamic/graphjin-slim/cassandradriver"
 	"github.com/gocql/gocql"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"

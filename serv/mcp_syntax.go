@@ -3,7 +3,7 @@ package serv
 import (
 	"context"
 
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 )
 
 // QuerySyntaxReference contains the complete GraphJin query DSL reference

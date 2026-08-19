@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/conf/v3"
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/conf/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 )
 
 // registerFragmentTools is retained as an inert compatibility hook.

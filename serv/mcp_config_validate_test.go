@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/server"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/server"
 )
 
 // validate_config runs the full update pipeline as a dry run: it validates,

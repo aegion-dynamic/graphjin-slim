@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
-	"github.com/dosco/graphjin/core/v3/sourcecap"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
 )
 
 func (gj *graphjinEngine) applySourceAccessRules(dbinfo *sdata.DBInfo, database string) error {

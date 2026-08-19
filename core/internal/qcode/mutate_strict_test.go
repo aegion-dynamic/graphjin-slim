@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 // Unknown SCALAR keys in mutation input used to be silently dropped while

@@ -5,7 +5,7 @@ package main
 // 	"math/rand"
 //
 // 	"github.com/brianvoe/gofakeit/v6"
-// 	"github.com/dosco/graphjin/serv/v3"
+// 	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 // 	"github.com/gosimple/slug"
 // 	"github.com/spf13/cobra"
 // )

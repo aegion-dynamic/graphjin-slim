@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
 )
 
 // RescoreRun deterministically recomputes a completed report from its stored

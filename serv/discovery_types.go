@@ -1,8 +1,8 @@
 package serv
 
 import (
-	core "github.com/dosco/graphjin/core/v3"
-	corediscovery "github.com/dosco/graphjin/core/v3/discovery"
+	core "github.com/aegion-dynamic/graphjin-slim/core/v3"
+	corediscovery "github.com/aegion-dynamic/graphjin-slim/core/v3/discovery"
 )
 
 type TableIndexEntry struct {

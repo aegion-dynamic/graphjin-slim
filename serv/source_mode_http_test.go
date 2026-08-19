@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/auth/v3"
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/core/v3/featurecap"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/featurecap"
 	jwt "github.com/golang-jwt/jwt/v5"
 	_ "modernc.org/sqlite"
 )

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/mongodriver"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/mongodriver"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"

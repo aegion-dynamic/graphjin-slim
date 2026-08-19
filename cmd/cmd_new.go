@@ -10,7 +10,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/dosco/graphjin/serv/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"

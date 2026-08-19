@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/hostedemu"
+	"github.com/aegion-dynamic/graphjin-slim/hostedemu"
 )
 
 func TestBigQuerySimulatorFileBackedPersistence(t *testing.T) {

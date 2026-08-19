@@ -1,4 +1,4 @@
-module github.com/dosco/graphjin/codesql
+module github.com/aegion-dynamic/graphjin-slim/codesql
 
 go 1.25.0
 

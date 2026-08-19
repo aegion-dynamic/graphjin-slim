@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 func TestAllocateRuntimeDatabaseNameAvoidsPublicAndRuntimeCollisions(t *testing.T) {

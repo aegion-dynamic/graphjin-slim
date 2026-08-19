@@ -3,7 +3,7 @@ package qcode_test
 import (
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 // Regression tests for the aggregate order_by bug: ordering by an

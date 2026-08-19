@@ -3,8 +3,8 @@ package snowflakeemu
 import (
 	"database/sql/driver"
 
-	"github.com/dosco/graphjin/tests/v3/hostedemu"
-	"github.com/dosco/graphjin/tests/v3/hostedemu/snowflake"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu/snowflake"
 )
 
 const (

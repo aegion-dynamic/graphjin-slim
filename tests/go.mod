@@ -1,16 +1,16 @@
-module github.com/dosco/graphjin/tests/v3
+module github.com/aegion-dynamic/graphjin-slim/tests/v3
 
 go 1.25.5
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/antlr4-go/antlr/v4 v4.13.1
-	github.com/dosco/graphjin/cassandradriver v0.0.0
-	github.com/dosco/graphjin/clickhousedriver v0.0.0
-	github.com/dosco/graphjin/conf/v3 v3.20.29
-	github.com/dosco/graphjin/core/v3 v3.20.29
-	github.com/dosco/graphjin/mongodriver v0.0.0
-	github.com/dosco/graphjin/serv/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/cassandradriver v0.0.0
+	github.com/aegion-dynamic/graphjin-slim/clickhousedriver v0.0.0
+	github.com/aegion-dynamic/graphjin-slim/conf/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/mongodriver v0.0.0
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.20.29
 	github.com/duckdb/duckdb-go/v2 v2.10502.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gocql/gocql v1.7.0
@@ -31,12 +31,12 @@ require (
 )
 
 replace (
-	github.com/dosco/graphjin/cassandradriver => ../cassandradriver
-	github.com/dosco/graphjin/clickhousedriver => ../clickhousedriver
-	github.com/dosco/graphjin/conf/v3 => ../conf
-	github.com/dosco/graphjin/core/v3 => ../core
-	github.com/dosco/graphjin/mongodriver => ../mongodriver
-	github.com/dosco/graphjin/serv/v3 => ../serv
+	github.com/aegion-dynamic/graphjin-slim/cassandradriver => ../cassandradriver
+	github.com/aegion-dynamic/graphjin-slim/clickhousedriver => ../clickhousedriver
+	github.com/aegion-dynamic/graphjin-slim/conf/v3 => ../conf
+	github.com/aegion-dynamic/graphjin-slim/core/v3 => ../core
+	github.com/aegion-dynamic/graphjin-slim/mongodriver => ../mongodriver
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 => ../serv
 )
 
 require (
@@ -107,8 +107,8 @@ require (
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dop251/goja v0.0.0-20260219130522-0ba9a5494a59 // indirect
-	github.com/dosco/graphjin/auth/v3 v3.20.29 // indirect
-	github.com/dosco/graphjin/plugin/otel/v3 v3.20.29 // indirect
+	github.com/aegion-dynamic/graphjin-slim/auth/v3 v3.20.29 // indirect
+	github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3 v3.20.29 // indirect
 	github.com/duckdb/duckdb-go-bindings v0.10502.0 // indirect
 	github.com/duckdb/duckdb-go-bindings/lib/darwin-amd64 v0.10502.0 // indirect
 	github.com/duckdb/duckdb-go-bindings/lib/darwin-arm64 v0.10502.0 // indirect

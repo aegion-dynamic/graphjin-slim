@@ -3,7 +3,7 @@ package serv
 import (
 	"context"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
 )
 
 // agentCapabilityProfile builds the caller-scoped capability profile and maps it onto

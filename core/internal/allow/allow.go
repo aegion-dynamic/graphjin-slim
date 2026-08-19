@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 

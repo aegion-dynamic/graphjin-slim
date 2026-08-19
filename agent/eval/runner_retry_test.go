@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
 )
 
 // Three gemini-flash runs on the frozen suite died at 85, 131 and 60 episodes,

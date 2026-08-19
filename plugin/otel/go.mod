@@ -1,15 +1,15 @@
-module github.com/dosco/graphjin/plugin/otel/v3
+module github.com/aegion-dynamic/graphjin-slim/plugin/otel/v3
 
 go 1.25.0
 
 require (
-	github.com/dosco/graphjin/core/v3 v3.20.29
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.20.29
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 )
 
-replace github.com/dosco/graphjin/core/v3 => ../../core
+replace github.com/aegion-dynamic/graphjin-slim/core/v3 => ../../core
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect

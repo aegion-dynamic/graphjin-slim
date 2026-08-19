@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 // system.root_access overrides must gate the direct GraphQL

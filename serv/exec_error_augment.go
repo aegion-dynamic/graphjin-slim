@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 // enhanceExecError augments a driver error with structured repair fields and a schema cross-check; falls back to enhanceError when unclassifiable.

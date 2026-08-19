@@ -2,8 +2,8 @@
 
 Slim fork of [dosco/graphjin](https://github.com/dosco/graphjin) focused on the data layer: a high-performance GraphQL to Postgres compiler and Go service. This keeps the core that production services embed as a library while trimming standalone surfaces that are not part of the data path.
 
-[![Apache 2.0](https://img.shields.io/github/license/dosco/graphjin.svg?style=for-the-badge)](LICENSE)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/dosco/graphjin/core/v3)
+[![Apache 2.0](https://img.shields.io/github/license/aegion-dynamic/graphjin-slim.svg?style=for-the-badge)](LICENSE)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/aegion-dynamic/graphjin-slim/core/v3)
 
 GraphJin is a compiler and runtime that turns GraphQL into a single optimized SQL query. No resolvers, no ORM, no N+1. It discovers your schema, exposes relationships as nested fields, and compiles every request directly to Postgres. This fork keeps that compiler and the embeddable Go service, without the extra surfaces that live in upstream.
 
@@ -35,13 +35,13 @@ Follow up commits will continue to trim surfaces not needed for the postgres dat
 ## Usage as a Go library
 
 ```bash
-go get github.com/dosco/graphjin/core/v3
+go get github.com/aegion-dynamic/graphjin-slim/core/v3
 ```
 
 ```go
 import (
-    "github.com/dosco/graphjin/core/v3"
-    "github.com/dosco/graphjin/serv/v3"
+    "github.com/aegion-dynamic/graphjin-slim/core/v3"
+    "github.com/aegion-dynamic/graphjin-slim/serv/v3"
 )
 
 gjs, err := serv.NewGraphJinService(conf, servOpts...)

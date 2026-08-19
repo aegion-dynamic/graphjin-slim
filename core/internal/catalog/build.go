@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3/sourcecap"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
 )
 
 func Build(snapshot *MetadataSnapshot, conf any) *Snapshot {

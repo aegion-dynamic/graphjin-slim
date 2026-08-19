@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/graph"
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
 func (co *Compiler) compileOpDirectives(qc *QCode, dirs []graph.Directive) error {

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	core "github.com/dosco/graphjin/core/v3"
+	core "github.com/aegion-dynamic/graphjin-slim/core/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
 )
 

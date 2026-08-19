@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/dosco/graphjin/auth/v3"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
 	"go.uber.org/zap"
 )
 

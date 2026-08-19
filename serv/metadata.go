@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dosco/graphjin/codesql"
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/codesql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 const metadataSchemaSQL = `

@@ -1,6 +1,6 @@
 package snowflakeemu
 
-import "github.com/dosco/graphjin/tests/v3/hostedemu/snowflake/catalog"
+import "github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu/snowflake/catalog"
 
 type Schema = catalog.Schema
 type Table = catalog.Table

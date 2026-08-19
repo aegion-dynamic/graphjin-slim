@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	core "github.com/dosco/graphjin/core/v3"
+	core "github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 // Namespaces returns one catalog rollup per (database, schema).

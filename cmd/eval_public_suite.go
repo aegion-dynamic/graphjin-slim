@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
 )
 
 //go:embed benchmark/public-suite.json

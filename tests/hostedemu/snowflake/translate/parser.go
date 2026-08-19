@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
-	sfparser "github.com/dosco/graphjin/tests/v3/hostedemu/snowflake/internal/sfparser"
+	sfparser "github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu/snowflake/internal/sfparser"
 )
 
 type StatementKind string

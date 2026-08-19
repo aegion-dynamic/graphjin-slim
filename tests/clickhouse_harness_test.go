@@ -11,8 +11,8 @@ import (
 	"time"
 
 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/dosco/graphjin/clickhousedriver"
-	core "github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/clickhousedriver"
+	core "github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )

@@ -3,7 +3,7 @@ package dialect
 import (
 	"fmt"
 
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 func validateStandardWindowFunction(dialectName string, f qcode.Field, supportsNulls bool) error {

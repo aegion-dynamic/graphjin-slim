@@ -3,7 +3,7 @@ package allow
 import (
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3/internal/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
 )
 
 func TestFuzzCrashers(t *testing.T) {

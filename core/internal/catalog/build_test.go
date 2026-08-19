@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3/sourcecap"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
 )
 
 func TestBuildWithOptionsWorkflowCards(t *testing.T) {

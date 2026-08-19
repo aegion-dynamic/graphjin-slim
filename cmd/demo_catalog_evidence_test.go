@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	ax "github.com/ax-llm/ax/packages/go"
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
 )
 
 // TestDemoCatalogServesJoinAndValueEvidence pins, against a fully booted demo

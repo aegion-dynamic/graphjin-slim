@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3/internal/introspection"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/introspection"
 )
 
 // initDBWatcher initializes the database schema watcher

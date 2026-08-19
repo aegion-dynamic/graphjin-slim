@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
-	"github.com/dosco/graphjin/serv/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 )
 
 type evalEnvironment struct {

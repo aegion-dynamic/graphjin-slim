@@ -1,4 +1,4 @@
-module github.com/dosco/graphjin/mongodriver
+module github.com/aegion-dynamic/graphjin-slim/mongodriver
 
 go 1.25.0
 

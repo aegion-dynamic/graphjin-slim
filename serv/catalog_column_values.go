@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 // Enum-like column values are sampled here rather than in the catalog build,

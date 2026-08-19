@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel"

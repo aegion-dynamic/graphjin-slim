@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/mongodriver"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/mongodriver"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/snowflakedb/gosnowflake"

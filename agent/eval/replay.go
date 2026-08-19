@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	gjagent "github.com/dosco/graphjin/agent/v3"
+	gjagent "github.com/aegion-dynamic/graphjin-slim/agent/v3"
 )
 
 // ReplayFixture is a stored trajectory reduced to the parts needed to re-run it

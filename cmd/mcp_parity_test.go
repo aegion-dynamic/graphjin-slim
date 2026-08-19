@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/dosco/graphjin/serv/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 )
 
 // TestMCPCLIParity enforces the hard rule: every MCP tool the server may

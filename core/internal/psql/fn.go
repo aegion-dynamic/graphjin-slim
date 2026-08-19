@@ -1,6 +1,6 @@
 package psql
 
-import "github.com/dosco/graphjin/core/v3/internal/qcode"
+import "github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 
 func (c *compilerContext) renderFunctionSearchRank(sel *qcode.Select, f qcode.Field) {
 	c.dialect.RenderSearchRank(c, sel, f)

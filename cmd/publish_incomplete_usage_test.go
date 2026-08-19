@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
 )
 
 // A run interrupted by provider failures keeps every score — each episode still

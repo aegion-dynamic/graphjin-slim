@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3"
-	"github.com/dosco/graphjin/core/v3/openapi"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/openapi"
 )
 
 // Example_queryWithOpenAPIJoin exercises the full OpenAPI integration

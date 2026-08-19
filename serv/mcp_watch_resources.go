@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dosco/graphjin/serv/v3/internal/mcpcompat/mcp"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/mcpcompat/mcp"
 )
 
 const (

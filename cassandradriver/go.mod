@@ -1,4 +1,4 @@
-module github.com/dosco/graphjin/cassandradriver
+module github.com/aegion-dynamic/graphjin-slim/cassandradriver
 
 go 1.24.0
 

@@ -15,7 +15,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	jwt "github.com/golang-jwt/jwt"
 	"github.com/magiclabs/magic-admin-go"
 	"github.com/magiclabs/magic-admin-go/client"

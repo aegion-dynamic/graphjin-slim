@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/graph"
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
-	"github.com/dosco/graphjin/core/v3/internal/util"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/util"
 )
 
 func (co *Compiler) compileArgOrderByObj(sel *Select, parent *graph.Node, cm map[string]struct{}) error {

@@ -13,7 +13,7 @@ export new_version
 find . -name 'go.mod' -exec sh -c '
     for file do
         echo "Processing $file"
-        # Use sed to update the version of packages starting with github.com/dosco/graphjin
+        # Use sed to update the version of packages starting with github.com/aegion-dynamic/graphjin-slim
         # Note: -i "" for BSD/macOS sed compatibility, use -i for GNU/Linux
         # Update modules with /v[0-9] suffix (e.g., core/v3) to the new version
         sed -i"" -e "/github.com\/dosco\/graphjin\/.*\/v[0-9]/s/ v[0-9.-]*[^ ]*/ v$new_version/" "$file"

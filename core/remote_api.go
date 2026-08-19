@@ -8,7 +8,7 @@ import (
 	"net/http/httputil"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/jsn"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/jsn"
 )
 
 // remoteAPI struct defines a remote API endpoint

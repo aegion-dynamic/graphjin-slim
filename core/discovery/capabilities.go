@@ -3,7 +3,7 @@ package discovery
 import (
 	"strings"
 
-	core "github.com/dosco/graphjin/core/v3"
+	core "github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 type metadataScope string

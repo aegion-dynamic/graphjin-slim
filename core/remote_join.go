@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dosco/graphjin/core/v3/internal/graph"
-	"github.com/dosco/graphjin/core/v3/internal/jsn"
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/jsn"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 )
 
 // execRemoteJoin fetches remote data for the marked insertion points

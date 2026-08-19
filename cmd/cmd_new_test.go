@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/serv/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/spf13/afero"
 	"go.uber.org/zap"
 )

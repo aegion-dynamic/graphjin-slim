@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dosco/graphjin/examples"
+	"github.com/aegion-dynamic/graphjin-slim/examples"
 )
 
 // demoDefaultPath is where the built-in demo project lives when --demo runs

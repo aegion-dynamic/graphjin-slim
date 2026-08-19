@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dosco/graphjin/tests/v3/bigqueryemu"
-	"github.com/dosco/graphjin/tests/v3/bigquerylive"
-	"github.com/dosco/graphjin/tests/v3/hostedemu"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/bigqueryemu"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/bigquerylive"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu"
 )
 
 func startBigQueryDB(ctx context.Context) (func(context.Context) error, *sql.DB, error) {

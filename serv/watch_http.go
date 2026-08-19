@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dosco/graphjin/auth/v3"
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
 func (s1 *HttpService) Watches(ah auth.HandlerFunc) http.Handler {

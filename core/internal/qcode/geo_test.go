@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3/internal/qcode"
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
 var geoSchema *sdata.DBSchema

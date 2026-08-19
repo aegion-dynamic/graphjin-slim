@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dosco/graphjin/hostedemu"
-	"github.com/dosco/graphjin/hostedemu/snowflake/catalog"
-	"github.com/dosco/graphjin/hostedemu/snowflake/translate"
+	"github.com/aegion-dynamic/graphjin-slim/hostedemu"
+	"github.com/aegion-dynamic/graphjin-slim/hostedemu/snowflake/catalog"
+	"github.com/aegion-dynamic/graphjin-slim/hostedemu/snowflake/translate"
 )
 
 type Adapter struct{}

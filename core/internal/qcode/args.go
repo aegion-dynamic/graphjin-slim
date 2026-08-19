@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/graph"
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
 func (co *Compiler) compileSelectArgs(qc *QCode, sel *Select, args []graph.Arg, role string) (err error) {

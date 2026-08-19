@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dosco/graphjin/tests/v3/hostedemu/snowflake/catalog"
+	"github.com/aegion-dynamic/graphjin-slim/tests/v3/hostedemu/snowflake/catalog"
 )
 
 func TranslateSetup(sql string, schema *catalog.Schema) ([]string, error) {

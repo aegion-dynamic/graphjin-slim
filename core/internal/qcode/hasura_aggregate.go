@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dosco/graphjin/core/v3/internal/graph"
-	"github.com/dosco/graphjin/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
 const hasuraAggregateSuffix = "_aggregate"

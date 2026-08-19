@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dosco/graphjin/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap/zaptest"

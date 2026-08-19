@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	gjeval "github.com/dosco/graphjin/agent/v3/eval"
+	gjeval "github.com/aegion-dynamic/graphjin-slim/agent/v3/eval"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

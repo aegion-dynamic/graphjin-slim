@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dosco/graphjin/hostedemu"
-	"github.com/dosco/graphjin/hostedemu/snowflake/catalog"
+	"github.com/aegion-dynamic/graphjin-slim/hostedemu"
+	"github.com/aegion-dynamic/graphjin-slim/hostedemu/snowflake/catalog"
 )
 
 type Adapter struct{}

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dosco/graphjin/auth/v3/issuer"
-	"github.com/dosco/graphjin/auth/v3/oidc"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3/issuer"
+	"github.com/aegion-dynamic/graphjin-slim/auth/v3/oidc"
 )
 
 // newStubAuthLogin returns an authLoginService wired with an in-memory issuer

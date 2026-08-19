@@ -1,15 +1,11 @@
 package serv
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
-	"time"
 
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/lifecycle"
@@ -70,18 +66,7 @@ func startHTTP(s1 *HttpService) {
 	// so Serve (below) returns. Callers that manage their own lifecycle
 	// (e.g. demo mode) drive this via HttpService.Shutdown instead; running
 	// both paths together is safe since Shutdown is idempotent.
-	go func() {
-		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-		<-sig
-		s.log.Info("shutdown signal received")
-
-		// Bounded shutdown: don't wait forever on lingering connections
-		// (e.g. MCP SSE streams or idle keep-alives).
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		s1.Shutdown(shutdownCtx) //nolint:errcheck
-	}()
+	lifecycle.WatchSignals(s.log, s1.Shutdown)
 
 	ver := version
 	// dep := s.conf.name

@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"path"
 	"regexp"
 	"strings"
 	"text/tabwriter"
@@ -15,61 +14,35 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/introspection"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 )
 
 const (
-	// SchemaDDLFile is the canonical project-level GraphJin DDL file.
-	SchemaDDLFile = "db.ddl"
-
-	// LegacySchemaGraphQLFile is the legacy name for SchemaDDLFile.
-	LegacySchemaGraphQLFile = "db.graphql"
-
-	// SourceSchemaDDLDir stores source-local desired schema DDL files.
-	SourceSchemaDDLDir = "schema-ddl"
-
-	// LocalStateDir stores generated runtime artifacts that should not be committed.
-	LocalStateDir = ".graphjin"
+	SchemaDDLFile           = schemapkg.SchemaDDLFile
+	LegacySchemaGraphQLFile = schemapkg.LegacySchemaGraphQLFile
+	SourceSchemaDDLDir      = schemapkg.SourceSchemaDDLDir
+	LocalStateDir           = schemapkg.LocalStateDir
 )
 
 // SourceSchemaDDLPath returns the canonical source-local DDL path.
 func SourceSchemaDDLPath(source string) string {
-	return path.Join(SourceSchemaDDLDir, sanitizeSchemaDDLName(source)+".ddl")
+	return schemapkg.SourceDDLPath(source)
 }
 
 // RuntimeSchemaDDLPath returns the generated runtime-cache DDL path.
 func RuntimeSchemaDDLPath(source string) string {
-	return path.Join(LocalStateDir, SourceSchemaDDLDir, sanitizeSchemaDDLName(source)+".ddl")
+	return schemapkg.RuntimeDDLPath(source)
 }
 
 // RuntimeSchemaSnapshotPath returns the generated full-fidelity runtime schema
 // snapshot path. The JSON snapshot is the machine cache; DDL remains the
 // human-readable companion artifact.
 func RuntimeSchemaSnapshotPath(source string) string {
-	return path.Join(LocalStateDir, SourceSchemaDDLDir, sanitizeSchemaDDLName(source)+".schema.json")
+	return schemapkg.RuntimeSnapshotPath(source)
 }
 
 func sanitizeSchemaDDLName(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "default"
-	}
-	var b strings.Builder
-	for _, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z',
-			r >= 'A' && r <= 'Z',
-			r >= '0' && r <= '9',
-			r == '_',
-			r == '-':
-			b.WriteRune(r)
-		default:
-			b.WriteByte('_')
-		}
-	}
-	if b.Len() == 0 {
-		return "default"
-	}
-	return b.String()
+	return schemapkg.SanitizeName(name)
 }
 
 const schemaTemplate = `# dbinfo:{{if .Type}}{{ .Type }}{{else}}postgres{{end}},{{- .Version }},{{- .Schema }}

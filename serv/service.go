@@ -49,7 +49,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/util"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/logging"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
@@ -402,7 +402,7 @@ func OptionSetZapLogger(zlog *zap.Logger) Option {
 // OptionSetLogOutput sets the log output writer (e.g., os.Stderr for MCP stdio mode)
 func OptionSetLogOutput(output zapcore.WriteSyncer) Option {
 	return func(s *graphjinService) error {
-		zlog := util.NewLoggerWithOutput(s.conf.ShouldUseJSONLogs(), output)
+		zlog := logging.NewLoggerWithOutput(s.conf.ShouldUseJSONLogs(), output)
 		s.zlog = zlog
 		s.log = zlog.Sugar()
 		return nil
@@ -427,7 +427,7 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 		return nil, err
 	}
 
-	zlog := util.NewLogger(conf.ShouldUseJSONLogs())
+	zlog := logging.NewLogger(conf.ShouldUseJSONLogs())
 	prod := conf.Serv.Production
 
 	s := &graphjinService{

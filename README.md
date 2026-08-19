@@ -12,9 +12,7 @@ Upstream remains the full project with its broader feature set. This repo tracks
 ## What this fork keeps
 
 - `core/` - GraphQL parsing, schema discovery (`sdata`), IR (`qcode`), SQL generation (`psql`, postgres and sqlite dialects), allow list, roles, and the stable public API in `core/api.go`
-- `serv/` - `NewGraphJinService`, `GraphQL` and `REST` handlers, `GetDB`, `Attach`, postgres `initDB`, health, and config
-- `auth/` - `HandlerFunc` type and the `core.UserIDKey` bridge used to set request identity for row level audit
-- `conf/` - config loading
+- `serv/` - `NewGraphJinService`, `GraphQL` and `REST` handlers, `GetDB`, `Attach`, database initialization, health, caching, and config loading
 - `core/internal/*` - `graph`, `jsn`, `sdata`, `qcode`, `psql`, `dialect` (postgres and sqlite), `allow`, `valid`, and other internals
 - Databases: postgres and sqlite
 - Sources: database, file, api
@@ -26,7 +24,7 @@ Upstream remains the full project with its broader feature set. This repo tracks
 - `website/` - Hugo docs site
 - `benchmark/` - standalone bench scripts
 - IDE plugin configs: `.claude-plugin/`, `.codex/`, `.cursor/`
-- Other databases and file backends: mysql, mariadb, oracle, mssql, mongodb, snowflake, bigquery, redshift, nanodb, cassandra, clickhouse, gcs (config enum narrowed to supported ones, dialect and driver removal to follow)
+- Other database drivers and standalone service surfaces are not part of the slim runtime. Configuration accepts Postgres and SQLite.
 
 ## How it works
 
@@ -57,12 +55,6 @@ router.Handle("/rest/*", gjs.REST(nil))
 db := gjs.GetDB()
 ```
 
-For a standalone service:
-
-```bash
-graphjin serve --path ./my-app
-```
-
 ## Configuration
 
 See [CONFIG.md](CONFIG.md) and [FEATURES.md](FEATURES.md) for the full config reference. The postgres path is configured with `database.type: postgres` and `database.schema`. Production uses an allow list of saved queries in `config/queries`.
@@ -71,7 +63,7 @@ See [CONFIG.md](CONFIG.md) and [FEATURES.md](FEATURES.md) for the full config re
 
 ```bash
 go vet ./core/... ./serv/...
-go test ./core/...
+go test ./core/... ./serv/...
 ```
 
 The stable public API is in `core/api.go`. See upstream docs for compiler details.

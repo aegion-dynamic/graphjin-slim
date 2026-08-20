@@ -1461,12 +1461,6 @@ type Config struct {
 	// This is set by the service layer when Redis caching is enabled.
 	CacheTrackingEnabled bool `mapstructure:"-" json:"-" yaml:"-" jsonschema:"-"`
 
-	// Federation opts the engine into Apollo Federation v2 subgraph mode.
-	// When Federation.Enabled is true, `_service { sdl }` returns a
-	// federation-flavoured SDL describing the schema's tables. See
-	// FederationConfig for the full surface.
-	Federation FederationConfig `mapstructure:"federation" json:"federation" yaml:"federation" jsonschema:"title=Apollo Federation v2"`
-
 	// Filesystems exposes object stores (local directories, S3, GCS) as
 	// virtual tables in the GraphQL schema. Each entry materialises one
 	// table with a fixed shape — key/size/content_type/etag/modified_at/url/data —

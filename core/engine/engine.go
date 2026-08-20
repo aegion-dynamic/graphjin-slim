@@ -85,7 +85,6 @@ type compiledRoleMatch struct{}
 type resItem struct{}
 type ResolverFn func() error
 type RequestConfig struct{}
-type FederationConfig struct{ Enabled bool }
 
 // DBContext holds per-database state for multi-database support.
 type DBContext struct {
@@ -142,10 +141,6 @@ type Engine struct {
 
 	ResponseCache   ResponseCacheProvider
 	CacheKeyBuilder *CacheKeyBuilder
-
-	FederationSDLOnce sync.Once
-	FederationSDL     string
-	FederationSDLErr  error
 
 	FsFactories map[string]FilesystemBackendFactory
 	FsBackends  map[string]fstable.Backend

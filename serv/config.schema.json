@@ -149,7 +149,7 @@
 				"issuer_url": {
 					"type": "string",
 					"title": "OIDC Issuer URL",
-					"description": "OIDC issuer URL — discovery happens at\n\u003cissuer_url\u003e/.well-known/openid-configuration",
+					"description": "OIDC issuer URL \u2014 discovery happens at\n<issuer_url>/.well-known/openid-configuration",
 					"examples": [
 						"https://accounts.google.com"
 					]
@@ -411,7 +411,7 @@
 				"server_name": {
 					"type": "string",
 					"title": "TLS Server Name",
-					"description": "Required for TLS. For example with Google Cloud SQL it's\n\u003cgcp-project-id\u003e:\u003ccloud-sql-instance\u003e"
+					"description": "Required for TLS. For example with Google Cloud SQL it's\n<gcp-project-id>:<cloud-sql-instance>"
 				},
 				"server_cert": {
 					"type": "string",
@@ -657,56 +657,6 @@
 			"additionalProperties": false,
 			"type": "object",
 			"description": "DiscoveryCacheConfig configures service-owned schema discovery generations."
-		},
-		"FederationConfig": {
-			"properties": {
-				"enabled": {
-					"type": "boolean",
-					"title": "Enable Apollo Federation v2",
-					"default": false
-				},
-				"version": {
-					"type": "string",
-					"title": "Federation Version",
-					"default": "v2.5"
-				},
-				"keys": {
-					"additionalProperties": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
-					},
-					"type": "object",
-					"title": "Federation Keys"
-				},
-				"shareable": {
-					"items": {
-						"type": "string"
-					},
-					"type": "array",
-					"title": "Shareable Fields"
-				},
-				"inaccessible": {
-					"items": {
-						"type": "string"
-					},
-					"type": "array",
-					"title": "Inaccessible Fields"
-				},
-				"tags": {
-					"additionalProperties": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
-					},
-					"type": "object",
-					"title": "@tag Annotations"
-				}
-			},
-			"additionalProperties": false,
-			"type": "object"
 		},
 		"FilesystemConfig": {
 			"properties": {
@@ -1016,7 +966,7 @@
 				"allow_dev_tools": {
 					"type": "boolean",
 					"title": "Allow Dev Tools",
-					"description": "AllowDevTools enables advanced introspection MCP tools (explain_query, explore_relationships, audit_role_permissions).\nThese expose SQL, relationship graphs, and role permissions — useful for development/debugging.\nAuto-enabled in dev mode. Default: false",
+					"description": "AllowDevTools enables advanced introspection MCP tools (explain_query, explore_relationships, audit_role_permissions).\nThese expose SQL, relationship graphs, and role permissions \u2014 useful for development/debugging.\nAuto-enabled in dev mode. Default: false",
 					"default": false
 				},
 				"default_db_allowed": {
@@ -1805,7 +1755,7 @@
 				"storage_key_prefix": {
 					"type": "string",
 					"title": "Storage Key Prefix",
-					"description": "StorageKeyPrefix is prepended to the backend key for every\nuploaded file. Useful for namespacing by tenant or role.\nExample: \"avatars/{date}/\" — the {date} marker is substituted\nat request time with YYYY/MM/DD."
+					"description": "StorageKeyPrefix is prepended to the backend key for every\nuploaded file. Useful for namespacing by tenant or role.\nExample: \"avatars/{date}/\" \u2014 the {date} marker is substituted\nat request time with YYYY/MM/DD."
 				}
 			},
 			"additionalProperties": false,
@@ -2150,10 +2100,6 @@
 			},
 			"type": "object",
 			"title": "Databases"
-		},
-		"federation": {
-			"$ref": "#/$defs/FederationConfig",
-			"title": "Apollo Federation v2"
 		},
 		"filesystems": {
 			"items": {

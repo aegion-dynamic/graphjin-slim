@@ -28,6 +28,25 @@ type CompositeFKInfo = sdata.CompositeFKInfo
 // query. Without this, a hung network read from the driver (seen with
 // go-ora against Oracle) could block a test run indefinitely.
 const introspectionQueryTimeout = 30 * time.Second
+const IntrospectionQueryTimeout = introspectionQueryTimeout
+
+const (
+	CompositeFKQueryMySQL              = compositeFKQueryMySQL
+	CompositeFKQuerySQLite             = compositeFKQuerySQLite
+	CompositeFKQueryOracle             = compositeFKQueryOracle
+	CompositeFKQueryMSSQL              = compositeFKQueryMSSQL
+	CompositeFKQuerySnowflakeOverrides = compositeFKQuerySnowflakeOverrides
+	SnowflakeCompositeFKShowStmt       = snowflakeCompositeFKShowStmt
+)
+
+var (
+	HasCompositeFKCandidates           = hasCompositeFKCandidates
+	SnowflakeSkipClusteringDiscovery   = snowflakeSkipClusteringDiscovery
+	DiscoverClusteringKeys             = discoverClusteringKeys
+	IsInList                           = isInList
+	InferDefaultSchema                 = inferDefaultSchema
+	InferViewPKsFromBaseTables         = inferViewPKsFromBaseTables
+)
 
 // GetDBInfo returns the database schema information.
 //
@@ -1242,8 +1261,9 @@ func discoverClusteringKeys(ctx context.Context, db *sql.DB) (map[string][]strin
 //
 // The 60-day default is conservative enough for most workloads while still
 // preventing accidental full-table scans. Users can override via config
-// (setting PartitionRangeDays to a different value or 0 for warn-only).
-func autoSetPartitionFromClustering(t *DBTable) {
+var autoSetPartitionFromClustering = AutoSetPartitionFromClustering
+
+func AutoSetPartitionFromClustering(t *DBTable) {
 	if len(t.ClusteringKeys) == 0 {
 		return
 	}

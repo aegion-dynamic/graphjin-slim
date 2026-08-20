@@ -639,3 +639,44 @@ func (s *DBSchema) DBSchema() string {
 func (s *DBSchema) DBName() string {
 	return s.name
 }
+
+func (s *DBSchema) TableNodeID(schema, table string) (int32, bool) {
+	ni, ok := s.tindex[schema+":"+table]
+	if !ok {
+		return 0, false
+	}
+	return ni.nodeID, true
+}
+
+func (s *DBSchema) TableNameByID(id int32) (string, bool) {
+	if id < 0 || int(id) >= len(s.tables) {
+		return "", false
+	}
+	return s.tables[id].Name, true
+}
+
+func (s *DBSchema) TableCount() int {
+	return len(s.tables)
+}
+
+func (s *DBSchema) AddToGraph(from DBTable, lc DBColumn, to DBTable, rc DBColumn, rt RelType) ([]int32, error) {
+	return s.addToGraph(from, lc, to, rc, rt)
+}
+
+func (s *DBSchema) CanReach(from, to int32) bool {
+	return s.canReach(from, to)
+}
+
+func (s *DBSchema) FKCyclesSelf() []int32 {
+	return s.fkCycles.Self
+}
+
+func (s *DBSchema) FKCyclesComponents() [][]int32 {
+	return s.fkCycles.Components
+}
+
+func (s *DBSchema) ClearPathCache() {
+	s.pathCacheMu.Lock()
+	s.pathCache = make(map[pathCacheKey][]int32)
+	s.pathCacheMu.Unlock()
+}

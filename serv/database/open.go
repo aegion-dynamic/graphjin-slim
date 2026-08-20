@@ -121,7 +121,9 @@ func openOnce(open func() (*sql.DB, error)) (*sql.DB, error) {
 	return db, nil
 }
 
-func connection(opts Options) (string, string, error) {
+var connection = Connection
+
+func Connection(opts Options) (string, string, error) {
 	c := opts.Config
 	dbType := strings.ToLower(strings.TrimSpace(c.Type))
 	if dbType == "" {

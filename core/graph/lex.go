@@ -39,6 +39,11 @@ type item struct {
 	line  int16  // The line number at the start of this item.
 }
 
+func (i item) Type() MType { return i._type }
+func (i item) Pos() Pos     { return i.pos }
+func (i item) Val() []byte  { return i.val }
+func (i item) Line() int16  { return i.line }
+
 // MType identifies the type of lex items.
 type MType int8
 
@@ -101,6 +106,22 @@ var zeroLex = lexer{}
 func (l *lexer) Reset() {
 	*l = zeroLex
 }
+
+// Items returns the scanned items.
+func (l *lexer) Items() []item {
+	return l.items
+}
+
+type (
+	Lexer = lexer
+	Item  = item
+)
+
+const (
+	ItemStringVal = itemStringVal
+)
+
+var Lex = lex
 
 // next returns the next byte in the input.
 func (l *lexer) next() rune {

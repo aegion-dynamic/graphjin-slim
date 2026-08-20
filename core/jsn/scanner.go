@@ -14,6 +14,14 @@ func isJSONNumberPart(c byte) bool {
 		c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-'
 }
 
+var (
+	IsJSONNumberStart   = isJSONNumberStart
+	IsJSONNumberPart    = isJSONNumberPart
+	LookupBytesKeyHash  = lookupBytesKeyHash
+	LookupStringKeyHash = lookupStringKeyHash
+	LookupFieldHash     = lookupFieldHash
+)
+
 func hashBytes(h *maphash.Hash, b []byte) uint64 {
 	h.Reset()
 	_, _ = h.Write(b)

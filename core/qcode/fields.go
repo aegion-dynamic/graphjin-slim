@@ -387,6 +387,10 @@ func (co *Compiler) addColumns(qc *QCode, sel *Select) error {
 	return nil
 }
 
+func (co *Compiler) AddRelColumns(qc *QCode, sel *Select, rel sdata.DBRel) error {
+	return co.addRelColumns(qc, sel, rel)
+}
+
 func (co *Compiler) addRelColumns(qc *QCode, sel *Select, rel sdata.DBRel) error {
 	var psel *Select
 

@@ -45,6 +45,13 @@ func getDDLDialect(dbType string) DDLDialect {
 	}
 }
 
+type (
+	PostgresDialect = postgresDialect
+	SQLiteDialect   = sqliteDialect
+)
+
+var GetDDLDialect = getDDLDialect
+
 // PostgreSQL dialect
 type postgresDialect struct{}
 
@@ -427,6 +434,8 @@ func (d *sqliteDialect) CreateIndex(tableName string, col sdata.DBColumn) string
 func (d *sqliteDialect) AlterClusteringKey(_ string, _ []string) string {
 	return ""
 }
+
+var ParseTypeWithSize = parseTypeWithSize
 
 func parseTypeWithSize(typeName string) (baseType string, size string) {
 	typeName = strings.ToLower(typeName)

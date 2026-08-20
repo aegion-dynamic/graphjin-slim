@@ -28,3 +28,15 @@ var sqliteInfo string
 
 //go:embed sql/sqlite_columns.sql
 var sqliteColumnsStmt string
+
+var (
+	PostgresColumnsBasicStmt       = postgresColumnsBasicStmt
+	PostgresConstraintsCountStmt   = postgresConstraintsCountStmt
+	PostgresConstraintColumnsStmt = postgresConstraintColumnsStmt
+	PostgresFunctionsStmt          = postgresFunctionsStmt
+	PostgresInfo                   = postgresInfo
+	PostgresViewPKsStmt            = postgresViewPKsStmt
+	SQLiteFunctionsStmt            = sqliteFunctionsStmt
+	SQLiteInfo                     = sqliteInfo
+	SQLiteColumnsStmt              = sqliteColumnsStmt
+)

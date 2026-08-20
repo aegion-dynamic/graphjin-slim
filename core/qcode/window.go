@@ -127,6 +127,8 @@ func (co *Compiler) compileDirectiveWindow(sel *Select, f *Field, d graph.Direct
 // INTERVAL constants for timestamp-typed RANGE frames are not yet
 // supported; they're a Snowflake/Postgres-specific extension that
 // requires a separate type-aware code path.
+var ParseFrameClause = parseFrameClause
+
 func parseFrameClause(in string) (string, error) {
 	toks := strings.Fields(strings.ToLower(in))
 	if len(toks) == 0 {

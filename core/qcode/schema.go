@@ -351,6 +351,8 @@ func extractStringList(arg graph.Arg) []string {
 	return result
 }
 
+var PascalToSnakeSpace = pascalToSnakeSpace
+
 func pascalToSnakeSpace(s string) string {
 	var result string
 	for i, r := range s {

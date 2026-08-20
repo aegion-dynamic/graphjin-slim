@@ -18,6 +18,8 @@ type DiffOptions struct {
 	Destructive bool
 }
 
+var ComputeDiff = computeDiff
+
 // SchemaOperation represents a schema change operation
 type SchemaOperation struct {
 	Type   string // "create_table", "add_column", "drop_table", "drop_column", "add_index", "add_constraint"

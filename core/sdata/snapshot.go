@@ -103,6 +103,8 @@ func snapshotColumnKey(column DBColumn) string {
 	return strings.Join([]string{column.Database, column.Schema, column.Table, column.Name, column.Type, column.OrigName}, "\x00")
 }
 
+var DBFunctionSortKey = dbFunctionSortKey
+
 func dbFunctionSortKey(function DBFunction) string {
 	parts := []string{function.Schema, function.Name, function.Type, function.Comment}
 	for _, input := range function.Inputs {

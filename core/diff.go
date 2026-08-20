@@ -455,12 +455,7 @@ func computeDiff(current, expected *sdata.DBInfo, opts DiffOptions) []SchemaOper
 }
 
 func schemaQualifiedDDLTable(dialect DDLDialect) bool {
-	switch dialect.(type) {
-	case *bigqueryDDLDialect, *cassandraDDLDialect:
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 // GenerateDiffSQL converts operations to SQL strings

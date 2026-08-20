@@ -1,4 +1,4 @@
-package core
+package query
 
 import (
 	"fmt"
@@ -18,13 +18,13 @@ const (
 	repairKindDistinctJoinShape   = "distinct_aggregate_nested_join_shape"
 	repairKindPartitionFilter     = "partition_filter_required"
 	repairKindUnknownRelationship = "unknown_relationship"
-	repairKindTableNotFound       = "table_not_found"
+	RepairKindTableNotFound       = "table_not_found"
 	repairKindColumnNotFound      = "column_not_found"
 	repairKindFieldNotOnTable     = "field_not_on_table"
 	repairKindAnalyticsDirective  = "analytics_directive"
-	repairKindNullComparison      = "null_comparison"
-	repairKindAggregateFilter     = "aggregate_filter_anchor"
-	repairKindQualifiedRoot       = "qualified_root"
+	RepairKindNullComparison      = "null_comparison"
+	RepairKindAggregateFilter     = "aggregate_filter_anchor"
+	RepairKindQualifiedRoot       = "qualified_root"
 	repairKindWrongDialect        = "wrong_dialect"
 	repairKindOperatorInvalid     = "operator_or_syntax_invalid"
 	repairKindSyntaxParse         = "syntax_or_parse_error"
@@ -49,12 +49,12 @@ func BuildGraphJinErrorRepair(query, errorMsg string) ErrorRepair {
 
 	switch {
 	case strings.Contains(errorMsg, "`neq: null` is not a valid null comparison"):
-		res.Kind = repairKindNullComparison
+		res.Kind = RepairKindNullComparison
 		res.Diagnosis = "Null checks use the dedicated is_null operator. Replace neq: null with is_null: false."
 		res.RepairedQuery = strings.Replace(query, "neq: null", "is_null: false", 1)
 		res.Next = []string{"validate_where_clause"}
 	case strings.Contains(errorMsg, "aggregate token") && strings.Contains(errorMsg, "cannot be embedded"):
-		res.Kind = repairKindAggregateFilter
+		res.Kind = RepairKindAggregateFilter
 		res.Diagnosis = "An aggregate result cannot be embedded inside a where operand. Query the named aggregate first, then use its returned scalar as a literal in a second query."
 		res.Next = []string{"query_catalog", "validate_where_clause"}
 	case repairQualifiedRoot.MatchString(errorMsg):
@@ -84,7 +84,7 @@ func BuildGraphJinErrorRepair(query, errorMsg string) ErrorRepair {
 		res.Diagnosis = "GraphJin has no relationship between the named tables. Confirm the join path before retrying."
 		res.Next = []string{"query_catalog"}
 	case strings.Contains(errLower, "table") && (strings.Contains(errLower, "not found") || strings.Contains(errLower, "unknown")):
-		res.Kind = repairKindTableNotFound
+		res.Kind = RepairKindTableNotFound
 		res.Diagnosis = "Table name not found. Check spelling, database, schema, and role-visible catalog rows."
 		res.Next = []string{"query_catalog"}
 	case strings.Contains(errLower, "column") && (strings.Contains(errLower, "not found") || strings.Contains(errLower, "unknown") || strings.Contains(errLower, "does not exist")):
@@ -120,7 +120,7 @@ func BuildGraphJinErrorRepair(query, errorMsg string) ErrorRepair {
 }
 
 func fillRepairQualifiedRoot(res *ErrorRepair, query, errorMsg string) {
-	res.Kind = repairKindQualifiedRoot
+	res.Kind = RepairKindQualifiedRoot
 	res.Next = []string{"query_catalog"}
 	match := repairQualifiedRoot.FindStringSubmatch(errorMsg)
 	if match == nil {

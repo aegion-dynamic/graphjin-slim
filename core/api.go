@@ -28,6 +28,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/openapi"
+	corequery "github.com/aegion-dynamic/graphjin-slim/core/v3/query"
 )
 
 type contextkey int
@@ -1585,7 +1586,7 @@ func getFS(conf *Config) (fs FS, err error) {
 // newError creates a new error list
 func newError(query string, err error) (errList []Error) {
 	e := Error{Message: err.Error()}
-	if repair := BuildGraphJinErrorRepair(query, err.Error()); repair.Known() {
+	if repair := corequery.BuildGraphJinErrorRepair(query, err.Error()); repair.Known() {
 		e.Extensions = map[string]any{"graphjin_repair": repair}
 	}
 	errList = []Error{e}

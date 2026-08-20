@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	corequery "github.com/aegion-dynamic/graphjin-slim/core/v3/query"
 	"strings"
 	"testing"
 )
@@ -15,19 +16,19 @@ func TestNewErrorIncludesGraphJinRepairExtension(t *testing.T) {
 		t.Fatalf("message changed: %q", errs[0].Message)
 	}
 	raw := errs[0].Extensions["graphjin_repair"]
-	repair, ok := raw.(ErrorRepair)
+	repair, ok := raw.(corequery.ErrorRepair)
 	if !ok {
 		t.Fatalf("expected graphjin_repair extension, got %#v", raw)
 	}
-	if repair.Kind != repairKindTableNotFound {
+	if repair.Kind != corequery.RepairKindTableNotFound {
 		t.Fatalf("expected table-not-found repair, got %+v", repair)
 	}
 }
 
 func TestBuildGraphJinErrorRepairNullComparison(t *testing.T) {
 	query := `query { users(where: { deleted_at: { neq: null } }) { id } }`
-	repair := BuildGraphJinErrorRepair(query, "[Where] `neq: null` is not a valid null comparison; use `is_null: false`")
-	if repair.Kind != repairKindNullComparison {
+	repair := corequery.BuildGraphJinErrorRepair(query, "[Where] `neq: null` is not a valid null comparison; use `is_null: false`")
+	if repair.Kind != corequery.RepairKindNullComparison {
 		t.Fatalf("unexpected repair: %+v", repair)
 	}
 	if !strings.Contains(repair.RepairedQuery, "is_null: false") || strings.Contains(repair.RepairedQuery, "neq: null") {
@@ -37,8 +38,8 @@ func TestBuildGraphJinErrorRepairNullComparison(t *testing.T) {
 
 func TestBuildGraphJinErrorRepairAggregateFilter(t *testing.T) {
 	errMessage := "[Where] aggregate token `max: created_at` cannot be embedded in a `gte` filter; first query `max_created_at`, then filter `gte` with the returned literal"
-	repair := BuildGraphJinErrorRepair("query { users { id } }", errMessage)
-	if repair.Kind != repairKindAggregateFilter {
+	repair := corequery.BuildGraphJinErrorRepair("query { users { id } }", errMessage)
+	if repair.Kind != corequery.RepairKindAggregateFilter {
 		t.Fatalf("unexpected repair: %+v", repair)
 	}
 	if !strings.Contains(repair.Diagnosis, "second query") {
@@ -48,8 +49,8 @@ func TestBuildGraphJinErrorRepairAggregateFilter(t *testing.T) {
 
 func TestBuildGraphJinErrorRepairQualifiedRoot(t *testing.T) {
 	query := `query { app.accounts { id } }`
-	repair := BuildGraphJinErrorRepair(query, "invalid GraphQL root \"app.accounts\": roots are unqualified table names: write `accounts`, not `app.accounts`")
-	if repair.Kind != repairKindQualifiedRoot {
+	repair := corequery.BuildGraphJinErrorRepair(query, "invalid GraphQL root \"app.accounts\": roots are unqualified table names: write `accounts`, not `app.accounts`")
+	if repair.Kind != corequery.RepairKindQualifiedRoot {
 		t.Fatalf("unexpected repair: %+v", repair)
 	}
 	if repair.RepairedQuery != `query { accounts { id } }` {

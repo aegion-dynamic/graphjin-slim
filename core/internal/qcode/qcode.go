@@ -84,11 +84,6 @@ type QCode struct {
 	Query     []byte
 	Fragments []Fragment
 	Warnings  []string // Non-fatal warnings (e.g., missing partition filter)
-	// HasuraAggregates records query roots lowered from Hasura-compatible
-	// <table>_aggregate selections. Execution still uses GraphJin's native
-	// aggregate fields; the response layer uses this plan to restore the
-	// requested nested response shape.
-	HasuraAggregates []HasuraAggregateRoot
 	// InsertConflictAction is set for insert(..., on_conflict: get).
 	// It remains part of the insert operation rather than introducing a
 	// separate mutation type.
@@ -553,19 +548,13 @@ func (co *Compiler) Compile(
 		return nil, qualifiedErr
 	}
 
-	var hasuraAggregates []HasuraAggregateRoot
-	if hasuraAggregates, err = co.rewriteHasuraAggregates(&op); err != nil {
-		return nil, err
-	}
-
 	qc = &QCode{
-		Name:             op.Name,
-		SType:            QTQuery,
-		Schema:           co.s,
-		Query:            op.Query,
-		Fragments:        make([]Fragment, len(op.Frags)),
-		Vars:             make([]Var, len(op.VarDef)),
-		HasuraAggregates: hasuraAggregates,
+		Name:      op.Name,
+		SType:     QTQuery,
+		Schema:    co.s,
+		Query:     op.Query,
+		Fragments: make([]Fragment, len(op.Frags)),
+		Vars:      make([]Var, len(op.VarDef)),
 	}
 
 	for i, f := range op.Frags {

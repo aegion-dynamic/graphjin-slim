@@ -119,12 +119,12 @@ func (gj *graphjinEngine) executeGraphQLRoleQuery(
 	}
 
 	for _, rm := range gj.roleGraphQLMatches {
-		ok, err := rm.expr.eval(attrs)
+		ok, err := rm.Eval(attrs)
 		if err != nil {
-			return "", fmt.Errorf("roles_query: role %q match failed: %w", rm.role, err)
+			return "", fmt.Errorf("roles_query: role %q match failed: %w", rm.Role(), err)
 		}
 		if ok {
-			return rm.role, nil
+			return rm.Role(), nil
 		}
 	}
 	return role, nil

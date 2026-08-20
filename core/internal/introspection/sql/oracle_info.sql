@@ -1,5 +1,0 @@
-SELECT 
-    230000 AS db_version,
-    SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') AS db_schema,
-    SYS_CONTEXT('USERENV', 'DB_NAME') AS db_name
-FROM DUAL

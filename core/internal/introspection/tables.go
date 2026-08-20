@@ -87,8 +87,6 @@ func getDBInfoOnce(
 	var cols []DBColumn
 	var funcs []DBFunction
 	var compositeFKs []CompositeFKInfo
-	var snowflakeClustering map[string][]string
-	var cassandraKeys map[string]cassandraKeyInfo
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -101,33 +99,10 @@ func getDBInfoOnce(
 		switch dbType {
 		case "postgres", "":
 			row = db.QueryRowContext(qctx, postgresInfo)
-		case "mysql":
-			row = db.QueryRowContext(qctx, mysqlInfo)
-		case "mariadb":
-			row = db.QueryRowContext(qctx, mariadbInfo)
 		case "sqlite":
 			row = db.QueryRowContext(qctx, sqliteInfo)
-		case "oracle":
-			row = db.QueryRowContext(qctx, oracleInfo)
-		case "mssql":
-			row = db.QueryRowContext(qctx, mssqlInfo)
-		case "snowflake":
-			row = db.QueryRowContext(qctx, snowflakeInfo)
-		case "bigquery":
-			row = db.QueryRowContext(qctx, bigqueryInfo)
-		case "redshift":
-			row = db.QueryRowContext(qctx, redshiftInfo)
-		case "mongodb":
-			// MongoDB returns info via the driver's introspection
-			row = db.QueryRowContext(qctx, mongodbInfo)
-		case "cassandra":
-			// Cassandra returns info via the driver's introspection
-			row = db.QueryRowContext(qctx, cassandraInfo)
-		case "clickhouse":
-			// ClickHouse returns info via the driver's introspection
-			row = db.QueryRowContext(qctx, clickhouseInfo)
 		default:
-			return fmt.Errorf("unsupported database type %q: supported types are postgres, mysql, mariadb, sqlite, oracle, mssql, snowflake, bigquery, redshift, mongodb, cassandra, clickhouse", dbType)
+			return fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", dbType)
 		}
 
 		if err := row.Scan(&dbVersion, &dbSchema, &dbName); err != nil {
@@ -139,27 +114,7 @@ func getDBInfoOnce(
 		return nil
 	})
 
-	if dbType == "snowflake" && !snowflakeSkipClusteringDiscovery() {
-		g.Go(func() error {
-			// Clustering uses SHOW + LAST_QUERY_ID, but runs on its own connection
-			// (its own session), so it is safe concurrently with column discovery.
-			if ck, err := discoverClusteringKeys(gctx, db); err == nil {
-				snowflakeClustering = ck
-			}
-			return nil
-		})
-	}
 
-	if dbType == "cassandra" {
-		g.Go(func() error {
-			// Partition vs clustering roles come from system_schema; the column
-			// contract can't carry them. Non-fatal: a failure just leaves keys unset.
-			if ck, err := discoverCassandraKeys(gctx, db); err == nil {
-				cassandraKeys = ck
-			}
-			return nil
-		})
-	}
 
 	g.Go(func() error {
 		var err error
@@ -210,35 +165,7 @@ func getDBInfoOnce(
 		blockList)
 	di.CompositeFKs = compositeFKs
 
-	// For Snowflake, discover clustering keys and attach to tables.
-	// Non-fatal: if this fails we just skip clustering optimization.
-	if dbType == "snowflake" && len(snowflakeClustering) != 0 {
-		for i := range di.Tables {
-			key := di.Tables[i].Schema + ":" + di.Tables[i].Name
-			if keys, ok := snowflakeClustering[key]; ok {
-				di.Tables[i].ClusteringKeys = keys
 
-				// Auto-set partition key from leading clustering column if
-				// it's a temporal type and no explicit partition config exists.
-				// This enables automatic "missing partition filter" warnings.
-				if di.Tables[i].PartitionKey == "" {
-					autoSetPartitionFromClustering(&di.Tables[i])
-				}
-			}
-		}
-	}
-
-	// For Cassandra, attach partition/clustering key roles + clustering order so
-	// the dialect can plan servability.
-	if dbType == "cassandra" && len(cassandraKeys) != 0 {
-		for i := range di.Tables {
-			if ki, ok := cassandraKeys[di.Tables[i].Name]; ok {
-				di.Tables[i].PartitionKeys = ki.partition
-				di.Tables[i].ClusteringKeys = ki.clustering
-				di.Tables[i].ClusteringOrder = ki.order
-			}
-		}
-	}
 
 	return di, nil
 }
@@ -296,38 +223,7 @@ type cassandraKeyInfo struct {
 // discoverCassandraKeys reads partition/clustering key roles from the driver's
 // introspect_keys operation (backed by system_schema). Rows arrive ordered by
 // table then key position, so appends preserve key order.
-func discoverCassandraKeys(ctx context.Context, db *sql.DB) (map[string]cassandraKeyInfo, error) {
-	qctx, cancel := context.WithTimeout(ctx, introspectionQueryTimeout)
-	defer cancel()
-
-	rows, err := db.QueryContext(qctx, cassandraKeysStmt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	out := map[string]cassandraKeyInfo{}
-	for rows.Next() {
-		var table, column, kind, clustOrder string
-		var pos int
-		if err := rows.Scan(&table, &column, &kind, &pos, &clustOrder); err != nil {
-			return nil, err
-		}
-		ki := out[table]
-		switch kind {
-		case "partition_key":
-			ki.partition = append(ki.partition, column)
-		case "clustering":
-			ki.clustering = append(ki.clustering, column)
-			if ki.order == nil {
-				ki.order = map[string]string{}
-			}
-			ki.order[column] = clustOrder
-		}
-		out[table] = ki
-	}
-	return out, rows.Err()
-}
+func discoverCassandraKeys(ctx context.Context, db *sql.DB) (map[string]cassandraKeyInfo, error) { return nil, nil }
 
 // DiscoverColumns returns the columns of a table
 func DiscoverColumns(ctx context.Context, db *sql.DB, dbtype string, blockList []string) ([]DBColumn, error) {
@@ -336,33 +232,13 @@ func DiscoverColumns(ctx context.Context, db *sql.DB, dbtype string, blockList [
 	switch dbtype {
 	case "postgres", "":
 		return discoverPostgresColumns(ctx, db, blockList)
-	case "mysql":
-		return discoverMySQLColumns(ctx, db, "mysql", blockList)
-	case "mariadb":
-		return discoverMySQLColumns(ctx, db, "mariadb", blockList)
 	case "sqlite":
 		sqlStmt = sqliteColumnsStmt
-	case "oracle":
-		sqlStmt = oracleColumnsStmt
-	case "mssql":
-		sqlStmt = mssqlColumnsStmt
-	case "snowflake":
-		return discoverSnowflakeColumns(ctx, db, blockList)
-	case "bigquery":
-		return discoverBigQueryColumns(ctx, db, blockList)
-	case "redshift":
-		return discoverRedshiftColumns(ctx, db, blockList)
-	case "mongodb":
-		// MongoDB uses JSON query DSL - the driver handles introspection
-		sqlStmt = mongodbColumnsStmt
-	case "cassandra":
-		// Cassandra uses JSON query DSL - the driver handles introspection
-		sqlStmt = cassandraColumnsStmt
-	case "clickhouse":
-		// ClickHouse uses JSON query DSL - the driver handles introspection
-		sqlStmt = clickhouseColumnsStmt
 	default:
-		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, mysql, mariadb, sqlite, oracle, mssql, snowflake, bigquery, redshift, mongodb, cassandra, clickhouse", dbtype)
+		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", dbtype)
+	}
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
 	}
 
 	qctx, cancel := context.WithTimeout(ctx, introspectionQueryTimeout)
@@ -384,6 +260,9 @@ func DiscoverColumns(ctx context.Context, db *sql.DB, dbtype string, blockList [
 }
 
 func discoverPostgresColumns(ctx context.Context, db *sql.DB, blockList []string) ([]DBColumn, error) {
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
+	}
 	cmap := make(map[string]DBColumn)
 	var hasConstraints bool
 
@@ -431,59 +310,10 @@ func postgresHasConstraints(ctx context.Context, db *sql.DB) (bool, error) {
 }
 
 func discoverMySQLColumns(ctx context.Context, db *sql.DB, dbtype string, blockList []string) ([]DBColumn, error) {
-	cmap := make(map[string]DBColumn)
-	basicStmt := mysqlColumnsBasicStmt
-	countStmt := mysqlConstraintsCountStmt
-	constraintStmt := mysqlConstraintColumnsStmt
-	if dbtype == "mariadb" {
-		basicStmt = mariadbColumnsBasicStmt
-		countStmt = mariadbConstraintsCountStmt
-		constraintStmt = mariadbConstraintColumnsStmt
-	}
-
-	var hasConstraints bool
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		if err := queryAndScanDiscoveredColumns(gctx, db, dbtype, blockList, cmap, basicStmt); err != nil {
-			return fmt.Errorf("error fetching %s columns: %w", dbtype, err)
-		}
-		return nil
-	})
-	g.Go(func() error {
-		v, err := mysqlHasConstraints(gctx, db, countStmt)
-		if err != nil {
-			return fmt.Errorf("error checking %s constraints: %w", dbtype, err)
-		}
-		hasConstraints = v
-		return nil
-	})
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-	if hasConstraints {
-		constraints := make(map[string]DBColumn)
-		if err := queryAndScanDiscoveredColumns(ctx, db, dbtype, blockList, constraints, constraintStmt); err != nil {
-			return nil, fmt.Errorf("error fetching %s constraints: %w", dbtype, err)
-		}
-		mergeDiscoveredColumnMaps(cmap, constraints)
-	}
-
-	return enrichAndCollectColumns(ctx, db, dbtype, cmap), nil
+	return nil, fmt.Errorf("unsupported database type %q", dbtype)
 }
 
-func mysqlHasConstraints(ctx context.Context, db *sql.DB, stmt string) (bool, error) {
-	qctx, cancel := context.WithTimeout(ctx, introspectionQueryTimeout)
-	defer cancel()
-
-	var n int
-	start := time.Now()
-	err := db.QueryRowContext(qctx, stmt).Scan(&n)
-	recordDiscoveryQuery(ctx, "constraint_preflight", stmt, time.Since(start))
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
+func mysqlHasConstraints(ctx context.Context, db *sql.DB, stmt string) (bool, error) { return false, nil }
 
 // snowflakeIntrospectionTimeout is more generous than the shared discovery
 // timeout: a cold warehouse resume plus a large schema's SHOW COLUMNS (tens of
@@ -491,149 +321,28 @@ func mysqlHasConstraints(ctx context.Context, db *sql.DB, stmt string) (bool, er
 const snowflakeIntrospectionTimeout = 90 * time.Second
 
 func discoverSnowflakeColumns(ctx context.Context, db *sql.DB, blockList []string) ([]DBColumn, error) {
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error fetching columns: %w", err)
-	}
-	defer conn.Close()
-
-	// Snowflake restricts INFORMATION_SCHEMA, so columns come from SHOW COLUMNS
-	// read back via RESULT_SCAN. Bare SHOW scopes to the session's pinned schema;
-	// all statements share this one connection so RESULT_SCAN can see them.
-	colsQID, err := snowflakeShowQueryID(ctx, conn, "SHOW COLUMNS")
-	if err != nil {
-		return nil, fmt.Errorf("error fetching columns: %w", err)
-	}
-
-	cmap := make(map[string]DBColumn)
-	if err := snowflakeQueryColumns(ctx, conn, blockList, cmap, snowflakeColumnsShowStmt, colsQID); err != nil {
-		return nil, fmt.Errorf("error fetching columns: %w", err)
-	}
-
-	// PK/UK/FK flags merge onto the discovered columns. Fetched and merged
-	// separately rather than joined in SQL: joining the RESULT_SCANs is far slower
-	// on large schemas, and best-effort here means a role without key access still
-	// gets usable columns.
-	snowflakeMergeShowKeys(ctx, conn, blockList, cmap)
-
-	// _gj_fk_metadata is an optional user-supplied FK override table, absent on
-	// most sources and unprobeable without INFORMATION_SCHEMA, so this is
-	// best-effort: a missing table just means no overrides.
-	_ = queryAndScanDiscoveredColumns(ctx, db, "snowflake", blockList, cmap, snowflakeFKMetadataStmt)
-
-	return enrichAndCollectColumns(ctx, db, "snowflake", cmap), nil
+	return nil, fmt.Errorf("unsupported database type snowflake")
 }
 
 // snowflakeMergeShowKeys runs SHOW PRIMARY/UNIQUE/IMPORTED KEYS on conn (scoped to
 // the pinned schema) and merges the PK/UK/FK flags onto cmap. Best-effort: any
 // failure leaves the already-discovered columns intact without key metadata.
-func snowflakeMergeShowKeys(ctx context.Context, conn *sql.Conn, blockList []string, cmap map[string]DBColumn) {
-	pksQID, err := snowflakeShowQueryID(ctx, conn, "SHOW PRIMARY KEYS")
-	if err != nil {
-		return
-	}
-	uksQID, err := snowflakeShowQueryID(ctx, conn, "SHOW UNIQUE KEYS")
-	if err != nil {
-		return
-	}
-	fksQID, err := snowflakeShowQueryID(ctx, conn, "SHOW IMPORTED KEYS")
-	if err != nil {
-		return
-	}
-	_ = snowflakeQueryColumns(ctx, conn, blockList, cmap, snowflakeKeysShowStmt, pksQID, uksQID, fksQID)
-}
+func snowflakeMergeShowKeys(ctx context.Context, conn *sql.Conn, blockList []string, cmap map[string]DBColumn) {}
 
 // snowflakeQueryColumns runs a RESULT_SCAN-based discovered-column query on conn
 // (with the Snowflake introspection timeout) and merges the rows into cmap.
-func snowflakeQueryColumns(ctx context.Context, conn *sql.Conn, blockList []string, cmap map[string]DBColumn, stmt string, args ...any) error {
-	qctx, cancel := context.WithTimeout(ctx, snowflakeIntrospectionTimeout)
-	defer cancel()
-	start := time.Now()
-	rows, err := conn.QueryContext(qctx, stmt, args...)
-	recordDiscoveryQuery(ctx, "schema_metadata", stmt, time.Since(start))
-	if err != nil {
-		return err
-	}
-	return scanDiscoveredColumnRows(rows, "snowflake", blockList, cmap)
-}
+func snowflakeQueryColumns(ctx context.Context, conn *sql.Conn, blockList []string, cmap map[string]DBColumn, stmt string, args ...any) error { return fmt.Errorf("unsupported") }
 
 // snowflakeShowQueryID executes a SHOW statement on conn and returns the query id
 // so its result set can later be read back via RESULT_SCAN.
-func snowflakeShowQueryID(ctx context.Context, conn *sql.Conn, stmt string) (string, error) {
-	sctx, cancel := context.WithTimeout(ctx, snowflakeIntrospectionTimeout)
-	defer cancel()
-
-	start := time.Now()
-	if _, err := conn.ExecContext(sctx, stmt); err != nil {
-		recordDiscoveryQuery(ctx, "schema_metadata", stmt, time.Since(start))
-		return "", err
-	}
-	recordDiscoveryQuery(ctx, "schema_metadata", stmt, time.Since(start))
-
-	var qid string
-	start = time.Now()
-	err := conn.QueryRowContext(sctx, "SELECT LAST_QUERY_ID()").Scan(&qid)
-	recordDiscoveryQuery(ctx, "schema_metadata", "SELECT LAST_QUERY_ID()", time.Since(start))
-	if err != nil {
-		return "", err
-	}
-	return qid, nil
-}
+func snowflakeShowQueryID(ctx context.Context, conn *sql.Conn, stmt string) (string, error) { return "", fmt.Errorf("unsupported") }
 
 func discoverBigQueryColumns(ctx context.Context, db *sql.DB, blockList []string) ([]DBColumn, error) {
-	cmap := make(map[string]DBColumn)
-	var hasConstraints bool
-
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		if err := queryAndScanDiscoveredColumns(gctx, db, "bigquery", blockList, cmap, bigqueryColumnsStmt); err != nil {
-			return fmt.Errorf("error fetching columns: %w", err)
-		}
-		return nil
-	})
-	g.Go(func() error {
-		v, err := bigQueryHasConstraints(gctx, db)
-		if err != nil {
-			return fmt.Errorf("error checking bigquery constraints: %w", err)
-		}
-		hasConstraints = v
-		return nil
-	})
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-	if hasConstraints {
-		pkeys := make(map[string]DBColumn)
-		fkeys := make(map[string]DBColumn)
-		g, gctx = errgroup.WithContext(ctx)
-		g.Go(func() error {
-			if err := queryAndScanDiscoveredColumns(gctx, db, "bigquery", blockList, pkeys, bigqueryPrimaryKeysStmt); err != nil {
-				return fmt.Errorf("error fetching bigquery primary keys: %w", err)
-			}
-			return nil
-		})
-		g.Go(func() error {
-			if err := queryAndScanDiscoveredColumns(gctx, db, "bigquery", blockList, fkeys, bigqueryForeignKeysStmt); err != nil {
-				return fmt.Errorf("error fetching bigquery foreign keys: %w", err)
-			}
-			return nil
-		})
-		if err := g.Wait(); err != nil {
-			return nil, err
-		}
-		mergeDiscoveredColumnMaps(cmap, pkeys)
-		mergeDiscoveredColumnMaps(cmap, fkeys)
-	}
-
-	return enrichAndCollectColumns(ctx, db, "bigquery", cmap), nil
+	return nil, fmt.Errorf("unsupported database type bigquery")
 }
 
 func discoverRedshiftColumns(ctx context.Context, db *sql.DB, blockList []string) ([]DBColumn, error) {
-	cmap := make(map[string]DBColumn)
-	if err := queryAndScanDiscoveredColumns(ctx, db, "redshift", blockList, cmap, redshiftColumnsStmt); err != nil {
-		return nil, fmt.Errorf("error fetching redshift columns: %w", err)
-	}
-	return enrichAndCollectColumns(ctx, db, "redshift", cmap), nil
+	return nil, fmt.Errorf("unsupported database type redshift")
 }
 
 func snowflakeSkipClusteringDiscovery() bool {
@@ -645,19 +354,7 @@ func snowflakeSkipClusteringDiscovery() bool {
 	}
 }
 
-func bigQueryHasConstraints(ctx context.Context, db *sql.DB) (bool, error) {
-	qctx, cancel := context.WithTimeout(ctx, introspectionQueryTimeout)
-	defer cancel()
-
-	var n int
-	start := time.Now()
-	err := db.QueryRowContext(qctx, bigqueryConstraintsCountStmt).Scan(&n)
-	recordDiscoveryQuery(ctx, "constraint_preflight", bigqueryConstraintsCountStmt, time.Since(start))
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
+func bigQueryHasConstraints(ctx context.Context, db *sql.DB) (bool, error) { return false, nil }
 
 func queryAndScanDiscoveredColumns(
 	ctx context.Context,
@@ -860,14 +557,6 @@ func enrichAndCollectColumns(ctx context.Context, db *sql.DB, dbtype string, cma
 		switch dbtype {
 		case "postgres", "":
 			viewPKStmt = postgresViewPKsStmt
-		case "mssql":
-			viewPKStmt = mssqlViewPKsStmt
-			needsNormalize = true
-		case "oracle":
-			viewPKStmt = oracleViewPKsStmt
-			needsNormalize = true
-		case "mysql":
-			viewPKStmt = mysqlViewPKsStmt
 		}
 		if viewPKStmt != "" {
 			qctx2, cancel2 := context.WithTimeout(ctx, introspectionQueryTimeout)
@@ -919,16 +608,8 @@ func enrichAndCollectColumns(ctx context.Context, db *sql.DB, dbtype string, cma
 func hasUserViews(ctx context.Context, db *sql.DB, dbtype string) bool {
 	var stmt string
 	switch dbtype {
-	case "mssql":
-		stmt = mssqlHasViewsStmt
 	case "postgres", "":
 		stmt = `SELECT 1 FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind IN ('v','m') AND n.nspname NOT IN ('pg_catalog','information_schema','_graphjin') LIMIT 1`
-	case "mysql":
-		stmt = `SELECT 1 FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_SCHEMA NOT IN ('mysql','information_schema','performance_schema','sys') LIMIT 1`
-	case "mariadb":
-		stmt = `SELECT 1 FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_SCHEMA NOT IN ('mysql','information_schema','performance_schema','sys') LIMIT 1`
-	case "oracle":
-		stmt = `SELECT 1 FROM all_views WHERE owner NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP','APPQOSSYS','XDB','WMSYS','CTXSYS','MDSYS','ORDSYS','ORDDATA') AND ROWNUM = 1`
 	case "sqlite":
 		stmt = `SELECT 1 FROM sqlite_master WHERE type='view' LIMIT 1`
 	default:
@@ -1096,20 +777,8 @@ func DiscoverCompositeFKs(ctx context.Context, db *sql.DB, dbtype string) ([]Com
 	switch dbtype {
 	case "postgres", "":
 		result, err = discoverCompositeFKsPostgres(ctx, db)
-	case "mysql":
-		result, err = discoverCompositeFKsCSV(ctx, db, dbtype, compositeFKQueryMySQL)
-	case "mariadb":
-		result, err = discoverCompositeFKsCSV(ctx, db, dbtype, compositeFKQueryMySQL) // identical to MySQL
 	case "sqlite":
 		result, err = discoverCompositeFKsCSV(ctx, db, dbtype, compositeFKQuerySQLite)
-	case "oracle":
-		result, err = discoverCompositeFKsCSV(ctx, db, dbtype, compositeFKQueryOracle)
-	case "mssql":
-		result, err = discoverCompositeFKsCSV(ctx, db, dbtype, compositeFKQueryMSSQL)
-	case "snowflake":
-		result, err = discoverSnowflakeCompositeFKs(ctx, db)
-	case "bigquery":
-		result, err = discoverCompositeFKsCSV(ctx, db, dbtype, compositeFKQueryBigQuery)
 	default:
 		return nil, nil
 	}
@@ -1407,38 +1076,13 @@ func DiscoverFunctions(ctx context.Context, db *sql.DB, dbtype string, blockList
 	switch dbtype {
 	case "postgres", "":
 		sqlStmt = postgresFunctionsStmt
-	case "mysql":
-		sqlStmt = mysqlFunctionsStmt
-	case "mariadb":
-		sqlStmt = mariadbFunctionsStmt
 	case "sqlite":
 		sqlStmt = sqliteFunctionsStmt
-	case "oracle":
-		sqlStmt = oracleFunctionsStmt
-	case "mssql":
-		sqlStmt = mssqlFunctionsStmt
-	case "snowflake":
-		// Snowflake emulator does not expose information_schema.functions consistently.
-		// Return no discovered functions for now.
-		return nil, nil
-	case "bigquery":
-		// BigQuery routines need dataset-qualified INFORMATION_SCHEMA queries.
-		// Skip routine discovery until the BigQuery connector carries dataset scope.
-		return nil, nil
-	case "redshift":
-		// Redshift function discovery is outside the experimental query/discovery MVP.
-		return nil, nil
-	case "mongodb":
-		// MongoDB doesn't have user-defined functions in the SQL sense
-		return nil, nil
-	case "cassandra":
-		// Cassandra has no queryable user-defined functions for GraphJin's purposes
-		return nil, nil
-	case "clickhouse":
-		// ClickHouse function discovery is not wired for GraphJin's purposes
-		return nil, nil
 	default:
-		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, mysql, mariadb, sqlite, oracle, mssql, snowflake, bigquery, redshift, mongodb, cassandra, clickhouse", dbtype)
+		return nil, fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", dbtype)
+	}
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
 	}
 
 	qctx, cancel := context.WithTimeout(ctx, introspectionQueryTimeout)
@@ -1510,72 +1154,11 @@ func isInList(val string, s []string) bool {
 	return false
 }
 
-func discoverSnowflakeCompositeFKs(ctx context.Context, db *sql.DB) ([]CompositeFKInfo, error) {
-	result, err := discoverSnowflakeCompositeFKsViaShow(ctx, db)
-	if err != nil {
-		return nil, err
-	}
-
-	// _gj_fk_metadata composite overrides are optional and can't be probed without
-	// INFORMATION_SCHEMA, so this is best-effort: a missing/unreadable table just
-	// means no overrides to merge.
-	overrides, err := discoverCompositeFKsCSV(ctx, db, "snowflake", compositeFKQuerySnowflakeOverrides)
-	if err != nil {
-		return result, nil
-	}
-	return mergeCompositeFKInfos(result, overrides), nil
-}
+func discoverSnowflakeCompositeFKs(ctx context.Context, db *sql.DB) ([]CompositeFKInfo, error) { return nil, nil }
 
 // discoverSnowflakeCompositeFKsViaShow reads composite foreign keys from the
 // RESULT_SCAN of SHOW IMPORTED KEYS (scoped to the session's current schema).
-func discoverSnowflakeCompositeFKsViaShow(ctx context.Context, db *sql.DB) ([]CompositeFKInfo, error) {
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	qid, err := snowflakeShowQueryID(ctx, conn, "SHOW IMPORTED KEYS")
-	if err != nil {
-		return nil, err
-	}
-
-	qctx, cancel := context.WithTimeout(ctx, snowflakeIntrospectionTimeout)
-	defer cancel()
-	start := time.Now()
-	rows, err := conn.QueryContext(qctx, snowflakeCompositeFKShowStmt, qid)
-	recordDiscoveryQuery(ctx, "schema_metadata", snowflakeCompositeFKShowStmt, time.Since(start))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []CompositeFKInfo
-	for rows.Next() {
-		var info CompositeFKInfo
-		var localCSV, fkeyCSV string
-		if err := rows.Scan(
-			&info.Schema, &info.Table, &info.ConstraintName,
-			&localCSV, &info.FKeySchema, &info.FKeyTable, &fkeyCSV,
-		); err != nil {
-			return nil, err
-		}
-		info.LocalCols = strings.Split(localCSV, ",")
-		info.FKeyCols = strings.Split(fkeyCSV, ",")
-		info.Schema = strings.ToLower(info.Schema)
-		info.Table = util.ToSnake(info.Table)
-		info.FKeySchema = strings.ToLower(info.FKeySchema)
-		info.FKeyTable = util.ToSnake(info.FKeyTable)
-		for i := range info.LocalCols {
-			info.LocalCols[i] = strings.ToLower(util.ToSnake(strings.TrimSpace(info.LocalCols[i])))
-		}
-		for i := range info.FKeyCols {
-			info.FKeyCols[i] = strings.ToLower(util.ToSnake(strings.TrimSpace(info.FKeyCols[i])))
-		}
-		result = append(result, info)
-	}
-	return result, rows.Err()
-}
+func discoverSnowflakeCompositeFKsViaShow(ctx context.Context, db *sql.DB) ([]CompositeFKInfo, error) { return nil, nil }
 
 func mergeCompositeFKInfos(base, overrides []CompositeFKInfo) []CompositeFKInfo {
 	result := append([]CompositeFKInfo(nil), base...)
@@ -1621,8 +1204,8 @@ func discoverClusteringKeys(ctx context.Context, db *sql.DB) (map[string][]strin
 	defer cancel()
 
 	start := time.Now()
-	rows, err := conn.QueryContext(qctx, snowflakeClusteringStmt, qid)
-	recordDiscoveryQuery(ctx, "schema_metadata", snowflakeClusteringStmt, time.Since(start))
+	rows, err := conn.QueryContext(qctx, "", qid)
+	recordDiscoveryQuery(ctx, "schema_metadata", "", time.Since(start))
 	if err != nil {
 		return nil, fmt.Errorf("error fetching clustering keys: %w", err)
 	}

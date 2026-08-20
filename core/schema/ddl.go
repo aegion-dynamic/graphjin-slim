@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 // DDLDialect defines how to generate DDL for a specific database

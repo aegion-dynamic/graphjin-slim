@@ -7,7 +7,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/assert"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/assert"
 )
 
 func TestCryptEncryptDecrypt(t *testing.T) {

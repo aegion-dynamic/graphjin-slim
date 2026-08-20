@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/introspection"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 // DiffOptions controls what operations are included in the schema diff

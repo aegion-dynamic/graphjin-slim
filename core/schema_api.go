@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"io"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 const (

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/util"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/valid"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/util"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/valid"
 )
 
 const (

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 const (

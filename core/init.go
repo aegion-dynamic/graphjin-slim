@@ -5,9 +5,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/allow"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 // Initializes the graphjin instance with the config

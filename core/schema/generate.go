@@ -12,8 +12,8 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/introspection"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 const schemaTemplate = `# dbinfo:{{if .Type}}{{ .Type }}{{else}}postgres{{end}},{{- .Version }},{{- .Schema }}

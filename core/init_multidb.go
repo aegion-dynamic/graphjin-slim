@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/introspection"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"golang.org/x/sync/errgroup"
 )
 

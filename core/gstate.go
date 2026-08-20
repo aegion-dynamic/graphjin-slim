@@ -14,9 +14,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 )
 
 type gstate struct {

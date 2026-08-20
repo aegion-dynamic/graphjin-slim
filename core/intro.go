@@ -3,8 +3,8 @@ package core
 import (
 	"encoding/json"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 // Re-export introspection types used by tests and callers.

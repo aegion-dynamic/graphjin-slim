@@ -6,7 +6,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 )
 
 // Cache is a small local LRU used for APQ and introspection JSON.

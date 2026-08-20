@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 func TestComputeDiff_CreateTable(t *testing.T) {

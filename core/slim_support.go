@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 // defaultCompileRole is the only compile profile. Access control is host-owned.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 )
 
 func TestInsertConflictGetResultEmpty(t *testing.T) {

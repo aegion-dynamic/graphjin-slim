@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
 	// "path/filepath"
 	"sort"
 	"strings"
@@ -48,7 +49,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/logging"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/logging"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"

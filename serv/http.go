@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/etags"
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/etags"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/rs/cors"
 

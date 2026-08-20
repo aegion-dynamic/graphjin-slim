@@ -1,4 +1,4 @@
-package core
+package schema
 
 import (
 	"context"
@@ -149,31 +149,19 @@ func GenerateSchemaSQL(dbType string, schemaBytes []byte, blocklist []string) ([
 	return GenerateDiffSQL(computeDiff(current, expected, DiffOptions{})), nil
 }
 
-// defaultSchemaForDBType returns the default schema name for a database type
-func defaultSchemaForDBType(dbType string) string {
+// DefaultSchemaForDBType returns the default schema name for a database type
+func DefaultSchemaForDBType(dbType string) string {
 	switch dbType {
 	case "postgres", "postgresql":
 		return "public"
-	case "mysql", "mariadb":
-		return "db"
 	case "sqlite":
 		return "main"
-	case "mssql":
-		return "dbo"
-	case "oracle":
-		return "TESTER"
-	case "snowflake":
-		return "main"
-	case "bigquery":
-		return ""
-	case "redshift":
-		return "public"
-	case "cassandra":
-		return ""
 	default:
 		return "public"
 	}
 }
+
+func defaultSchemaForDBType(dbType string) string { return DefaultSchemaForDBType(dbType) }
 
 // sortTablesByDependency performs a topological sort of tables based on FK dependencies
 // Parent tables (referenced by FKs) come before child tables (containing FKs)

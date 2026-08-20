@@ -268,27 +268,21 @@ func (co *Compiler) analyticsOrderBy(sel *Select, dir string, arg graph.Arg) ([]
 	return orders, nil
 }
 
-// validateAnalytics enforces SELECT-list column authorization on the
-// partitioning and ordering columns stored in analytics WindowSpecs. Window
-// specs retain only column names, so resolve each name back to its DBColumn to
-// enforce the config-level Blocked flag as well as the role allowlist.
-//
-// Without this check, a role could infer a hidden column through the row order,
-// rank, lag, or first-value output produced by @running, @moving, @previous,
-// @next, @first, @last, @rank, @denseRank, or @rowNumber.
-func (co *Compiler) validateAnalytics(qc *QCode, sel *Select, tr trval) error {
+// validateAnalytics enforces column validity on the
+// partitioning and ordering columns stored in analytics WindowSpecs.
+func (co *Compiler) validateAnalytics(qc *QCode, sel *Select) error {
 	for _, f := range sel.Fields {
 		if f.Window == nil {
 			continue
 		}
 
 		for _, name := range f.Window.Partition {
-			if err := validateAnalyticsColumn(qc, sel, tr, name); err != nil {
+			if err := validateAnalyticsColumn(qc, sel, name); err != nil {
 				return fmt.Errorf("analytics partition: %w", err)
 			}
 		}
 		for _, order := range f.Window.OrderBy {
-			if err := validateAnalyticsColumn(qc, sel, tr, order.Col); err != nil {
+			if err := validateAnalyticsColumn(qc, sel, order.Col); err != nil {
 				return fmt.Errorf("analytics order: %w", err)
 			}
 		}
@@ -296,13 +290,13 @@ func (co *Compiler) validateAnalytics(qc *QCode, sel *Select, tr trval) error {
 	return nil
 }
 
-func validateAnalyticsColumn(qc *QCode, sel *Select, tr trval, name string) error {
+func validateAnalyticsColumn(qc *QCode, sel *Select, name string) error {
 	col, err := sel.Ti.GetColumn(name)
 	if err != nil {
 		return err
 	}
-	if col.Blocked || !tr.columnAllowed(qc, col.Name) {
-		return validateErr(tr, col.Name, "db column blocked")
+	if col.Blocked {
+		return fmt.Errorf("db column blocked: %s", col.Name)
 	}
 	return nil
 }

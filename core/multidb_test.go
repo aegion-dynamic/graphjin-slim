@@ -27,25 +27,22 @@ func TestCacheKeyIncludesDatabase(t *testing.T) {
 			name:      "empty database (backward compatible)",
 			namespace: "ns1",
 			qname:     "getUsers",
-			role:      "user",
 			database:  "",
-			wantKey:   "ns1getUsersuser",
+			wantKey:   "ns1getUsers",
 		},
 		{
 			name:      "with database",
 			namespace: "ns1",
 			qname:     "getUsers",
-			role:      "user",
 			database:  "main",
-			wantKey:   "ns1getUsersusermain",
+			wantKey:   "ns1getUsersmain",
 		},
 		{
 			name:      "different database same query",
 			namespace: "ns1",
 			qname:     "getUsers",
-			role:      "user",
 			database:  "analytics",
-			wantKey:   "ns1getUsersuseranalytics",
+			wantKey:   "ns1getUsersanalytics",
 		},
 	}
 
@@ -56,7 +53,6 @@ func TestCacheKeyIncludesDatabase(t *testing.T) {
 					namespace: tt.namespace,
 					name:      tt.qname,
 				},
-				role:     tt.role,
 				database: tt.database,
 			}
 
@@ -73,13 +69,11 @@ func TestCacheKeyIncludesDatabase(t *testing.T) {
 func TestCacheKeyIsolation(t *testing.T) {
 	s1 := gstate{
 		r:        GraphqlReq{namespace: "ns", name: "query"},
-		role:     "user",
 		database: "db1",
 	}
 
 	s2 := gstate{
 		r:        GraphqlReq{namespace: "ns", name: "query"},
-		role:     "user",
 		database: "db2",
 	}
 
@@ -200,7 +194,7 @@ func TestCountDatabaseJoins(t *testing.T) {
 				Selects: []qcode.Select{
 					{Field: qcode.Field{SkipRender: qcode.SkipTypeRemote}},
 					{Field: qcode.Field{SkipRender: qcode.SkipTypeDatabaseJoin}},
-					{Field: qcode.Field{SkipRender: qcode.SkipTypeUserNeeded}},
+					{Field: qcode.Field{SkipRender: qcode.SkipTypeNulled}},
 				},
 			},
 			want: 1,
@@ -1458,7 +1452,6 @@ func TestIntroQueryDeterministic(t *testing.T) {
 
 	gj := &graphjinEngine{
 		conf:      &Config{DBType: "postgres"},
-		roles:     make(map[string]*Role),
 		defaultDB: "main",
 		databases: map[string]*dbContext{
 			"main":      {name: "main", schema: schema},

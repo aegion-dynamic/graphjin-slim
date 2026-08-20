@@ -1603,23 +1603,6 @@ func (d *SQLiteDialect) RenderLinearValues(ctx Context, m *qcode.Mutate, renderR
 	ctx.WriteString(`) AS t`)
 }
 
-// Role Statement rendering
-func (d *SQLiteDialect) RoleSelectPrefix() string {
-	return `(SELECT (CASE`
-}
-
-func (d *SQLiteDialect) RoleLimitSuffix() string {
-	return `) AS _sg_auth_roles_query LIMIT 1) `
-}
-
-func (d *SQLiteDialect) RoleDummyTable() string {
-	return `ELSE 'anon' END) FROM (VALUES (1)) AS _sg_auth_filler LIMIT 1; `
-}
-
-func (d *SQLiteDialect) TransformBooleanLiterals(match string) string {
-	return match // SQLite uses true/false natively
-}
-
 // Driver Behavior
 func (d *SQLiteDialect) RequiresJSONAsString() bool {
 	return false // SQLite driver handles json.RawMessage properly

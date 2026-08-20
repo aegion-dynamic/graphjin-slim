@@ -21,14 +21,6 @@ func strictMutationCompiler(t *testing.T) *qcode.Compiler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"products", "comments"} {
-		if err := qc.AddRole("user", "public", table, qcode.TRConfig{
-			Insert: qcode.InsertConfig{},
-			Update: qcode.UpdateConfig{},
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
 	return qc
 }
 
@@ -36,26 +28,26 @@ func TestMutationUnknownScalarColumnErrors(t *testing.T) {
 	qc := strictMutationCompiler(t)
 
 	// Inline insert input.
-	_, err := qc.Compile([]byte(`mutation { products(insert: { id: 1, name: "a", zzz_missing: "x" }) { id } }`), nil, "user", "")
+	_, err := qc.Compile([]byte(`mutation { products(insert: { id: 1, name: "a", zzz_missing: "x" }) { id } }`), nil, "")
 	if err == nil || !strings.Contains(err.Error(), "zzz_missing") {
 		t.Fatalf("unknown scalar insert key must error naming the column, got: %v", err)
 	}
 
 	// Inline update input.
-	_, err = qc.Compile([]byte(`mutation { products(where: { id: { eq: 1 } }, update: { pricee: 10 }) { id } }`), nil, "user", "")
+	_, err = qc.Compile([]byte(`mutation { products(where: { id: { eq: 1 } }, update: { pricee: 10 }) { id } }`), nil, "")
 	if err == nil || !strings.Contains(err.Error(), "pricee") {
 		t.Fatalf("unknown scalar update key must error naming the column, got: %v", err)
 	}
 
 	// Variable-bound insert data flows through the same map.
 	vars := map[string]json.RawMessage{"data": json.RawMessage(`{"id": 1, "name": "a", "zzz_missing": "x"}`)}
-	_, err = qc.Compile([]byte(`mutation ($data: json) { products(insert: $data) { id } }`), vars, "user", "")
+	_, err = qc.Compile([]byte(`mutation ($data: json) { products(insert: $data) { id } }`), vars, "")
 	if err == nil || !strings.Contains(err.Error(), "zzz_missing") {
 		t.Fatalf("unknown scalar key in variable data must error, got: %v", err)
 	}
 
 	// A valid insert still compiles.
-	if _, err := qc.Compile([]byte(`mutation { products(insert: { id: 1, name: "a", price: 10 }) { id } }`), nil, "user", ""); err != nil {
+	if _, err := qc.Compile([]byte(`mutation { products(insert: { id: 1, name: "a", price: 10 }) { id } }`), nil, ""); err != nil {
 		t.Fatalf("valid insert regressed: %v", err)
 	}
 }
@@ -65,17 +57,17 @@ func TestMutationKeywordAndRelationshipKeysStillCompile(t *testing.T) {
 
 	// The scalar `find` keyword steers recursive relationship inserts and must
 	// never be mistaken for a column.
-	if _, err := qc.Compile([]byte(`mutation { comments(insert: { id: 1002, body: "hi", comments: { find: "children", id: 1003, body: "child" } }) { id } }`), nil, "user", ""); err != nil {
+	if _, err := qc.Compile([]byte(`mutation { comments(insert: { id: 1002, body: "hi", comments: { find: "children", id: 1003, body: "child" } }) { id } }`), nil, ""); err != nil {
 		t.Fatalf("recursive find insert regressed: %v", err)
 	}
 
 	// Object-valued relationship keys keep flowing to the nested compiler.
-	if _, err := qc.Compile([]byte(`mutation { products(insert: { id: 2, name: "b", price: 5, user: { connect: { id: 4 } } }) { id } }`), nil, "user", ""); err != nil {
+	if _, err := qc.Compile([]byte(`mutation { products(insert: { id: 2, name: "b", price: 5, user: { connect: { id: 4 } } }) { id } }`), nil, ""); err != nil {
 		t.Fatalf("nested connect regressed: %v", err)
 	}
 
 	// Unknown OBJECT keys keep their historical rejection.
-	if _, err := qc.Compile([]byte(`mutation { products(insert: { id: 3, name: "c", price: 5, wormhole: { id: 9 } }) { id } }`), nil, "user", ""); err == nil {
+	if _, err := qc.Compile([]byte(`mutation { products(insert: { id: 3, name: "c", price: 5, wormhole: { id: 9 } }) { id } }`), nil, ""); err == nil {
 		t.Fatal("unknown object key must still error")
 	}
 }

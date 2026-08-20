@@ -245,8 +245,7 @@ func (co *Compiler) CompileQuery(
 		}
 
 		switch sel.SkipRender {
-		case qcode.SkipTypeUserNeeded, qcode.SkipTypeBlocked,
-			qcode.SkipTypeNulled:
+		case qcode.SkipTypeNulled:
 
 			// Use dialect-specific JSON null field rendering
 			c.dialect.RenderJSONNullField(c, sel.FieldName)

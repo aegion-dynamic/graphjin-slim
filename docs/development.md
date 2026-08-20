@@ -36,18 +36,19 @@ fake SQL drivers for new tests.
 
 | Change | Package |
 | --- | --- |
-| GraphQL parsing | `core/internal/graph` |
-| Query representation | `core/internal/qcode` |
-| SQL generation | `core/internal/psql` |
-| Postgres/SQLite SQL differences | `core/internal/dialect` |
-| Schema metadata | `core/internal/sdata` |
-| Database introspection | `core/internal/introspection` |
+| GraphQL parsing | `core/graph` |
+| Query compiler & IR | `core/qcode` |
+| SQL generation | `core/psql` |
+| Postgres/SQLite SQL differences | `core/dialect` |
+| Schema metadata & relationships | `core/sdata` |
+| Database introspection | `core/introspection` |
+| Introspection schema generation | `core/schema` |
 | Core public behavior | `core` |
-| Service configuration | `serv` while config extraction continues |
+| Service configuration | `serv` / `serv/config` |
 | Database connections | `serv/database` |
 | Response caching | `serv/cache` |
 | HTTP route registration | `serv/http` |
-| Service lifecycle | `serv/lifecycle` when extracted |
+| Service lifecycle | `serv/lifecycle` |
 
 ## Dependency Rules
 

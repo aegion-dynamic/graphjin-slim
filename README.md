@@ -11,20 +11,21 @@ Upstream remains the full project with its broader feature set. This repo tracks
 
 ## What this fork keeps
 
-- `core/` - GraphQL parsing, schema discovery (`sdata`), IR (`qcode`), SQL generation (`psql`, postgres and sqlite dialects), allow list, roles, and the stable public API in `core/api.go`
+- `core/` - GraphQL parsing, schema discovery (`sdata`), IR (`qcode`), SQL generation (`psql`, postgres and sqlite dialects), allow list, and the stable public API in `core/api.go`
 - `serv/` - `NewGraphJinService`, `GraphQL` and `REST` handlers, `GetDB`, `Attach`, database initialization, health, caching, and config loading
-- `core/internal/*` - `graph`, `jsn`, `sdata`, `qcode`, `psql`, `dialect` (postgres and sqlite), `allow`, `valid`, and other internals
-- Databases: postgres and sqlite
+- Sub-packages: `core/graph`, `core/jsn`, `core/sdata`, `core/qcode`, `core/psql`, `core/dialect` (postgres and sqlite), `core/allow`, `core/valid`, `core/schema`, `core/introspection`, `core/util`
+- Databases: Postgres and SQLite
 - Sources: database, file, api
 - File backends: local and s3
 
 ## What was removed
 
-- `wasm/` - WASM build for NodeJS, nothing in the data path imports it
+- Role and identity system: RBAC/ABAC role models, presets, role-based column/table blocking, and `$user_id` contextual injections have been removed in favor of an un-opinionated, pure GraphQL-to-SQL compiler where authorization is host-owned.
+- `wasm/` - WASM build for NodeJS
 - `website/` - Hugo docs site
 - `benchmark/` - standalone bench scripts
 - IDE plugin configs: `.claude-plugin/`, `.codex/`, `.cursor/`
-- Other database drivers and standalone service surfaces are not part of the slim runtime. Configuration accepts Postgres and SQLite.
+- Other database drivers and standalone service surfaces. Configuration accepts Postgres and SQLite.
 
 ## How it works
 

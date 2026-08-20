@@ -290,28 +290,6 @@ func aggFunction(t *testing.T) {
 	compileGQLToPSQL(t, gql, nil, "user")
 }
 
-func aggFunctionBlockedByCol(t *testing.T) {
-	gql := `query {
-		products {
-			name
-			count_price
-		}
-	}`
-
-	compileGQLToPSQLExpectErr(t, gql, nil, "anon")
-}
-
-func aggFunctionDisabled(t *testing.T) {
-	gql := `query {
-		products {
-			name
-			count_price
-		}
-	}`
-
-	compileGQLToPSQLExpectErr(t, gql, nil, "anon1")
-}
-
 func aggFunctionWithFilter(t *testing.T) {
 	gql := `query {
 		products(where: { id: { gt: 10 } }) {
@@ -633,44 +611,6 @@ func recursiveTableChildren(t *testing.T) {
 	compileGQLToPSQL(t, gql, vars, "user")
 }
 
-func nullForAuthRequiredInAnon(t *testing.T) {
-	gql := `query {
-		products {
-			id
-			name
-			user(where: { id: { eq: $user_id } }) {
-				id
-				email
-			}
-		}
-	}`
-
-	compileGQLToPSQL(t, gql, nil, "anon")
-}
-
-func blockedQuery(t *testing.T) {
-	gql := `query {
-		users(id: $id, where: { id: { gt: 3 } }) {
-			id
-			full_name
-			email
-		}
-	}`
-
-	compileGQLToPSQL(t, gql, nil, "bad_dude")
-}
-
-func blockedFunctions(t *testing.T) {
-	gql := `query {
-		users {
-			count_id
-			email
-		}
-	}`
-
-	compileGQLToPSQLExpectErr(t, gql, nil, "bad_dude")
-}
-
 func multiRootSameTable(t *testing.T) {
 	gql := `query {
 		q1: products(where: { id: { eq: 3 } }) {
@@ -705,8 +645,6 @@ func TestCompileQuery(t *testing.T) {
 	t.Run("manyToMany", manyToMany)
 	t.Run("manyToManyReverse", manyToManyReverse)
 	t.Run("aggFunction", aggFunction)
-	t.Run("aggFunctionBlockedByCol", aggFunctionBlockedByCol)
-	t.Run("aggFunctionDisabled", aggFunctionDisabled)
 	t.Run("aggFunctionWithFilter", aggFunctionWithFilter)
 	t.Run("syntheticTables", syntheticTables)
 	t.Run("queryWithVariables", queryWithVariables)
@@ -725,9 +663,6 @@ func TestCompileQuery(t *testing.T) {
 	t.Run("recursiveTableParents", recursiveTableParents)
 	t.Run("recursiveTableChildren", recursiveTableChildren)
 	t.Run("withCursor", withCursor)
-	t.Run("nullForAuthRequiredInAnon", nullForAuthRequiredInAnon)
-	t.Run("blockedQuery", blockedQuery)
-	t.Run("blockedFunctions", blockedFunctions)
 	t.Run("multiRootSameTable", multiRootSameTable)
 	t.Run("distinctWithAggCount", distinctWithAggCount)
 	t.Run("distinctWithAggMultiple", distinctWithAggMultiple)
@@ -820,7 +755,7 @@ func compileGQLToPSQLString(t *testing.T, gql string,
 		t.Fatal(err)
 	}
 
-	qc, err := qcompile.Compile([]byte(gql), vm, role, "")
+	qc, err := qcompile.Compile([]byte(gql), vm, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -844,14 +779,6 @@ func partitionFilterInSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = pQCompile.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	pPCompile := psql.NewCompiler(psql.Config{})
 
@@ -862,7 +789,7 @@ func partitionFilterInSQL(t *testing.T) {
 		}
 	}`
 
-	qc, err := pQCompile.Compile([]byte(gql), nil, "user", "")
+	qc, err := pQCompile.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -921,7 +848,7 @@ func BenchmarkCompile(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		w.Reset()
 
-		qc, err := qcompile.Compile(benchGQL, nil, "user", "")
+		qc, err := qcompile.Compile(benchGQL, nil, "")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -943,7 +870,7 @@ func BenchmarkCompileParallel(b *testing.B) {
 		for pb.Next() {
 			w.Reset()
 
-			qc, err := qcompile.Compile(benchGQL, nil, "user", "")
+			qc, err := qcompile.Compile(benchGQL, nil, "")
 			if err != nil {
 				b.Fatal(err)
 			}

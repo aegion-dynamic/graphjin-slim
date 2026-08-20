@@ -15,17 +15,12 @@ import (
 
 func TestColumnArgAggregate(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	for _, form := range []string{
 		`max_price: max(column: price)`,
 		`max_price: max(column: "price")`,
 	} {
-		q, err := qc.Compile([]byte(`query { products { id `+form+` } }`), nil, "user", "")
+		q, err := qc.Compile([]byte(`query { products { id `+form+` } }`), nil, "")
 		if err != nil {
 			t.Fatalf("compile %q: %v", form, err)
 		}
@@ -54,56 +49,24 @@ func TestColumnArgAggregate(t *testing.T) {
 	}
 }
 
-func TestColumnArgAggregateRoleBlocked(t *testing.T) {
-	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	// Role can read id but NOT price.
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := qc.Compile([]byte(`
-		query { products {
-			id
-			leaked: sum(column: price)
-		} }`), nil, "user", "")
-	if err == nil {
-		t.Fatal("expected compile error for blocked column reference, got nil")
-	}
-	if !strings.Contains(err.Error(), "price") {
-		t.Errorf("error should mention the blocked column, got: %v", err)
-	}
-}
-
 func TestColumnArgNonAggregateStillErrors(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	// A non-aggregate function name keeps its historical failure: the column
 	// spelling is deliberately confined to genuine aggregates.
-	if _, err := qc.Compile([]byte(`query { products { id lower(column: name) } }`), nil, "user", ""); err == nil {
+	if _, err := qc.Compile([]byte(`query { products { id lower(column: name) } }`), nil, ""); err == nil {
 		t.Fatal("lower(column:) must not compile")
 	}
 
 	// A nonexistent column names itself in the error.
-	_, err := qc.Compile([]byte(`query { products { id max(column: nope) } }`), nil, "user", "")
+	_, err := qc.Compile([]byte(`query { products { id max(column: nope) } }`), nil, "")
 	if err == nil || !strings.Contains(err.Error(), "nope") {
 		t.Fatalf("unknown column must error naming it, got: %v", err)
 	}
 
 	// DisableAgg blocks the new spelling like every other aggregate form.
 	blocked, _ := qcode.NewCompiler(dbs, qcode.Config{DisableAgg: true})
-	if err := blocked.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	_, err = blocked.Compile([]byte(`query { products { id max(column: price) } }`), nil, "user", "")
+	_, err = blocked.Compile([]byte(`query { products { id max(column: price) } }`), nil, "")
 	if err == nil || !strings.Contains(err.Error(), "disabled") {
 		t.Fatalf("DisableAgg must reject the column form, got: %v", err)
 	}

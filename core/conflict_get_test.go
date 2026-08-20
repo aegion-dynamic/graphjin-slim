@@ -42,7 +42,4 @@ func TestInsertConflictGetUnavailableError(t *testing.T) {
 	if got := insertConflictGetUnavailableError(&qcode.QCode{}).Error(); !strings.Contains(got, "retryable concurrency error") {
 		t.Fatalf("expected retryable concurrency error, got %q", got)
 	}
-	if got := insertConflictGetUnavailableError(&qcode.QCode{InsertConflictReadFiltered: true}).Error(); !strings.Contains(got, "authorization error") {
-		t.Fatalf("expected authorization error, got %q", got)
-	}
 }

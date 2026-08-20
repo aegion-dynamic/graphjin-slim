@@ -56,16 +56,9 @@ type graphjinEngine struct {
 	cache                      Cache
 	queries                    sync.Map
 	sqliteConflictGetMu        sync.Mutex
-	roles                      map[string]*Role
-	roleStatement              string
-	roleStatementMetadata      psql.Metadata
-	roleQueryMode              roleQueryMode
-	roleGraphQLStmt            stmt
-	roleGraphQLMatches         []compiledRoleMatch
 	tmap                       map[string]qcode.TConfig
 	rtmap                      map[string]ResolverFn
 	rmap                       map[string]resItem
-	abacEnabled                bool
 	subs                       sync.Map
 	prod                       bool
 	prodSec                    bool
@@ -352,10 +345,6 @@ func (g *GraphJin) newGraphJin(conf *Config,
 			return
 		}
 
-		if err = gj.prepareRoleStmt(); err != nil {
-			return
-		}
-
 		if err = gj.initIntro(); err != nil {
 			return
 		}
@@ -459,7 +448,6 @@ type Result struct {
 	operation    qcode.QType
 	name         string
 	sql          string
-	role         string
 	cacheControl string
 	cacheHit     bool
 	subCursors   map[string]string
@@ -780,7 +768,6 @@ func (gj *graphjinEngine) query(c context.Context, r GraphqlReq) (
 	}
 	resp.res.Data = json.RawMessage(s.data)
 	resp.res.Hash = s.dhash
-	resp.res.role = s.role
 	resp.res.cacheHit = s.cacheHit || (s.fragmentHits.Load() > 0 && s.fragmentMisses.Load() == 0)
 
 	if err != nil {
@@ -1058,9 +1045,6 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 		if err := gj.initAllowList(); err != nil {
 			return err
 		}
-		if err := gj.prepareRoleStmt(); err != nil {
-			return err
-		}
 		if err := gj.initIntro(); err != nil {
 			return err
 		}
@@ -1166,9 +1150,6 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 	}
 	if gj.anyDatabaseReady() {
 		if err := gj.initAllowList(); err != nil {
-			return err
-		}
-		if err := gj.prepareRoleStmt(); err != nil {
 			return err
 		}
 		if err := gj.initIntro(); err != nil {

@@ -158,13 +158,6 @@ type Dialect interface {
 	RenderQueryPrefix(ctx Context, qc *qcode.QCode)
 	SplitQuery(query string) []string
 
-	// Role Statement rendering (moves db-specific code from core/rolestmt.go)
-	// These return strings since they're used outside the psql compiler context
-	RoleSelectPrefix() string                     // "SELECT TOP 1 (CASE" vs "SELECT (CASE"
-	RoleLimitSuffix() string                      // Close with/without LIMIT 1
-	RoleDummyTable() string                       // Database-specific dummy table
-	TransformBooleanLiterals(match string) string // "true"→"1" for MSSQL
-
 	// Driver Behavior (moves db-specific code from core/args.go and core/core.go)
 	RequiresJSONAsString() bool         // Oracle/MSSQL need JSON as string
 	RequiresLowercaseIdentifiers() bool // Oracle needs lowercase schemas

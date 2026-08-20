@@ -212,9 +212,7 @@ func compileOrderBy(sel *Select,
 //     dev-authored like presets, and every variant compiles into the SQL
 //     regardless of which one the client's variable picks at runtime, so
 //     a per-role allowlist could only ever reject the whole feature.
-//     The config-level Blocked flag still applies — a column marked
-//     "never expose" wins over a config ordering variant that names it.
-func (co *Compiler) validateOrderBy(qc *QCode, sel *Select, tr trval) error {
+func (co *Compiler) validateOrderBy(qc *QCode, sel *Select) error {
 	for _, ob := range sel.OrderBy {
 		if ob.Alias != "" {
 			continue
@@ -226,14 +224,6 @@ func (co *Compiler) validateOrderBy(qc *QCode, sel *Select, tr trval) error {
 		if ob.KeyVar != "" {
 			continue
 		}
-		trv := tr
-		if !strings.EqualFold(ob.Col.Table, sel.Ti.Name) ||
-			!strings.EqualFold(ob.Col.Schema, sel.Ti.Schema) {
-			// Nested-relation ordering (order_by: { rel: { col: asc } })
-			// references another table's column; check that table's role
-			// config, same as a child selector on it would.
-			trv = co.getRole(tr.role, ob.Col.Schema, ob.Col.Table, ob.Col.Table)
-		}
 		if ob.IsFunc {
 			// Same message isFunction emits for aggregate SELECT fields
 			// when aggregation is disabled compiler-wide.
@@ -241,14 +231,6 @@ func (co *Compiler) validateOrderBy(qc *QCode, sel *Select, tr trval) error {
 				return fmt.Errorf("order_by: aggreation disabled: db function '%s' cannot be used",
 					ob.Func.Name)
 			}
-			if trv.isFuncsBlocked() {
-				return fmt.Errorf("order_by: %w",
-					validateErr(trv, ob.Func.Name, "all db functions blocked"))
-			}
-		}
-		if !trv.columnAllowed(qc, ob.Col.Name) {
-			return fmt.Errorf("order_by: %w",
-				validateErr(trv, ob.Col.Name, "db column blocked"))
 		}
 	}
 
@@ -256,10 +238,6 @@ func (co *Compiler) validateOrderBy(qc *QCode, sel *Select, tr trval) error {
 		if col.Blocked {
 			return fmt.Errorf("distinct: column: '%s.%s.%s' blocked",
 				col.Schema, col.Table, col.Name)
-		}
-		if !tr.columnAllowed(qc, col.Name) {
-			return fmt.Errorf("distinct: %w",
-				validateErr(tr, col.Name, "db column blocked"))
 		}
 	}
 	return nil

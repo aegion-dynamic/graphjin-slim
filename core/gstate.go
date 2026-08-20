@@ -26,11 +26,7 @@ type gstate struct {
 	vmap  map[string]json.RawMessage
 	data  []byte
 	dhash [sha256.Size]byte
-	role  string
-	// trustedReservedRole is true only when a service-installed authorizer
-	// allowed a reserved role for this exact request context.
-	trustedReservedRole bool
-	verrs               []qcode.ValidErr
+	verrs []qcode.ValidErr
 	// database is the target database name for multi-database support.
 	// Empty string means default database (backward compatible single-DB mode).
 	database string
@@ -57,18 +53,14 @@ type cstate struct {
 }
 
 type stmt struct {
-	role string
-	roc  *Role
-	qc   *qcode.QCode
-	md   psql.Metadata
-	sql  string
+	qc  *qcode.QCode
+	md  psql.Metadata
+	sql string
 }
 
 func newGState(c context.Context, gj *graphjinEngine, r GraphqlReq) (s gstate, err error) {
 	s.gj = gj
 	s.r = r
-
-	s.role, s.trustedReservedRole = defaultCompileRole, true
 
 	// convert variable json to a go map also decrypted encrypted values
 	if len(r.vars) != 0 {
@@ -86,50 +78,24 @@ func newGState(c context.Context, gj *graphjinEngine, r GraphqlReq) (s gstate, e
 	return
 }
 
-func (gj *graphjinEngine) initialRequestRole(ctx context.Context) (string, bool) {
-	return defaultCompileRole, true
-}
-
-// IsReservedRoleName reports whether a role name is reserved for GraphJin
-// internals and must not be accepted from request-controlled identity data.
-func IsReservedRoleName(role string) bool {
-	return isReservedRoleName(role)
-}
-
-func isReservedRoleName(role string) bool {
-	return strings.HasPrefix(strings.TrimSpace(role), "__")
-}
-
-func (gj *graphjinEngine) requestRole(ctx context.Context, role string) (string, bool) {
-	return defaultCompileRole, true
-}
-
-func (gj *graphjinEngine) requestRoleOrDefault(ctx context.Context, role, fallback string) (string, bool) {
-	return defaultCompileRole, true
-}
-
 func (s *gstate) cloneForDatabaseRoot(dbName string) gstate {
 	return gstate{
-		gj:                  s.gj,
-		r:                   cloneGraphqlReq(s.r),
-		vmap:                cloneRawMessageMap(s.vmap),
-		role:                s.role,
-		trustedReservedRole: s.trustedReservedRole,
-		database:            dbName,
-		skipCache:           s.skipCache,
+		gj:        s.gj,
+		r:         cloneGraphqlReq(s.r),
+		vmap:      cloneRawMessageMap(s.vmap),
+		database:  dbName,
+		skipCache: s.skipCache,
 	}
 }
 
 func (s *gstate) pollGState(vmap map[string]json.RawMessage) gstate {
 	return gstate{
-		gj:                  s.gj,
-		r:                   cloneGraphqlReq(s.r),
-		cs:                  s.cs,
-		vmap:                cloneRawMessageMap(vmap),
-		role:                s.role,
-		trustedReservedRole: s.trustedReservedRole,
-		database:            s.database,
-		skipCache:           true,
+		gj:        s.gj,
+		r:         cloneGraphqlReq(s.r),
+		cs:        s.cs,
+		vmap:      cloneRawMessageMap(vmap),
+		database:  s.database,
+		skipCache: true,
 	}
 }
 
@@ -182,23 +148,23 @@ func cloneBytes(in []byte) []byte {
 
 func (s *gstate) compile() (err error) {
 	if !s.gj.prodSec {
-		err = s.compileQueryForRole()
+		err = s.compileQuery()
 		return
 	}
 
-	// In production mode and compile and cache the result
+	// In production mode compile and cache the result
 	// In production mode the query is derived from the allow list
-	err = s.compileQueryForRoleOnce()
+	err = s.compileQueryOnce()
 	return
 }
 
-func (s *gstate) compileQueryForRoleOnce() (err error) {
+func (s *gstate) compileQueryOnce() (err error) {
 	val, loaded := s.gj.queries.LoadOrStore(s.key(), &cstate{})
 	s.cs = val.(*cstate)
 
 	if !loaded {
 		s.cs.Do(func() {
-			s.cs.err = s.compileQueryForRole()
+			s.cs.err = s.compileQuery()
 		})
 	}
 
@@ -206,17 +172,8 @@ func (s *gstate) compileQueryForRoleOnce() (err error) {
 	return
 }
 
-func (s *gstate) compileQueryForRole() (err error) {
-	if false {
-		return fmt.Errorf(`role '%s' is reserved`, s.role)
-	}
-
-	st := stmt{role: s.role}
-
-	st.roc = s.gj.roles[s.role]
-	if st.roc == nil {
-		st.roc = &Role{Name: defaultCompileRole}
-	}
+func (s *gstate) compileQuery() (err error) {
+	st := stmt{}
 
 	var vars map[string]json.RawMessage
 	if len(s.r.aschema) != 0 { // compile in prod (once)
@@ -235,7 +192,6 @@ func (s *gstate) compileQueryForRole() (err error) {
 			if len(byDB) > 1 {
 				s.multiDB = true
 				s.dbGroups = byDB
-				// Store role info for parallel execution
 				if s.cs == nil {
 					s.cs = &cstate{st: st}
 				} else {
@@ -275,7 +231,6 @@ func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, 
 	if st.qc, err = qcc.Compile(
 		s.r.query,
 		vars,
-		s.role,
 		s.r.namespace); err != nil {
 		return
 	}
@@ -447,29 +402,7 @@ func (s *gstate) readOnlyDatabaseMutationError(routed bool) error {
 }
 
 func (s *gstate) compileAndExecute(c context.Context) (err error) {
-	var defaultConn *sql.Conn
-
-	// For ABAC, we need to execute role query first using default database
-	if false {
-		c1, span1 := s.gj.spanStart(c, "Get Default Connection for ABAC")
-		defer span1.End()
-
-		err = retryOperation(c1, func() (err1 error) {
-			defaultConn, err1 = s.gj.primaryDB().db.Conn(c1)
-			return
-		})
-		if err != nil {
-			span1.Error(err)
-			return
-		}
-		defer defaultConn.Close() //nolint:errcheck
-
-		if err = s.executeRoleQuery(c, defaultConn); err != nil {
-			return
-		}
-	}
-
-	// Compile query for the role (this also determines target database for multi-DB)
+	// Compile query (this also determines target database for multi-DB)
 	if err = s.compile(); err != nil {
 		// A mutation that cannot compile against a read-only database is
 		// refused for being read-only, not for whatever the compiler happened
@@ -581,25 +514,6 @@ func (s *gstate) sourceModeAuthorizeCompileError(err error) error {
 }
 
 func (s *gstate) sourceModeBlockedRootError() error {
-	if s == nil || s.gj == nil || s.gj.conf == nil || !s.gj.conf.IsSourcesUsed() || s.cs == nil || s.cs.st.qc == nil {
-		return nil
-	}
-	qc := s.cs.st.qc
-	if qc.Type != qcode.QTQuery {
-		return nil
-	}
-	for _, rid := range qc.Roots {
-		sel := qc.Selects[rid]
-		if sel.Ti.Name == "" || strings.HasPrefix(strings.ToLower(sel.Ti.Name), "gj_") {
-			continue
-		}
-		switch sel.SkipRender {
-		case qcode.SkipTypeBlocked:
-			return fmt.Errorf("unauthorized: table %s is blocked for role %s", sel.Ti.Name, s.role)
-		case qcode.SkipTypeUserNeeded:
-			return fmt.Errorf("unauthorized: table %s requires authenticated access", sel.Ti.Name)
-		}
-	}
 	return nil
 }
 
@@ -889,7 +803,6 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 			{"query.namespace", s.r.namespace},
 			{"query.operation", cs.st.qc.Type.String()},
 			{"query.name", cs.st.qc.Name},
-			{"query.role", cs.st.role},
 		}
 		// Add database attribute for multi-database observability
 		if s.database != "" {
@@ -926,9 +839,6 @@ func insertConflictGetResultEmpty(data []byte, qc *qcode.QCode) bool {
 }
 
 func insertConflictGetUnavailableError(qc *qcode.QCode) error {
-	if qc != nil && qc.InsertConflictReadFiltered {
-		return errors.New("authorization error: on_conflict: get cannot return an existing row hidden by the active role policy")
-	}
 	return errors.New("retryable concurrency error: on_conflict: get could not return the row after one complete-statement retry")
 }
 
@@ -958,11 +868,6 @@ func wrapScriptError(stmtIdx int, stmt string, usesQueryPath bool, err error) er
 	}
 
 	return fmt.Errorf("%s: %w", msg, err)
-}
-
-func (s *gstate) executeRoleQuery(c context.Context, conn *sql.Conn) (err error) {
-	s.role, s.trustedReservedRole, err = s.gj.executeRoleQuery(c, conn, s.vmap, s.r.requestconfig)
-	return
 }
 
 func (s *gstate) argList(c context.Context) (args args, err error) {
@@ -1035,9 +940,9 @@ func (s *gstate) key() (key string) {
 			dbs = append(dbs, db)
 		}
 		sort.Strings(dbs)
-		key = s.r.namespace + s.r.name + s.role + strings.Join(dbs, ",")
+		key = s.r.namespace + s.r.name + strings.Join(dbs, ",")
 	} else {
-		key = s.r.namespace + s.r.name + s.role + s.database
+		key = s.r.namespace + s.r.name + s.database
 	}
 	return
 }

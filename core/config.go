@@ -247,10 +247,6 @@ func (c *Config) findTableIndex(path string) int {
 	return -1
 }
 
-func (c *Config) AddRoleTable(role, table string, conf interface{}) error { return errRolesDisabled }
-
-func (c *Config) RemoveRoleTable(role, table string) error { return errRolesDisabled }
-
 // Config is the slim GraphJin compiler configuration (Postgres/SQLite + multi-DB).
 type Config struct {
 	SecretKey            string               `mapstructure:"secret_key" json:"secret_key" yaml:"secret_key"`
@@ -330,64 +326,6 @@ type Function struct {
 	Name       string
 	Schema     string
 	ReturnType string `mapstructure:"return_type" json:"return_type" yaml:"return_type" jsonschema:"title=Return Type,example=boolean,example=record"`
-}
-
-type Role struct {
-	Name    string
-	Comment string
-	Match   string      `jsonschema:"title=Related To,example=other_table.id_column,example=users.id"`
-	Tables  []RoleTable `jsonschema:"title=Table Configuration for Role"`
-	tm      map[string]*RoleTable
-}
-
-type RoleTable struct {
-	Name      string
-	Schema    string
-	Database  string `mapstructure:"database" json:"database" yaml:"database" jsonschema:"title=Database"`
-	ReadOnly  bool   `mapstructure:"read_only" json:"read_only" yaml:"read_only" jsonschema:"title=Read Only"`
-	Generated bool   `mapstructure:"-" json:"-" yaml:"-" jsonschema:"-"`
-
-	Query  *Query
-	Insert *Insert
-	Update *Update
-	Upsert *Upsert
-	Delete *Delete
-}
-
-type Query struct {
-	Limit int
-	// Use filters to enforce table wide things like { disabled: false } where you never want disabled users to be shown.
-	Filters          []string
-	Columns          []string
-	DisableFunctions bool `mapstructure:"disable_functions" json:"disable_functions" yaml:"disable_functions"`
-	Block            bool
-}
-
-type Insert struct {
-	Filters []string
-	Columns []string
-	Presets map[string]string
-	Block   bool
-}
-
-type Update struct {
-	Filters []string
-	Columns []string
-	Presets map[string]string
-	Block   bool
-}
-
-type Upsert struct {
-	Filters []string
-	Columns []string
-	Presets map[string]string
-	Block   bool
-}
-
-type Delete struct {
-	Filters []string
-	Columns []string
-	Block   bool
 }
 
 type RelationshipConfig struct {

@@ -18,11 +18,6 @@ func newAggOrderByCompiler(t *testing.T) *qcode.Compiler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 	return qc
 }
 
@@ -36,7 +31,7 @@ func TestOrderByAggregateKeepsGrouping(t *testing.T) {
 		query { products(order_by: { sum_price: desc }, limit: 1) {
 			name
 			sum_price
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -86,7 +81,7 @@ func TestOrderByAggregatePromotesGrouping(t *testing.T) {
 	q, err := qc.Compile([]byte(`
 		query { products(order_by: { sum_price: desc }, limit: 5) {
 			name
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -111,7 +106,7 @@ func TestOrderByPlainColumnStillProjected(t *testing.T) {
 	q, err := qc.Compile([]byte(`
 		query { products(order_by: { price: desc }, limit: 3) {
 			name
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}

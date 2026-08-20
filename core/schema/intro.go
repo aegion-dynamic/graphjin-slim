@@ -204,7 +204,6 @@ type Introspection struct {
 type IntroOptions struct {
 	CamelCase  bool
 	DisableAgg bool
-	Roles      []IntroRole
 	// Schemas is the ordered list of database schemas to include.
 	Schemas []*sdata.DBSchema
 }
@@ -249,8 +248,6 @@ func BuildIntrospection(opts IntroOptions) (result json.RawMessage, err error) {
 
 	v = append(expAll, expJSON...)
 	in.addExpTypes(v, "JSON", newTypeRef("", "String", nil))
-
-	in.addRolesEnumType(opts.Roles)
 
 	for _, sch := range opts.Schemas {
 		if sch == nil {
@@ -624,34 +621,6 @@ func (in *Introspection) finalizeTablesEnum() {
 	sort.Strings(evNames)
 	for _, name := range evNames {
 		ft.EnumValues = append(ft.EnumValues, in.enumValues[name])
-	}
-	in.addType(ft)
-}
-
-// IntroRole is the minimal role surface needed for introspection enums.
-type IntroRole struct {
-	Name    string
-	Comment string
-	Match   string
-}
-
-// addRolesEnumType adds an enum type for the roles
-func (in *Introspection) addRolesEnumType(roles []IntroRole) {
-	ft := FullType{
-		Kind:        KIND_ENUM,
-		Name:        ("roles" + SUFFIX_ENUM),
-		Description: "All available roles",
-	}
-	sort.SliceStable(roles, func(i, j int) bool { return roles[i].Name < roles[j].Name })
-	for _, ro := range roles {
-		cmt := ro.Comment
-		if ro.Match != "" {
-			cmt = fmt.Sprintf("%s (Match: %s)", cmt, ro.Match)
-		}
-		ft.EnumValues = append(ft.EnumValues, EnumValue{
-			Name:        ro.Name,
-			Description: cmt,
-		})
 	}
 	in.addType(ft)
 }
@@ -1262,9 +1231,9 @@ var dirTypes []dir = []dir{
 		desc: "Skip field if defined condition is met",
 		locs: []string{LOC_FIELD},
 		args: []dirArg{{
-			name:  "ifRole",
-			desc:  "If current role matches",
-			atype: ("roles" + SUFFIX_ENUM),
+			name:  "if",
+			desc:  "If a variable is true",
+			atype: "Boolean",
 		}, {
 			name:  "ifVar",
 			desc:  "If a variable is true",
@@ -1276,33 +1245,13 @@ var dirTypes []dir = []dir{
 		desc: "Include field if defined condition is met",
 		locs: []string{LOC_FIELD},
 		args: []dirArg{{
-			name:  "ifRole",
-			desc:  "If current role matches",
-			atype: ("roles" + SUFFIX_ENUM),
+			name:  "if",
+			desc:  "If a variable is true",
+			atype: "Boolean",
 		}, {
 			name:  "ifVar",
 			desc:  "If a variable is true",
 			atype: "String",
-		}},
-	},
-	{
-		name: "add",
-		desc: "Add field if defined condition is met, Similar to 'include' except field is removed when condition is not met",
-		locs: []string{LOC_FIELD},
-		args: []dirArg{{
-			name:  "ifRole",
-			desc:  "If current role matches",
-			atype: ("roles" + SUFFIX_ENUM),
-		}},
-	},
-	{
-		name: "remove",
-		desc: "Include field if defined condition is met. Unlike 'skip' field is remove not set to null",
-		locs: []string{LOC_FIELD},
-		args: []dirArg{{
-			name:  "ifRole",
-			desc:  "If current role matches",
-			atype: ("roles" + SUFFIX_ENUM),
 		}},
 	},
 	{

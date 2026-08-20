@@ -54,8 +54,6 @@ func (gj *graphjinEngine) initConfig() error {
 		}
 	}
 
-	gj.roles = map[string]*Role{defaultCompileRole: {Name: defaultCompileRole}}
-	gj.abacEnabled = false
 	return nil
 }
 
@@ -402,80 +400,6 @@ func addFunctions(conf *Config, di *sdata.DBInfo) error {
 		}
 	}
 	return nil
-}
-
-// addRoles adds roles to the compiler
-
-// addRole adds a role to the compiler
-func addRole(qc *qcode.Compiler, r Role, t RoleTable, defaultBlock bool) error {
-	ro := defaultBlock && r.Name == "anon"
-
-	if t.ReadOnly {
-		ro = true
-	}
-
-	query := qcode.QueryConfig{Block: false}
-	insert := qcode.InsertConfig{Block: ro}
-	update := qcode.UpdateConfig{Block: ro}
-	upsert := qcode.UpsertConfig{Block: ro}
-	del := qcode.DeleteConfig{Block: ro}
-
-	if t.Query != nil {
-		query = qcode.QueryConfig{
-			Limit:            t.Query.Limit,
-			Filters:          t.Query.Filters,
-			Columns:          t.Query.Columns,
-			DisableFunctions: t.Query.DisableFunctions,
-			Block:            t.Query.Block,
-		}
-	}
-
-	if t.Insert != nil {
-		insert = qcode.InsertConfig{
-			Columns: t.Insert.Columns,
-			Presets: t.Insert.Presets,
-			Block:   t.Insert.Block,
-		}
-	}
-
-	if t.Update != nil {
-		update = qcode.UpdateConfig{
-			Filters: t.Update.Filters,
-			Columns: t.Update.Columns,
-			Presets: t.Update.Presets,
-			Block:   t.Update.Block,
-		}
-	}
-
-	if t.Upsert != nil {
-		upsert = qcode.UpsertConfig{
-			Filters: t.Upsert.Filters,
-			Columns: t.Upsert.Columns,
-			Presets: t.Upsert.Presets,
-			Block:   t.Upsert.Block,
-		}
-	}
-
-	if t.Delete != nil {
-		del = qcode.DeleteConfig{
-			Filters: t.Delete.Filters,
-			Columns: t.Delete.Columns,
-			Block:   t.Delete.Block,
-		}
-	}
-
-	return qc.AddRole(r.Name, t.Schema, t.Name, qcode.TRConfig{
-		Query:  query,
-		Insert: insert,
-		Update: update,
-		Upsert: upsert,
-		Delete: del,
-	})
-}
-
-// GetTable returns a table from the role
-func (r *Role) GetTable(schema, name string) *RoleTable {
-	return r.tm[name]
 }
 
 // fkTarget holds the parsed components of a foreign key reference.

@@ -20,15 +20,6 @@ func TestSQLiteGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = qcCompiler.AddRole("user", "public", "users", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "full_name", "email", "products"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	gql := `query {
 		users {
 			id
@@ -38,7 +29,7 @@ func TestSQLiteGeneration(t *testing.T) {
 		}
 	}`
 
-	qc, err := qcCompiler.Compile([]byte(gql), nil, "user", "")
+	qc, err := qcCompiler.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,22 +68,13 @@ func TestSQLiteEmptySelection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = qcCompiler.AddRole("user", "public", "users", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "full_name", "email", "products"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	gql := `query {
 		users {
-			id @remove(ifRole: "user")
+			id @skip(if: $skip_id)
 		}
 	}`
 
-	qc, err := qcCompiler.Compile([]byte(gql), nil, "user", "")
+	qc, err := qcCompiler.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -37,8 +37,6 @@ const (
 
 // introQuery returns the introspection query result for this engine.
 func (gj *graphjinEngine) introQuery() (result json.RawMessage, err error) {
-	roles := []schemapkg.IntroRole{{Name: defaultCompileRole}}
-
 	schemas := make([]*sdata.DBSchema, 0, len(gj.databases))
 	for _, dbName := range gj.sortedDatabaseNames() {
 		ctx := gj.databases[dbName]
@@ -51,7 +49,6 @@ func (gj *graphjinEngine) introQuery() (result json.RawMessage, err error) {
 	return schemapkg.BuildIntrospection(schemapkg.IntroOptions{
 		CamelCase:  gj.conf.EnableCamelcase,
 		DisableAgg: gj.conf.DisableAgg,
-		Roles:      roles,
 		Schemas:    schemas,
 	})
 }

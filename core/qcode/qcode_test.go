@@ -23,61 +23,20 @@ func init() {
 
 func TestCompile1(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name"},
-		},
-	})
-	if err != nil {
-		t.Error(err)
-		return
-	}
 
-	_, err = qc.Compile([]byte(`
+	_, err := qc.Compile([]byte(`
 	query { products(id: 15) {
 			id
 			name
-		} }`), nil, "user", "")
+		} }`), nil, "")
 
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestCompile2(t *testing.T) {
-	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"ID"},
-		},
-	})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	_, err = qc.Compile([]byte(`
-	query { product(id: $id) {
-			id
-			price
-		} }`), nil, "user", "")
-
-	if err == nil {
-		t.Fatal(errors.New("expected an error: 'products.price' blocked"))
-	}
-}
-
 func TestCompile3(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"ID"},
-		},
-	})
-	if err != nil {
-		t.Error(err)
-		return
-	}
 
 	vars := json.RawMessage(`
 		{ "data": { "name": "my_name", "description": "my_desc"  } }`)
@@ -87,13 +46,13 @@ func TestCompile3(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = qc.Compile([]byte(`
+	_, err := qc.Compile([]byte(`
 	mutation {
 		products(insert: $data) {
 			id
 			name
 		}
-	}`), vars1, "user", "")
+	}`), vars1, "")
 
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +77,7 @@ func TestCompile4(t *testing.T) {
 	}
 
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qc.Compile([]byte(gql), vars1, "user", "")
+	_, err := qc.Compile([]byte(gql), vars1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +97,7 @@ func TestWhereFKColumnNotMisinterpretedAsRelationship(t *testing.T) {
 			id
 			quantity
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 
 	if err != nil {
 		t.Fatalf("expected FK column filter to compile, got: %v", err)
@@ -156,7 +115,7 @@ func TestWhereFKColumnProduct(t *testing.T) {
 			id
 			sale_type
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 
 	if err != nil {
 		t.Fatalf("expected FK column filter to compile, got: %v", err)
@@ -176,7 +135,7 @@ func TestWhereNestedRelationshipStillWorks(t *testing.T) {
 			id
 			name
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 
 	if err != nil {
 		t.Fatalf("expected nested relationship filter to compile, got: %v", err)
@@ -197,7 +156,7 @@ func TestWhereNestedFKColumnNotMisinterpreted(t *testing.T) {
 			id
 			quantity
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 
 	if err != nil {
 		t.Fatalf("expected nested FK column filter to compile, got: %v", err)
@@ -212,7 +171,7 @@ func TestWhereVariableRejected(t *testing.T) {
 		users(where: $where) {
 			id
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 
 	if err == nil {
 		t.Fatal("expected where variable to be rejected")
@@ -230,7 +189,7 @@ func TestSubscriptionWhereVariableRejected(t *testing.T) {
 		users(where: $where) {
 			id
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 
 	if err == nil {
 		t.Fatal("expected subscription where variable to be rejected")
@@ -264,7 +223,7 @@ func TestFKColumnRelationNameCollisionUsesTargetTable(t *testing.T) {
 				name
 			}
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 	if err != nil {
 		t.Fatalf("expected FK scalar plus target-table relationship to compile, got: %v", err)
 	}
@@ -276,7 +235,7 @@ func TestFKColumnRelationNameCollisionUsesTargetTable(t *testing.T) {
 				name
 			}
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 	if err == nil {
 		t.Fatal("expected FK column name with a child selection to be rejected")
 	}
@@ -305,7 +264,7 @@ func TestMultipleFKsToSameTableKeepColumnRelationshipNames(t *testing.T) {
 			src_node { id }
 			dst_node { id }
 		}
-	}`), nil, "user", "")
+	}`), nil, "")
 	if err != nil {
 		t.Fatalf("expected join-table relationships to compile by FK column names, got: %v", err)
 	}
@@ -313,7 +272,7 @@ func TestMultipleFKsToSameTableKeepColumnRelationshipNames(t *testing.T) {
 
 func TestInvalidCompile1(t *testing.T) {
 	qcompile, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qcompile.Compile([]byte(`#`), nil, "user", "")
+	_, err := qcompile.Compile([]byte(`#`), nil, "")
 
 	if err == nil {
 		t.Fatal(errors.New("expecting an error"))
@@ -322,7 +281,7 @@ func TestInvalidCompile1(t *testing.T) {
 
 func TestInvalidCompile2(t *testing.T) {
 	qcompile, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qcompile.Compile([]byte(`{u(where:{not:0})}`), nil, "user", "")
+	_, err := qcompile.Compile([]byte(`{u(where:{not:0})}`), nil, "")
 
 	if err == nil {
 		t.Fatal(errors.New("expecting an error"))
@@ -331,7 +290,7 @@ func TestInvalidCompile2(t *testing.T) {
 
 func TestEmptyCompile(t *testing.T) {
 	qcompile, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qcompile.Compile([]byte(``), nil, "user", "")
+	_, err := qcompile.Compile([]byte(``), nil, "")
 
 	if err == nil {
 		t.Fatal(errors.New("expecting an error"))
@@ -359,7 +318,7 @@ updateThread {
 }
 }}`
 	qcompile, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qcompile.Compile([]byte(gql), nil, "anon", "")
+	_, err := qcompile.Compile([]byte(gql), nil, "")
 
 	if err == nil {
 		t.Fatal(errors.New("expecting an error"))
@@ -388,7 +347,7 @@ func TestFragmentsCompile1(t *testing.T) {
 	}
 	`
 	qcompile, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qcompile.Compile([]byte(gql), nil, "user", "")
+	_, err := qcompile.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +374,7 @@ func TestFragmentsCompile2(t *testing.T) {
 		phone
 	}`
 	qcompile, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qcompile.Compile([]byte(gql), nil, "user", "")
+	_, err := qcompile.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +403,7 @@ func TestFragmentsCompile3(t *testing.T) {
 
 	`
 	qcompile, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_, err := qcompile.Compile([]byte(gql), nil, "user", "")
+	_, err := qcompile.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,7 +459,7 @@ func BenchmarkQCompile(b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
-		_, err := qcompile.Compile(gql, nil, "user", "")
+		_, err := qcompile.Compile(gql, nil, "")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -515,7 +474,7 @@ func BenchmarkQCompileP(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := qcompile.Compile(gql, nil, "user", "")
+			_, err := qcompile.Compile(gql, nil, "")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -526,11 +485,6 @@ func BenchmarkQCompileP(b *testing.B) {
 func TestClusteringKeysNotUsedForPostgres(t *testing.T) {
 	// The default test DB is postgres — clustering keys should be ignored
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at"},
-		},
-	})
 
 	result, err := qc.Compile([]byte(`
 		query {
@@ -538,7 +492,7 @@ func TestClusteringKeysNotUsedForPostgres(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -566,11 +520,6 @@ func TestPartitionFilterInjected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at"},
-		},
-	})
 
 	// Query without any filter on the partition column
 	result, err := qc.Compile([]byte(`
@@ -579,7 +528,7 @@ func TestPartitionFilterInjected(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -612,11 +561,6 @@ func TestPartitionFilterNotInjectedWhenUserFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at"},
-		},
-	})
 
 	// Query WITH a filter on the partition column
 	result, err := qc.Compile([]byte(`
@@ -625,7 +569,7 @@ func TestPartitionFilterNotInjectedWhenUserFilters(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -648,11 +592,6 @@ func TestPartitionWarningWhenNoFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at"},
-		},
-	})
 
 	// Query without filter on partition column, no default range
 	result, err := qc.Compile([]byte(`
@@ -661,7 +600,7 @@ func TestPartitionWarningWhenNoFilter(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -686,11 +625,6 @@ func TestPartitionWarningWhenNoFilter(t *testing.T) {
 func TestPostgresOrderByAlwaysProjected(t *testing.T) {
 	// ORDER BY columns remain projected for the Postgres/SQLite compiler path.
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price"},
-		},
-	})
 
 	result, err := qc.Compile([]byte(`
 		query {
@@ -698,7 +632,7 @@ func TestPostgresOrderByAlwaysProjected(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -729,11 +663,6 @@ func TestPartitionFilterRequiredInOLAPWhenNoUserFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at"},
-		},
-	})
 
 	result, err := qc.Compile([]byte(`
 		query {
@@ -741,7 +670,7 @@ func TestPartitionFilterRequiredInOLAPWhenNoUserFilter(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -774,11 +703,6 @@ func TestPartitionFilterNotRequiredInOLAPWhenUserFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at"},
-		},
-	})
 
 	result, err := qc.Compile([]byte(`
 		query {
@@ -786,7 +710,7 @@ func TestPartitionFilterNotRequiredInOLAPWhenUserFilters(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -800,11 +724,8 @@ func TestPartitionFilterNotRequiredInOLAPWhenUserFilters(t *testing.T) {
 
 func TestPartitionFilterRequiredInOLAPFromImplicitTemporalColumn(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{AnalyticsMode: true})
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "price", "created_at"}},
-	})
 
-	result, err := qc.Compile([]byte(`query { products { id name } }`), nil, "user", "")
+	result, err := qc.Compile([]byte(`query { products { id name } }`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -822,13 +743,10 @@ func TestPartitionFilterRequiredInOLAPFromImplicitTemporalColumn(t *testing.T) {
 
 func TestPartitionFilterSatisfiedByFilterOnImplicitKey(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{AnalyticsMode: true})
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "price", "created_at"}},
-	})
 
 	result, err := qc.Compile([]byte(`
 		query { products(where: { created_at: { gt: $cutoff } }) { id name } }`),
-		nil, "user", "")
+		nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -860,12 +778,9 @@ func TestPartitionFilterUnrestrictedBypassesCheckWhenNoColumn(t *testing.T) {
 	}
 
 	qc, _ := qcode.NewCompiler(schema, qcode.Config{AnalyticsMode: true})
-	_ = qc.AddRole("user", "public", "currencies", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"code", "name"}},
-	})
 
 	result, err := qc.Compile([]byte(`query { currencies(unrestricted: true) { code name } }`),
-		nil, "user", "")
+		nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -876,12 +791,9 @@ func TestPartitionFilterUnrestrictedBypassesCheckWhenNoColumn(t *testing.T) {
 
 func TestPartitionFilterUnrestrictedBypassesDetectedColumn(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{AnalyticsMode: true})
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "price", "created_at"}},
-	})
 
 	result, err := qc.Compile([]byte(`query { products(unrestricted: true) { id name } }`),
-		nil, "user", "")
+		nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -897,11 +809,8 @@ func TestPartitionFilterPassesWhenNoColumnDetectable(t *testing.T) {
 	}
 
 	qc, _ := qcode.NewCompiler(schema, qcode.Config{AnalyticsMode: true})
-	_ = qc.AddRole("user", "public", "currencies", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"code", "name"}},
-	})
 
-	result, err := qc.Compile([]byte(`query { currencies { code name } }`), nil, "user", "")
+	result, err := qc.Compile([]byte(`query { currencies { code name } }`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -917,11 +826,8 @@ func TestPartitionFilterNoneConfigBypassesCheck(t *testing.T) {
 	}
 
 	qc, _ := qcode.NewCompiler(schema, qcode.Config{AnalyticsMode: true})
-	_ = qc.AddRole("user", "public", "currencies", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"code", "name"}},
-	})
 
-	result, err := qc.Compile([]byte(`query { currencies { code name } }`), nil, "user", "")
+	result, err := qc.Compile([]byte(`query { currencies { code name } }`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -933,11 +839,6 @@ func TestPartitionFilterNoneConfigBypassesCheck(t *testing.T) {
 func TestPartitionNoWarningForNonPartitionedTable(t *testing.T) {
 	// Standard postgres schema — no partition keys
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price"},
-		},
-	})
 
 	result, err := qc.Compile([]byte(`
 		query {
@@ -945,7 +846,7 @@ func TestPartitionNoWarningForNonPartitionedTable(t *testing.T) {
 				id
 				name
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -960,18 +861,13 @@ func TestPartitionNoWarningForNonPartitionedTable(t *testing.T) {
 func TestPostgresNoDangerousQueryWarnings(t *testing.T) {
 	// Postgres should never get dangerous query warnings
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	_ = qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price"},
-		},
-	})
 
 	result, err := qc.Compile([]byte(`
 		query {
 			products {
 				count_id
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -997,7 +893,7 @@ func BenchmarkQCompileFragment(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_, err := qcompile.Compile(gqlWithFragments, nil, "user", "")
+		_, err := qcompile.Compile(gqlWithFragments, nil, "")
 		if err != nil {
 			b.Fatal(err)
 		}

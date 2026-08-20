@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -54,14 +53,6 @@ func (gj *graphjinEngine) initIntro() (err error) {
 	return
 }
 
-func (gj *graphjinEngine) executeRoleQuery(c context.Context,
-	conn *sql.Conn,
-	vmap map[string]json.RawMessage,
-	rc *RequestConfig,
-) (role string, trustedReservedRole bool, err error) {
-	return defaultCompileRole, true, nil
-}
-
 // Returns the operation type for the query result
 func (r *Result) Operation() OpType {
 	switch r.operation {
@@ -89,11 +80,6 @@ func (r *Result) OperationName() string {
 // Returns the query name for the query result
 func (r *Result) QueryName() string {
 	return r.name
-}
-
-// Returns the role used to execute the query
-func (r *Result) Role() string {
-	return r.role
 }
 
 // SubscriptionCursors returns the server-side cursor checkpoints advanced by a
@@ -126,20 +112,6 @@ func (r *Result) CacheHit() bool {
 
 // debugLogStmt logs the query statement for debugging
 func (s *gstate) debugLogStmt() {
-	st := s.cs.st
-
-	if st.qc == nil {
-		return
-	}
-
-	for _, sel := range st.qc.Selects {
-		if sel.SkipRender == qcode.SkipTypeUserNeeded {
-			s.gj.log.Printf("Field skipped, requires $user_id or table not added to anon role: %s", sel.FieldName)
-		}
-		if sel.SkipRender == qcode.SkipTypeBlocked {
-			s.gj.log.Printf("Field skipped, blocked: %s", sel.FieldName)
-		}
-	}
 }
 
 // Saved the query qcode to the allow list

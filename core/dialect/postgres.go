@@ -932,23 +932,6 @@ func (d *PostgresDialect) RenderChildValue(ctx Context, sel *qcode.Select, rende
 	renderChild()
 }
 
-// Role Statement rendering
-func (d *PostgresDialect) RoleSelectPrefix() string {
-	return `(SELECT (CASE`
-}
-
-func (d *PostgresDialect) RoleLimitSuffix() string {
-	return `) AS _sg_auth_roles_query LIMIT 1) `
-}
-
-func (d *PostgresDialect) RoleDummyTable() string {
-	return `ELSE 'anon' END) FROM (VALUES (1)) AS _sg_auth_filler LIMIT 1; `
-}
-
-func (d *PostgresDialect) TransformBooleanLiterals(match string) string {
-	return match // PostgreSQL uses true/false natively
-}
-
 // Driver Behavior
 func (d *PostgresDialect) RequiresJSONAsString() bool {
 	return false // PostgreSQL driver handles json.RawMessage properly

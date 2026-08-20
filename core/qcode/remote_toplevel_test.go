@@ -47,7 +47,7 @@ func TestTopLevelRemoteIsMarkedAsRemote(t *testing.T) {
 	}
 
 	gql := `query { audit_logs(actorId: "u-7") { id action } }`
-	qc, err := co.Compile([]byte(gql), nil, "user", "")
+	qc, err := co.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestUnknownArgOnRealTableStillErrors(t *testing.T) {
 	}
 
 	gql := `query { users(actorId: "u-7") { id email } }`
-	if _, err := co.Compile([]byte(gql), nil, "user", ""); err == nil {
+	if _, err := co.Compile([]byte(gql), nil, ""); err == nil {
 		t.Fatal("expected unknown-arg error on real table; got none")
 	}
 }
@@ -93,7 +93,7 @@ func TestRemoteUnknownColumnLenientByDefault(t *testing.T) {
 	}
 
 	gql := `query { audit_logs(actorId: "u-7") { id action made_up_field } }`
-	qc, err := co.Compile([]byte(gql), nil, "user", "")
+	qc, err := co.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatalf("lenient remote table rejected an unknown selection: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestRemoteUnknownColumnStrictErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := co.Compile([]byte(`query { policies { key severity } }`), nil, "user", ""); err == nil {
+	if _, err := co.Compile([]byte(`query { policies { key severity } }`), nil, ""); err == nil {
 		t.Fatal("strict remote table accepted an unknown selection; want error")
 	} else {
 		for _, want := range []string{"severity", "policies", "key, url"} {
@@ -139,11 +139,11 @@ func TestRemoteUnknownColumnStrictErrors(t *testing.T) {
 		}
 	}
 
-	if _, err := co.Compile([]byte(`query { policies { key __typename policies_cursor } }`), nil, "user", ""); err != nil {
+	if _, err := co.Compile([]byte(`query { policies { key __typename policies_cursor } }`), nil, ""); err != nil {
 		t.Fatalf("keyword selections must stay exempt from strict checks: %v", err)
 	}
 
-	if _, err := co.Compile([]byte(`query { policies { file: key url } }`), nil, "user", ""); err != nil {
+	if _, err := co.Compile([]byte(`query { policies { file: key url } }`), nil, ""); err != nil {
 		t.Fatalf("aliased valid column rejected: %v", err)
 	}
 }
@@ -155,7 +155,7 @@ func TestRemoteScalarArgsAccepted(t *testing.T) {
 	}
 
 	gql := `query { audit_logs(actorId: "u-7", page: 3, verbose: true) { id } }`
-	qc, err := co.Compile([]byte(gql), nil, "user", "")
+	qc, err := co.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
 	}

@@ -29,8 +29,6 @@ func TestSkipTypeDatabaseJoin(t *testing.T) {
 	// Verify it's distinct from other skip types
 	types := []SkipType{
 		SkipTypeNone,
-		SkipTypeUserNeeded,
-		SkipTypeBlocked,
 		SkipTypeDrop,
 		SkipTypeRemote,
 	}
@@ -92,7 +90,6 @@ func TestMixedSkipTypes(t *testing.T) {
 		{Field: Field{SkipRender: SkipTypeNone}},
 		{Field: Field{SkipRender: SkipTypeRemote}},
 		{Field: Field{SkipRender: SkipTypeDatabaseJoin}},
-		{Field: Field{SkipRender: SkipTypeUserNeeded}},
 	}
 
 	// Count each type

@@ -80,8 +80,7 @@ func (c *compilerContext) renderJoinColumns(sel *qcode.Select, n int) {
 
 		// TODO: log what and why this is being skipped
 		switch csel.SkipRender {
-		case qcode.SkipTypeUserNeeded, qcode.SkipTypeBlocked,
-			qcode.SkipTypeNulled:
+		case qcode.SkipTypeNulled:
 
 			c.w.WriteString(`NULL`)
 			c.alias(csel.FieldName)
@@ -150,8 +149,7 @@ func (c *compilerContext) renderUnionColumn(sel, csel *qcode.Select) {
 		c.w.WriteString(` THEN `)
 
 		switch usel.SkipRender {
-		case qcode.SkipTypeUserNeeded, qcode.SkipTypeBlocked,
-			qcode.SkipTypeNulled:
+		case qcode.SkipTypeNulled:
 			c.w.WriteString(`NULL `)
 		default:
 			if c.dialect.SupportsLateral() {

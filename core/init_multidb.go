@@ -351,7 +351,6 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 	// Create QCode compiler for this database
 	qcc := qcode.Config{
 		TConfig:             gj.tmap,
-		DefaultBlock:        gj.conf.DefaultBlock,
 		DefaultLimit:        gj.conf.DefaultLimit,
 		AnalyticsMode:       gj.conf.EffectiveAnalyticsMode(ctx.name),
 		DisableAgg:          gj.conf.DisableAgg,
@@ -364,11 +363,6 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 	ctx.qcodeCompiler, err = qcode.NewCompiler(ctx.schema, qcc)
 	if err != nil {
 		return fmt.Errorf("database %s: qcode compiler failed: %w", ctx.name, err)
-	}
-
-	// Add roles to the compiler
-	if err := addRoles(gj.conf, ctx.qcodeCompiler, ctx.name); err != nil {
-		return fmt.Errorf("database %s: add roles failed: %w", ctx.name, err)
 	}
 
 	// Create SQL compiler for this database's dialect

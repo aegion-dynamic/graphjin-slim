@@ -14,13 +14,6 @@ func newWindowCompiler(t *testing.T) *qcode.Compiler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "user_id", "created_at"},
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
 	return qc
 }
 
@@ -34,7 +27,7 @@ func TestAnalytics_RunningDirectiveParsed(t *testing.T) {
 				price
 				running: price @running(aggregate: sum, by: "user_id", orderBy: { created_at: desc })
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatalf("compile failed: %v", err)
 	}
@@ -78,7 +71,7 @@ func TestAnalytics_MovingDirectiveParsed(t *testing.T) {
 			products {
 				moving_avg: price @moving(aggregate: avg, rows: 6, by: ["user_id"], orderBy: { created_at: asc })
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatalf("compile failed: %v", err)
 	}
@@ -100,7 +93,7 @@ func TestAnalytics_AggregateChoicesAndOptionalBy(t *testing.T) {
 				products {
 					metric: price @running(aggregate: `+agg+`, order: asc)
 				}
-			}`), nil, "user", "")
+			}`), nil, "")
 		if err != nil {
 			t.Fatalf("@running aggregate %s: compile failed: %v", agg, err)
 		}
@@ -137,7 +130,7 @@ func TestAnalytics_ValueDirectivesParsed(t *testing.T) {
 				products {
 					metric: price @`+c.dir+`(by: "user_id", orderBy: { created_at: asc })
 				}
-			}`), nil, "user", "")
+			}`), nil, "")
 		if err != nil {
 			t.Fatalf("@%s: compile failed: %v", c.dir, err)
 		}
@@ -171,7 +164,7 @@ func TestAnalytics_RankingDirectivesParsed(t *testing.T) {
 				products {
 					metric: price @`+c.dir+`(by: "user_id", `+c.arg+`)
 				}
-			}`), nil, "user", "")
+			}`), nil, "")
 		if err != nil {
 			t.Fatalf("@%s: compile failed: %v", c.dir, err)
 		}
@@ -195,7 +188,7 @@ func TestAnalytics_MixedAggregatesAndAnalytics(t *testing.T) {
 				total: sum_price
 				running: price @running(aggregate: sum, by: "user_id", orderBy: { created_at: asc })
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatalf("compile failed: %v", err)
 	}
@@ -211,7 +204,7 @@ func TestAnalytics_RejectsOldWindowDirective(t *testing.T) {
 			products {
 				running: sum_price @window(partition: ["user_id"], order: ["created_at"], frame: "rows unbounded preceding")
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err == nil || !strings.Contains(err.Error(), "@window has been replaced") {
 		t.Fatalf("expected @window replacement error, got: %v", err)
 	}
@@ -234,7 +227,7 @@ func TestAnalytics_RejectsInternalWindowFunctionNames(t *testing.T) {
 				products {
 					`+field+`
 				}
-			}`), nil, "user", "")
+			}`), nil, "")
 		if err == nil || !strings.Contains(err.Error(), "analytics") {
 			t.Errorf("%s: expected analytics directive error, got %v", field, err)
 		}
@@ -260,13 +253,6 @@ func TestAnalytics_InternalNamesDoNotShadowColumns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := qc.AddRole("user", "public", "metrics", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "rank", "row_number", "dense_rank", "lag_price", "lead_price", "first_value_price", "last_value_price"},
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	result, err := qc.Compile([]byte(`
 		query {
@@ -280,7 +266,7 @@ func TestAnalytics_InternalNamesDoNotShadowColumns(t *testing.T) {
 				first_value_price
 				last_value_price
 			}
-		}`), nil, "user", "")
+		}`), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +301,7 @@ func TestAnalytics_RejectsSQLShapedArgs(t *testing.T) {
 	}
 	for _, c := range cases {
 		qc := newWindowCompiler(t)
-		_, err := qc.Compile([]byte(`query `+c.gql), nil, "user", "")
+		_, err := qc.Compile([]byte(`query `+c.gql), nil, "")
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: want error containing %q, got %v", c.name, c.want, err)
 		}
@@ -366,7 +352,7 @@ func TestAnalytics_ValidationErrors(t *testing.T) {
 	}
 	for _, c := range cases {
 		qc := newWindowCompiler(t)
-		_, err := qc.Compile([]byte(`query `+c.gql), nil, "user", "")
+		_, err := qc.Compile([]byte(`query `+c.gql), nil, "")
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: want error containing %q, got %v", c.name, c.want, err)
 		}

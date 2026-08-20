@@ -85,7 +85,7 @@ func BuildGraphJinErrorRepair(query, errorMsg string) ErrorRepair {
 		res.Next = []string{"query_catalog"}
 	case strings.Contains(errLower, "table") && (strings.Contains(errLower, "not found") || strings.Contains(errLower, "unknown")):
 		res.Kind = RepairKindTableNotFound
-		res.Diagnosis = "Table name not found. Check spelling, database, schema, and role-visible catalog rows."
+		res.Diagnosis = "Table name not found. Check spelling, database, schema, and catalog rows."
 		res.Next = []string{"query_catalog"}
 	case strings.Contains(errLower, "column") && (strings.Contains(errLower, "not found") || strings.Contains(errLower, "unknown") || strings.Contains(errLower, "does not exist")):
 		res.Kind = repairKindColumnNotFound
@@ -101,7 +101,7 @@ func BuildGraphJinErrorRepair(query, errorMsg string) ErrorRepair {
 		res.Next = []string{"query_catalog"}
 	case strings.Contains(errLower, "permission") || strings.Contains(errLower, "access") || strings.Contains(errLower, "denied"):
 		res.Kind = repairKindPermission
-		res.Diagnosis = "Permission or access denied for the current role."
+		res.Diagnosis = "Permission or access denied."
 		res.Next = []string{"query_catalog", "execute_saved_query"}
 	case strings.Contains(errLower, "mutation") && strings.Contains(errLower, "not allowed"):
 		res.Kind = repairKindMutationNotAllowed

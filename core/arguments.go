@@ -51,57 +51,6 @@ func (gj *graphjinEngine) argList(c context.Context,
 
 	for i, p := range params {
 		switch p.Name {
-		case "user_id", "userID", "userId":
-			if v := (interface{})(nil); v != nil {
-				switch v1 := v.(type) {
-				case string:
-					vl[i] = v1
-				case int:
-					vl[i] = v1
-				case float64:
-					vl[i] = int(v1)
-				default:
-					return ar, fmt.Errorf("%s must be an integer or a string: %T", p.Name, v)
-				}
-			} else {
-				return ar, argErr(p)
-			}
-
-		case "user_id_raw", "userIDRaw", "userIdRaw":
-			if v := (interface{})(nil); v != nil {
-				vl[i] = v.(string)
-			} else {
-				return ar, argErr(p)
-			}
-
-		case "user_id_provider", "userIDProvider", "userIdProvider":
-			if v := (interface{})(nil); v != nil {
-				vl[i] = v.(string)
-			} else {
-				return ar, argErr(p)
-			}
-
-		case "user_role", "userRole":
-			if v := (interface{})(nil); v != nil {
-				vl[i] = v.(string)
-			} else {
-				return ar, argErr(p)
-			}
-
-		case "user_ref", "userRef":
-			if v, ok := identityContextVar(c, "user_ref"); ok && identityValuePresent(v) {
-				vl[i] = v
-			} else {
-				return ar, argErr(p)
-			}
-
-		case "account_ref", "accountRef":
-			if v, ok := identityContextVar(c, "account_ref"); ok && identityValuePresent(v) {
-				vl[i] = v
-			} else {
-				return ar, argErr(p)
-			}
-
 		case "cursor":
 			if v, ok := fields["cursor"]; ok && v[0] == '"' {
 				vl[i] = string(v[1 : len(v)-1])
@@ -111,15 +60,8 @@ func (gj *graphjinEngine) argList(c context.Context,
 			ar.addCursorArg(i, p.Name)
 
 		default:
-			if gj.sourceModeTrustedIdentityParam(p.Name) {
-				v, ok := identityContextVar(c, p.Name)
-				if !ok || !identityValuePresent(v) {
-					return ar, fmt.Errorf("unauthorized: identity variable '%s' is required", p.Name)
-				}
-				vl[i] = convertBoolIfNeeded(pc, v)
-
-				// Check for named cursor variables (e.g., products_cursor, users_cursor, products_cursor_1)
-			} else if strings.Contains(p.Name, "_cursor") {
+			// Check for named cursor variables (e.g., products_cursor, users_cursor, products_cursor_1)
+			if strings.Contains(p.Name, "_cursor") {
 				if v, ok := fields[p.Name]; ok && len(v) > 0 && v[0] == '"' {
 					vl[i] = string(v[1 : len(v)-1])
 				} else {
@@ -162,9 +104,6 @@ func (gj *graphjinEngine) argList(c context.Context,
 				// Convert Go bool to int (1/0) before it reaches the driver
 				vl[i] = convertBoolIfNeeded(pc, vl[i])
 
-			} else if v, ok := identityContextVar(c, p.Name); ok {
-				vl[i] = convertBoolIfNeeded(pc, v)
-
 			} else if rc != nil {
 				if v, ok := rc.Vars[p.Name]; ok {
 					switch v1 := v.(type) {
@@ -191,12 +130,6 @@ func (gj *graphjinEngine) argList(c context.Context,
 		}
 	}
 	return ar, nil
-}
-
-func (gj *graphjinEngine) sourceModeTrustedIdentityParam(name string) bool { return false }
-
-func identityContextVar(ctx context.Context, name string) (interface{}, bool) {
-	return nil, false
 }
 
 func parseVarVal(v json.RawMessage) interface{} {
@@ -248,5 +181,3 @@ func convertBoolIfNeeded(pc *psql.Compiler, v interface{}) interface{} {
 	}
 	return v
 }
-
-func identityValuePresent(v interface{}) bool { return false }

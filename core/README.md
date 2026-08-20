@@ -47,43 +47,41 @@ not need a live database.
 
 Core owns:
 
-- GraphQL parsing and validation
-- Schema discovery and relationship modeling
-- Query, mutation, and subscription planning
-- SQL generation for Postgres and SQLite
-- Role and allow-list enforcement
+- GraphQL parsing and AST validation
+- Schema discovery and relationship modeling (`sdata`)
+- Pure query, mutation, and subscription compilation (`qcode`)
+- SQL generation for Postgres and SQLite (`psql`, `dialect`)
+- Allow-list enforcement for saved queries
 - Result encoding and pagination
-- Runtime schema reloads
+- Runtime schema discovery and reloads
 - Response-cache integration hooks
-- Configured OpenAPI source integration
 
 Core does not own:
 
 - HTTP routing
 - Server startup and shutdown
-- Application authentication providers
+- Application authentication / role evaluation (GraphJin Slim is host-agnostic)
 - Application-specific authorization middleware
 - Redis connection lifecycle
 - CLI commands
 
-## Internal Packages
+## Sub-packages
 
-The internal packages are implementation modules. Applications should not
-import them directly.
+The compiler sub-packages provide modular stages in the compilation pipeline:
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/graph` | GraphQL lexer, parser, and syntax schema |
-| `internal/qcode` | Validated GraphQL query representation |
-| `internal/psql` | Query and mutation SQL generation |
-| `internal/dialect` | Postgres and SQLite rendering differences |
-| `internal/sdata` | Database metadata and schema relationships |
-| `internal/introspection` | Database metadata queries |
-| `internal/jsn` | Specialized JSON scanning and mutation helpers |
-| `internal/allow` | Saved-query allow-list storage and matching |
-| `internal/valid` | Shared validation helpers |
-| `internal/util` | Small compiler data structures and graph utilities |
-| `openapi` | OpenAPI source loading and calling |
+| `core/graph` | GraphQL lexer, parser, and syntax schema |
+| `core/qcode` | Normalized GraphQL query compiler and intermediate representation (IR) |
+| `core/psql` | SQL query and mutation compilation |
+| `core/dialect` | Postgres and SQLite rendering differences |
+| `core/sdata` | Database metadata and schema relationships |
+| `core/introspection` | Database metadata discovery queries |
+| `core/jsn` | Specialized JSON scanning and mutation helpers |
+| `core/allow` | Saved-query allow-list storage and matching |
+| `core/valid` | Shared validation helpers |
+| `core/util` | Small compiler data structures and graph utilities |
+| `core/schema` | GraphQL introspection schema generation |
 
 ## Request Pipeline
 
@@ -91,16 +89,16 @@ import them directly.
 GraphQL text
     |
     v
-internal/graph
+core/graph (lexer & parser)
     |
     v
-internal/qcode
+core/qcode (normalized IR & validation)
     |
     v
-core schema metadata
+core/sdata (schema metadata & relationships)
     |
     v
-internal/psql + internal/dialect
+core/psql + core/dialect (SQL compiler)
     |
     v
 SQL and bound arguments
@@ -109,7 +107,7 @@ SQL and bound arguments
 database/sql execution
     |
     v
-core.Result
+core.Result (JSON response)
 ```
 
 Schema discovery is separate from query compilation conceptually: the compiler

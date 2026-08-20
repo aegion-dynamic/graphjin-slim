@@ -31,111 +31,6 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	err = qcompile.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "user_id", "created_at", "users", "customers"},
-			Filters: []string{
-				"{ price: { gt: 0 } }",
-				"{ price: { lt: 8 } }",
-			},
-		},
-		Insert: qcode.InsertConfig{
-			Presets: map[string]string{
-				"price":      "$get_price",
-				"user_id":    "$user_id",
-				"created_at": "now",
-				"updated_at": "now",
-			},
-		},
-		Update: qcode.UpdateConfig{
-			Filters: []string{"{ user_id: { eq: $user_id } }"},
-			Presets: map[string]string{"updated_at": "now"},
-		},
-		Delete: qcode.DeleteConfig{
-			Filters: []string{
-				"{ price: { gt: 0 } }",
-				"{ price: { lt: 8 } }",
-			},
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = qcompile.AddRole("anon", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name"},
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = qcompile.AddRole("anon1", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns:          []string{"id", "name", "price"},
-			DisableFunctions: true,
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = qcompile.AddRole("user", "public", "users", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "full_name", "avatar", "email", "products"},
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = qcompile.AddRole("bad_dude", "public", "users", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Filters:          []string{"false"},
-			DisableFunctions: true,
-		},
-		Insert: qcode.InsertConfig{},
-		Update: qcode.UpdateConfig{
-			Filters: []string{"false"},
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// err = qcompile.AddRole("user", "", "mes", qcode.TRConfig{
-	// 	Query: qcode.QueryConfig{
-	// 		Columns: []string{"id", "full_name", "avatar", "email"},
-	// 		Filters: []string{
-	// 			"{ id: { eq: $user_id } }",
-	// 		},
-	// 	},
-	// })
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	err = qcompile.AddRole("user", "public", "customers", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "vip"},
-		},
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = qcompile.AddRole("user", "public", "locations", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "geom", "boundary"},
-		},
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	vars := map[string]string{
 		"admin_account_id": "5",
 		"get_price":        "sql:select price from prices where id = $product_id",
@@ -187,7 +82,7 @@ func _compileGQLToPSQL(t *testing.T, gql string, vars json.RawMessage, role stri
 	}
 
 	for i := 0; i < 1000; i++ {
-		qc, err := qcompile.Compile([]byte(gql), v, role, "")
+		qc, err := qcompile.Compile([]byte(gql), v, "")
 		if err != nil {
 			return err
 		}
@@ -226,16 +121,6 @@ func TestCompositeFK_ThroughColumn_EmitsFullJoinCondition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("qcode compiler: %v", err)
 	}
-	if err := qc.AddRole("user", "public", "enrollment", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "term_id", "course_id", "student_name"}},
-	}); err != nil {
-		t.Fatalf("add enrollment role: %v", err)
-	}
-	if err := qc.AddRole("user", "public", "course_offering", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"term_id", "course_id", "title"}},
-	}); err != nil {
-		t.Fatalf("add course_offering role: %v", err)
-	}
 
 	pc := psql.NewCompiler(psql.Config{})
 
@@ -250,7 +135,7 @@ func TestCompositeFK_ThroughColumn_EmitsFullJoinCondition(t *testing.T) {
 		}
 	}`
 
-	qcRes, err := qc.Compile([]byte(gql), nil, "user", "")
+	qcRes, err := qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatalf("qcode compile: %v", err)
 	}

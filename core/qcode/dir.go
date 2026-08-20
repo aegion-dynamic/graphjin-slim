@@ -32,21 +32,15 @@ func (co *Compiler) compileOpDirectives(qc *QCode, dirs []graph.Directive) error
 
 // directives need to run before the relationship resolution code
 func (co *Compiler) compileSelectorDirectives(qc *QCode,
-	sel *Select, dirs []graph.Directive, role string,
+	sel *Select, dirs []graph.Directive,
 ) (err error) {
 	for _, d := range dirs {
 		switch d.Name {
-		case "add":
-			err = co.compileDirectiveAddRemove(false, sel, &sel.Field, d, role)
-
-		case "remove":
-			err = co.compileDirectiveAddRemove(true, sel, &sel.Field, d, role)
-
 		case "include":
-			err = co.compileDirectiveSkipInclude(false, sel, &sel.Field, d, role)
+			err = co.compileDirectiveSkipInclude(false, sel, &sel.Field, d)
 
 		case "skip":
-			err = co.compileDirectiveSkipInclude(true, sel, &sel.Field, d, role)
+			err = co.compileDirectiveSkipInclude(true, sel, &sel.Field, d)
 
 		case "schema":
 			err = co.compileDirectiveSchema(sel, d)
@@ -76,21 +70,15 @@ func (co *Compiler) compileSelectorDirectives(qc *QCode,
 }
 
 func (co *Compiler) compileFieldDirectives(sel *Select,
-	f *Field, dirs []graph.Directive, role string,
+	f *Field, dirs []graph.Directive,
 ) (err error) {
 	for _, d := range dirs {
 		switch d.Name {
-		case "add":
-			err = co.compileDirectiveAddRemove(false, sel, f, d, role)
-
-		case "remove":
-			err = co.compileDirectiveAddRemove(true, sel, f, d, role)
-
 		case "include":
-			err = co.compileDirectiveSkipInclude(false, sel, f, d, role)
+			err = co.compileDirectiveSkipInclude(false, sel, f, d)
 
 		case "skip":
-			err = co.compileDirectiveSkipInclude(true, sel, f, d, role)
+			err = co.compileDirectiveSkipInclude(true, sel, f, d)
 
 		case "window":
 			err = co.compileDirectiveWindow(sel, f, d)
@@ -126,42 +114,20 @@ func (co *Compiler) compileDirectiveDatabase(sel *Select, d graph.Directive) (er
 	return
 }
 
-func (co *Compiler) compileDirectiveAddRemove(
-	remove bool,
-	sel *Select,
-	f *Field,
-	d graph.Directive,
-	role string,
-) (err error) {
-	arg, err := getArg(d.Args, "ifRole", graph.NodeStr, graph.NodeLabel)
-	if err != nil {
-		return
-	}
-
-	switch {
-	case remove && arg.Val.Val == role:
-		f.SkipRender = SkipTypeDrop
-	case !remove && arg.Val.Val != role:
-		f.SkipRender = SkipTypeDrop
-	}
-	return
-}
-
 func (co *Compiler) compileDirectiveSkipInclude(
 	skip bool,
 	sel *Select,
 	f *Field,
 	d graph.Directive,
-	role string,
 ) (err error) {
 	if len(d.Args) == 0 {
-		err = fmt.Errorf("arguments 'ifVar' or 'ifRole' expected")
+		err = fmt.Errorf("argument 'if' or 'if_var' expected")
 		return
 	}
 
 	for _, arg := range d.Args {
 		switch arg.Name {
-		case "ifVar", "if_var":
+		case "if", "ifVar", "if_var":
 			if err = validateArg(arg, graph.NodeVar); err != nil {
 				return
 			}
@@ -177,17 +143,6 @@ func (co *Compiler) compileDirectiveSkipInclude(
 
 			if f.Type == FieldTypeTable {
 				addAndFilter(&sel.Where, ex)
-			}
-
-		case "ifRole", "if_role":
-			if err = validateArg(arg, graph.NodeStr, graph.NodeLabel); err != nil {
-				return
-			}
-			switch {
-			case skip && arg.Val.Val == role:
-				f.SkipRender = SkipTypeNulled
-			case !skip && arg.Val.Val != role:
-				f.SkipRender = SkipTypeNulled
 			}
 
 		default:

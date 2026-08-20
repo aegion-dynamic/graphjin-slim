@@ -152,7 +152,7 @@ func (s *gstate) executeDatabaseJoinQuery(
 	subQuery := buildChildGraphQLQuery(sel, selects, fkCol, parentID)
 
 	// Compile QCode using the target database's compiler
-	qc, err := dbCtx.qcodeCompiler.Compile(subQuery, nil, s.role, s.r.namespace)
+	qc, err := dbCtx.qcodeCompiler.Compile(subQuery, nil, s.r.namespace)
 	if err != nil {
 		return nil, fmt.Errorf("qcode compile failed: %w", err)
 	}
@@ -785,7 +785,7 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 		vars = s.vmap
 	}
 
-	qc, err := qcodeCompiler.Compile(subQuery, vars, s.role, s.r.namespace)
+	qc, err := qcodeCompiler.Compile(subQuery, vars, s.r.namespace)
 	if err != nil {
 		return nil, fmt.Errorf("qcode compile failed for %s: %w", dbName, err)
 	}
@@ -875,14 +875,12 @@ func (s *gstate) resolveDatabaseRootRemotes(
 	}
 
 	sub := gstate{
-		gj:                  s.gj,
-		r:                   cloneGraphqlReq(s.r),
-		cs:                  &cstate{st: stmt{qc: qc}},
-		data:                injectRemoteMarkers(data, qc),
-		role:                s.role,
-		trustedReservedRole: s.trustedReservedRole,
-		database:            dbName,
-		skipCache:           s.skipCache,
+		gj:        s.gj,
+		r:         cloneGraphqlReq(s.r),
+		cs:        &cstate{st: stmt{qc: qc}},
+		data:      injectRemoteMarkers(data, qc),
+		database:  dbName,
+		skipCache: s.skipCache,
 	}
 	err := sub.execRemoteJoin(ctx)
 	if hits := sub.fragmentHits.Load(); hits != 0 {

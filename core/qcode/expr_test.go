@@ -11,17 +11,12 @@ import (
 // SUM(price * 2) compiles cleanly through the new `expr:` arg path.
 func TestExprBasicArithmetic(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { products(distinct: [id]) {
 			id
 			doubled: sum(expr: { mul: [{ col: "price" }, { num: 2 }] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -53,18 +48,13 @@ func TestExprBasicArithmetic(t *testing.T) {
 // wrappers.
 func TestExprTerseLeaves(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	// Terse form: bare identifier × number literal.
 	q, err := qc.Compile([]byte(`
 		query { products(distinct: [id]) {
 			id
 			doubled: sum(expr: { mul: [price, 2] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("terse form compile failed: %v", err)
 	}
@@ -91,7 +81,7 @@ func TestExprTerseLeaves(t *testing.T) {
 		query { products(distinct: [id]) {
 			id
 			doubled: sum(expr: { mul: [{ col: "price" }, { num: 2 }] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("explicit form compile failed: %v", err)
 	}
@@ -114,22 +104,12 @@ func TestExprTerseLeaves(t *testing.T) {
 // the explicit { col: "rel.col" } wrapper.
 func TestExprTerseDotNotation(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "purchases", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "quantity", "product_id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { purchases(distinct: [id]) {
 			id
 			revenue: sum(expr: { mul: [quantity, "products.price"] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("terse dot-notation compile failed: %v", err)
 	}
@@ -157,17 +137,12 @@ func TestExprTerseDotNotation(t *testing.T) {
 // compiles unchanged when no `expr:` arg is present.
 func TestExprBackwardsCompat(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { products(distinct: [id]) {
 			id
 			sum_price
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -189,47 +164,17 @@ func TestExprBackwardsCompat(t *testing.T) {
 	t.Error("sum_price field not found")
 }
 
-// TestExprRoleAllowlist verifies that referencing a column outside the
-// role's allowlist via `expr:` is rejected at compile time. This closes
-// a gap where the legacy function-args path bypassed the allowlist.
-func TestExprRoleAllowlist(t *testing.T) {
-	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	// Role can read id but NOT price.
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := qc.Compile([]byte(`
-		query { products(distinct: [id]) {
-			id
-			leaked: sum(expr: { mul: [{ col: "price" }, { num: 2 }] })
-		} }`), nil, "user", "")
-	if err == nil {
-		t.Fatal("expected compile error for blocked column reference, got nil")
-	}
-	if !strings.Contains(err.Error(), "price") {
-		t.Errorf("error should mention the blocked column, got: %v", err)
-	}
-}
-
 // TestExprNonNumericRejected verifies that arithmetic on a text column
 // is rejected at compile time unless wrapped in cast.
 func TestExprNonNumericRejected(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "name", "description"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	// description is text, not numeric — multiplying it should fail.
 	_, err := qc.Compile([]byte(`
 		query { products(distinct: [id]) {
 			id
 			bogus: sum(expr: { mul: [{ col: "description" }, { num: 2 }] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err == nil {
 		t.Fatal("expected compile error for non-numeric column under arithmetic, got nil")
 	}
@@ -240,16 +185,6 @@ func TestExprNonNumericRejected(t *testing.T) {
 // renderer (psql/expr.go) emits this as a correlated scalar subquery.
 func TestExprRelCol(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "purchases", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "quantity", "product_id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	// purchases has product_id -> products.id (belongs-to). Expression:
 	// SUM(quantity * products.price) over all purchases.
@@ -257,7 +192,7 @@ func TestExprRelCol(t *testing.T) {
 		query { purchases(distinct: [id]) {
 			id
 			revenue: sum(expr: { mul: [{ col: "quantity" }, { col: "products.price" }] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -300,27 +235,12 @@ func TestExprRelCol(t *testing.T) {
 // purchases → customers → users chain (two hops).
 func TestExprRelColMultiHop(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "purchases", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "quantity", "customer_id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := qc.AddRole("user", "public", "customers", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "user_id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := qc.AddRole("user", "public", "users", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { purchases(distinct: [id]) {
 			id
 			multi: sum(expr: { mul: [{ col: "quantity" }, { col: "users.id" }] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -365,16 +285,6 @@ func TestExprRelColTooManyHops(t *testing.T) {
 // can't consume a list of rows.
 func TestExprRelColOneToManyRejected(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := qc.AddRole("user", "public", "purchases", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "quantity", "product_id"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	// products.purchases is one-to-many — dereferencing purchases.quantity
 	// from a product query would yield many values per product, which
@@ -383,7 +293,7 @@ func TestExprRelColOneToManyRejected(t *testing.T) {
 		query { products(distinct: [id]) {
 			id
 			wrong: sum(expr: { col: "purchases.quantity" })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err == nil {
 		t.Fatal("expected error for one-to-many relationship in scalar expr, got nil")
 	}
@@ -400,17 +310,12 @@ func TestExprRelColOneToManyRejected(t *testing.T) {
 // server-side top-N by computed metric (e.g. top products by revenue).
 func TestExprOrderByAlias(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { products(distinct: [id], order_by: { doubled: desc }) {
 			id
 			doubled: sum(expr: { mul: [{ col: "price" }, { num: 2 }] })
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -432,16 +337,11 @@ func TestExprOrderByAlias(t *testing.T) {
 // order_by entries that don't match any compiled field.
 func TestExprOrderByAliasNotFound(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	_, err := qc.Compile([]byte(`
 		query { products(order_by: { nonexistent: desc }) {
 			id
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err == nil {
 		t.Fatal("expected error for unresolved order_by alias, got nil")
 	}
@@ -455,11 +355,6 @@ func TestExprOrderByAliasNotFound(t *testing.T) {
 // shared where-clause parser.
 func TestExprCase(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { products(distinct: [id]) {
@@ -470,7 +365,7 @@ func TestExprCase(t *testing.T) {
 					else: { num: 0 }
 				}
 			})
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -504,11 +399,6 @@ func TestExprCase(t *testing.T) {
 // TestExprDepthLimit verifies the validator caps tree depth.
 func TestExprDepthLimit(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	// Build a deeply nested mul expression: mul[mul[mul[...col, num]]]
 	expr := `{ col: "price" }`
@@ -520,7 +410,7 @@ func TestExprDepthLimit(t *testing.T) {
 		deep: sum(expr: ` + expr + `)
 	} }`
 
-	_, err := qc.Compile([]byte(query), nil, "user", "")
+	_, err := qc.Compile([]byte(query), nil, "")
 	if err == nil {
 		t.Fatal("expected depth-limit error, got nil")
 	}
@@ -533,17 +423,12 @@ func TestExprDepthLimit(t *testing.T) {
 // the top level set the GlobalAgg flag (broken.md fix path).
 func TestGlobalAggSetsFlag(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { products {
 			count_id
 			sum_price
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -567,17 +452,12 @@ func TestGlobalAggSetsFlag(t *testing.T) {
 // __gj_id into BCols, forcing a per-row GROUP BY.
 func TestGlobalAggWithCacheTracking(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{EnableCacheTracking: true})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { products {
 			count_id
 			sum_price
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -605,17 +485,12 @@ func TestGlobalAggWithCacheTracking(t *testing.T) {
 // distinct keeps GlobalAgg=false (existing per-group aggregation path).
 func TestDistinctAggDoesNotSetGlobalAgg(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
-	if err := qc.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{Columns: []string{"id", "user_id", "price"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	q, err := qc.Compile([]byte(`
 		query { products(distinct: [user_id]) {
 			user_id
 			sum_price
-		} }`), nil, "user", "")
+		} }`), nil, "")
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}

@@ -461,22 +461,16 @@ func (co *Compiler) compileExprAgg(sel *Select, node *graph.Node, op ExpOp, dept
 	return ex, nil
 }
 
-// validateExprTree walks the compiled expression tree and enforces:
-//   - boolean ops (OpAnd/OpEquals/...) appear only inside CaseArm.When
-//   - arithmetic ops have only scalar children (column refs, literals,
-//     other arithmetic, coalesce/nullif/cast/case/agg-of-expr)
-//   - column references resolve to numeric types when used under
-//     arithmetic ops (unless wrapped in OpCast)
-//   - column references are present in the role's column allowlist
+// validateExprTree walks an OpAdd/OpSub/... scalar expression tree and
+// verifies:
+//   - leaf nodes are valid column references on sel.Ti or related tables
+//   - types under arithmetic ops are numeric (or cast to numeric)
 //   - tree depth and total node count stay within limits
-//
-// allowedCols is the set of column names the current role may read on
-// sel.Ti. If nil, the role check is skipped (caller decides).
-func validateExprTree(ex *Exp, ti sdata.DBTable, allowedCols map[string]struct{}) error {
+func validateExprTree(ex *Exp, ti sdata.DBTable) error {
 	if ex == nil {
 		return errors.New("expr: nil expression")
 	}
-	v := exprValidator{ti: ti, allowedCols: allowedCols}
+	v := exprValidator{ti: ti}
 	if err := v.walk(ex, 0, false); err != nil {
 		return err
 	}
@@ -487,9 +481,8 @@ func validateExprTree(ex *Exp, ti sdata.DBTable, allowedCols map[string]struct{}
 }
 
 type exprValidator struct {
-	ti          sdata.DBTable
-	allowedCols map[string]struct{}
-	nodes       int
+	ti    sdata.DBTable
+	nodes int
 }
 
 // walk descends the expression tree. underArith is true when the parent
@@ -509,19 +502,6 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 
 	switch ex.Op {
 	case OpColRef:
-		// Role allowlist check applies to columns on the CURRENT table.
-		// Relationship-qualified refs (ex.RelPath non-empty) reference a
-		// column on a related table (possibly via multiple hops) — the
-		// role's allowlist for those other tables is not available here
-		// without threading Compiler + role name through the validator.
-		// v1 trade-off: trust the relationship graph (which respects
-		// table-level Block configs) and defer per-column allowlist
-		// enforcement on related tables to a follow-up.
-		if len(ex.RelPath) == 0 && v.allowedCols != nil {
-			if _, ok := v.allowedCols[ex.Left.Col.Name]; !ok {
-				return fmt.Errorf("expr: column %q is not in the allowlist for this role", ex.Left.Col.Name)
-			}
-		}
 		if underArith && !isNumericSQLType(ex.Left.Col.Type) {
 			return fmt.Errorf("expr: column %q has type %q which is not numeric — wrap in cast",
 				ex.Left.Col.Name, ex.Left.Col.Type)
@@ -604,9 +584,7 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 	return fmt.Errorf("expr: operator %s is not valid in a scalar expression", ex.Op)
 }
 
-// walkBool walks a boolean sub-tree (used inside CaseArm.When). It
-// collects column refs for the role allowlist check but does not enforce
-// numeric typing.
+// walkBool walks a boolean sub-tree (used inside CaseArm.When).
 func (v *exprValidator) walkBool(ex *Exp, depth int) error {
 	if ex == nil {
 		return nil
@@ -617,11 +595,6 @@ func (v *exprValidator) walkBool(ex *Exp, depth int) error {
 	v.nodes++
 	if v.nodes > exprMaxNodes {
 		return fmt.Errorf("expr: tree has more than %d nodes", exprMaxNodes)
-	}
-	if v.allowedCols != nil && ex.Left.Col.Name != "" {
-		if _, ok := v.allowedCols[ex.Left.Col.Name]; !ok {
-			return fmt.Errorf("expr.case.when: column %q is not in the allowlist for this role", ex.Left.Col.Name)
-		}
 	}
 	for _, c := range ex.Children {
 		if err := v.walkBool(c, depth+1); err != nil {

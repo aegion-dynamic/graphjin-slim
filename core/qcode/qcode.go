@@ -50,8 +50,6 @@ const (
 	SkipTypeNone SkipType = iota
 	SkipTypeDrop
 	SkipTypeNulled
-	SkipTypeUserNeeded
-	SkipTypeBlocked
 	SkipTypeRemote
 	// SkipTypeDatabaseJoin indicates this select targets a different database
 	// and needs to be handled via cross-database join (similar to remote join
@@ -91,11 +89,7 @@ type QCode struct {
 	// InsertConflictFallback is set by the SQL compiler when the selected
 	// backend needs the retryable select-after-insert fallback.
 	InsertConflictFallback bool
-	// InsertConflictReadFiltered records that the returned row is subject to a
-	// role query filter, so an empty result can be reported as authorization
-	// rather than as an unresolved concurrency race.
-	InsertConflictReadFiltered bool
-	actionArg                  graph.Arg
+	actionArg              graph.Arg
 	actionArgs                 map[string]graph.Arg
 }
 
@@ -509,9 +503,8 @@ func (o Order) String() string {
 }
 
 type Compiler struct {
-	c  Config
-	s  *sdata.DBSchema
-	tr map[string]trval
+	c Config
+	s *sdata.DBSchema
 }
 
 func NewCompiler(s *sdata.DBSchema, c Config) (*Compiler, error) {
@@ -521,19 +514,13 @@ func NewCompiler(s *sdata.DBSchema, c Config) (*Compiler, error) {
 		}
 	}
 
-	c.defTrv.query.block = c.DefaultBlock
-	c.defTrv.insert.block = c.DefaultBlock
-	c.defTrv.update.block = c.DefaultBlock
-	c.defTrv.upsert.block = c.DefaultBlock
-	c.defTrv.delete.block = c.DefaultBlock
-
-	return &Compiler{c: c, s: s, tr: make(map[string]trval)}, nil
+	return &Compiler{c: c, s: s}, nil
 }
 
 func (co *Compiler) Compile(
 	query []byte,
 	vmap map[string]json.RawMessage,
-	role, namespace string,
+	namespace string,
 ) (qc *QCode, err error) {
 	var op graph.Operation
 	op, err = graph.Parse(query)
@@ -571,12 +558,12 @@ func (co *Compiler) Compile(
 	qc.Roots = qc.rootsA[:0]
 	qc.Type = GetQType(op.Type)
 
-	if err = co.compileQuery(qc, &op, role); err != nil {
+	if err = co.compileQuery(qc, &op); err != nil {
 		return
 	}
 
 	if qc.Type == QTMutation {
-		if err = co.compileMutation(qc, vmap, role); err != nil {
+		if err = co.compileMutation(qc, vmap); err != nil {
 			return
 		}
 	}
@@ -598,7 +585,7 @@ func qualifiedGraphQLRootError(query []byte, parseErr error) error {
 	return fmt.Errorf("invalid GraphQL root %q: %s", qualified, message)
 }
 
-func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation, role string) error {
+func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation) error {
 	var id int32
 
 	if len(op.Fields) == 0 {
@@ -606,7 +593,7 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation, role string) er
 	}
 
 	if op.Type == graph.OpMutate {
-		if err := co.setMutationType(qc, op, role); err != nil {
+		if err := co.setMutationType(qc, op); err != nil {
 			return err
 		}
 	}
@@ -672,7 +659,7 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation, role string) er
 
 		sel.Children = make([]int32, 0, 5)
 
-		if err := co.compileSelectorDirectives(qc, sel, field.Directives, role); err != nil {
+		if err := co.compileSelectorDirectives(qc, sel, field.Directives); err != nil {
 			return err
 		}
 
@@ -689,29 +676,23 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation, role string) er
 			continue
 		}
 
-		if err := co.addRelInfo(name, op, qc, sel, field, role); err != nil {
+		if err := co.addRelInfo(name, op, qc, sel, field); err != nil {
 			return err
 		}
 
-		tr, err := co.setSelectorRoleConfig(role, name, qc, sel)
-		if err != nil {
+		co.setLimit(qc, sel)
+
+		if err := co.compileSelectArgs(qc, sel, field.Args); err != nil {
 			return err
 		}
 
-		co.setLimit(tr, qc, sel)
-
-		if err := co.compileSelectArgs(qc, sel, field.Args, role); err != nil {
-			return err
-		}
-
-		if err := co.compileFields(st, op, qc, sel, field, tr, role); err != nil {
+		if err := co.compileFields(st, op, qc, sel, field); err != nil {
 			return err
 		}
 
 		// Analytics partition/order columns are stored as names in WindowSpec,
-		// so validate them after compileFields has built the field list while
-		// the selector's role config is still in scope.
-		if err := co.validateAnalytics(qc, sel, tr); err != nil {
+		// so validate them after compileFields has built the field list.
+		if err := co.validateAnalytics(qc, sel); err != nil {
 			return err
 		}
 
@@ -723,17 +704,12 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation, role string) er
 			return err
 		}
 
-		// Role/config authorization for ORDER BY and DISTINCT ON columns —
-		// mirrors the SELECT-list checks in validateField. Must run before
+		// Authorization for ORDER BY and DISTINCT ON columns —
+		// mirrors the SELECT-list checks. Must run before
 		// the cursor block below appends system entries (PK tie-breakers,
 		// clustering keys), which are exempt.
-		if err := co.validateOrderBy(qc, sel, tr); err != nil {
+		if err := co.validateOrderBy(qc, sel); err != nil {
 			return err
-		}
-
-		// Order is important AddFilters must come after compileArgs
-		if userNeeded := addFilters(qc, &sel.Where, tr); userNeeded && role == "anon" {
-			sel.SkipRender = SkipTypeUserNeeded
 		}
 
 		// Check partition key filter: inject default or warn
@@ -850,7 +826,6 @@ func (co *Compiler) addRelInfo(
 	qc *QCode,
 	sel *Select,
 	field graph.Field,
-	role string,
 ) error {
 	var psel *Select
 	var childF, parentF graph.Field
@@ -953,10 +928,7 @@ func (co *Compiler) addRelInfo(
 	}
 
 	if sel.Ti.Blocked {
-		tr := co.getRole(role, sel.Ti.Schema, sel.Ti.Name, name)
-		if !tr.allowsBlockedTable(qc.SType) {
-			return fmt.Errorf("table: '%t' (%s) blocked", sel.Ti.Blocked, name)
-		}
+		return fmt.Errorf("table: '%t' (%s) blocked", sel.Ti.Blocked, name)
 	}
 
 	sel.Table = sel.Ti.Name
@@ -1215,37 +1187,8 @@ func (co *Compiler) setSingular(fieldName string, sel *Select) {
 	}
 }
 
-func (co *Compiler) setSelectorRoleConfig(role, fieldName string, qc *QCode, sel *Select) (trval, error) {
-	tr := co.getRole(role, sel.Ti.Schema, sel.Ti.Name, fieldName)
-
-	if tr.isBlocked(qc.SType) {
-		if qc.SType != QTQuery {
-			return tr, fmt.Errorf("%s blocked: %s (role: %s)", qc.SType, fieldName, role)
-		}
-		// Reserved gj_* system roots deny loudly instead of rendering null:
-		// they are control-plane surface where a silent null reads as "no
-		// data" rather than "no access", and managed-query handlers would
-		// otherwise serve a root the role rules blocked.
-		if sel.ParentID == -1 && isReservedSystemTable(sel.Ti.Name) {
-			return tr, fmt.Errorf("%s blocked: %s (role: %s)", qc.SType, fieldName, role)
-		}
-		sel.SkipRender = SkipTypeBlocked
-	}
-	return tr, nil
-}
-
-// isReservedSystemTable reports whether the table sits in the reserved gj_
-// namespace used by GraphJin system roots (catalog, security, config, ...).
-func isReservedSystemTable(name string) bool {
-	return len(name) >= 3 && strings.EqualFold(name[:3], "gj_")
-}
-
-func (co *Compiler) setLimit(tr trval, qc *QCode, sel *Select) {
+func (co *Compiler) setLimit(qc *QCode, sel *Select) {
 	if sel.Paging.Limit != 0 || sel.Paging.NoLimit {
-		return
-	}
-	if l := tr.limit(qc.Type); l != 0 {
-		sel.Paging.Limit = l
 		return
 	}
 	if co.c.AnalyticsMode {
@@ -1366,28 +1309,7 @@ func (co *Compiler) validateSelect(sel *Select) error {
 	return nil
 }
 
-func addFilters(qc *QCode, where *Filter, trv trval) bool {
-	var fil *Exp
-	var userNeeded bool
-	if qc.SType == QTInsert && qc.InsertConflictAction == ConflictGet {
-		fil, userNeeded = trv.query.fil, trv.query.filNU
-		qc.InsertConflictReadFiltered = fil != nil && fil.Op != OpNop
-	} else {
-		fil, userNeeded = trv.filter(qc.SType)
-	}
-	if fil != nil {
-		switch fil.Op {
-		case OpNop:
-		case OpFalse:
-			where.Exp = fil
-		default:
-			addAndFilter(where, fil)
-		}
-		return userNeeded
-	}
 
-	return false
-}
 
 func (co *Compiler) checkPartitionFilter(qc *QCode, sel *Select) {
 	if qc.Type != QTQuery && qc.Type != QTSubscription {
@@ -1470,7 +1392,7 @@ func HasFilterOnColumn(ex *Exp, colName string) bool {
 	return false
 }
 
-func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation, role string) error {
+func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation) error {
 	var err error
 
 	validateActionArg := func(arg graph.Arg) error {
@@ -1575,92 +1497,66 @@ func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation, role string)
 }
 
 func (co *Compiler) compileArgFilter(qc *QCode, sel *Select,
-	selID int32, arg graph.Arg, role string,
+	selID int32, arg graph.Arg,
 ) (ex *Exp, err error) {
 	st := util.NewStackInf()
-	var nu bool
 
 	if arg.Val.Type != graph.NodeObj {
 		err = fmt.Errorf("expecting an object")
 		return
 	}
 
-	ex, nu, err = co.compileExpNode(sel.Table,
+	ex, _, err = co.compileExpNode(sel.Table,
 		sel.Ti, st, arg.Val, false, selID)
 	if err != nil {
 		return
 	}
-	if err = co.validateUserFilter(qc, sel, ex, role); err != nil {
+	if err = co.validateUserFilter(qc, sel, ex); err != nil {
 		return nil, err
 	}
 
-	if nu && role == "anon" {
-		sel.SkipRender = SkipTypeUserNeeded
-	}
 	return
 }
 
-// validateUserFilter applies field-equivalent column authorization to the
-// expression compiled from a client-authored where/includeIf/skipIf argument.
-// It intentionally runs here, before that expression is merged with sel.Where
-// or a field filter: role-config filters are compiled separately by AddRole and
-// may reference row-security columns that clients are not allowed to read.
-//
-// Columns on nested relations are checked against the owning table's role, and
-// ValRef operands ({col: "..."}) are checked as well as predicate-left columns.
-// Relationship join predicates in Exp.Joins are compiler-generated and remain
-// exempt. The filter grammar has no arbitrary DB-function expression nodes;
-// its fixed comparison/GIS operators therefore do not consult DisableFunctions.
-func (co *Compiler) validateUserFilter(qc *QCode, sel *Select, ex *Exp, role string) error {
+func (co *Compiler) validateUserFilter(qc *QCode, sel *Select, ex *Exp) error {
 	if ex == nil {
 		return nil
 	}
 
-	if err := co.validateUserFilterColumn(qc, sel, ex.Left.Col, role); err != nil {
+	if err := co.validateUserFilterColumn(qc, sel, ex.Left.Col); err != nil {
 		return err
 	}
 	if ex.Right.ValType == ValRef {
-		if err := co.validateUserFilterColumn(qc, sel, ex.Right.Col, role); err != nil {
+		if err := co.validateUserFilterColumn(qc, sel, ex.Right.Col); err != nil {
 			return err
 		}
 	}
 	for _, child := range ex.Children {
-		if err := co.validateUserFilter(qc, sel, child, role); err != nil {
+		if err := co.validateUserFilter(qc, sel, child); err != nil {
 			return err
 		}
 	}
 	for _, arm := range ex.CaseArms {
-		if err := co.validateUserFilter(qc, sel, arm.When, role); err != nil {
+		if err := co.validateUserFilter(qc, sel, arm.When); err != nil {
 			return err
 		}
-		if err := co.validateUserFilter(qc, sel, arm.Then, role); err != nil {
+		if err := co.validateUserFilter(qc, sel, arm.Then); err != nil {
 			return err
 		}
 	}
-	return co.validateUserFilter(qc, sel, ex.Else, role)
+	return co.validateUserFilter(qc, sel, ex.Else)
 }
 
 func (co *Compiler) validateUserFilterColumn(
 	qc *QCode,
 	sel *Select,
 	col sdata.DBColumn,
-	role string,
 ) error {
 	if col.Name == "" {
 		return nil
 	}
 	if col.Blocked {
 		return fmt.Errorf("column: '%s.%s.%s' blocked", col.Schema, col.Table, col.Name)
-	}
-
-	sameTable := strings.EqualFold(col.Schema, sel.Ti.Schema) &&
-		strings.EqualFold(col.Table, sel.Ti.Name)
-	tr := co.getRole(role, col.Schema, col.Table, col.Table)
-	if !sameTable && tr.isBlocked(qc.SType) {
-		return fmt.Errorf("%s blocked: %s (role: %s)", qc.SType, col.Table, role)
-	}
-	if !tr.columnAllowed(qc, col.Name) {
-		return validateErr(tr, col.Name, "db column blocked")
 	}
 	return nil
 }
@@ -1719,54 +1615,7 @@ func addNotFilter(fil *Filter, ex *Exp) {
 	fil.Exp.Children[1] = ow
 }
 
-func compileFilter(s *sdata.DBSchema, ti sdata.DBTable, filter []string, isJSON bool) (*Exp, bool, error) {
-	var fl *Exp
-	var needsUser bool
 
-	co := &Compiler{s: s}
-	st := util.NewStackInf()
-
-	if len(filter) == 0 {
-		return newExp(), false, nil
-	}
-
-	for _, v := range filter {
-		if v == "false" {
-			return newExpOp(OpFalse), false, nil
-		}
-
-		node, err := graph.ParseArgValue(v, isJSON)
-		if err != nil {
-			return nil, false, err
-		}
-
-		f, nu, err := co.compileBaseExpNode("", ti, st, node, isJSON)
-		if err != nil {
-			return nil, false, err
-		}
-
-		if nu {
-			needsUser = true
-		}
-
-		// TODO: Invalid table names in nested where causes fail silently
-		// returning a nil 'f' this needs to be fixed
-
-		// TODO: Invalid where clauses such as missing op (eg. eq) also fail silently
-
-		if fl == nil {
-			if len(filter) == 1 {
-				fl = f
-				continue
-			} else {
-				fl = newExpOp(OpAnd)
-			}
-		}
-		fl.Children = append(fl.Children, f)
-	}
-
-	return fl, needsUser, nil
-}
 
 func getArg(args []graph.Arg, name string, validTypes ...graph.ParserType,
 ) (arg graph.Arg, err error) {

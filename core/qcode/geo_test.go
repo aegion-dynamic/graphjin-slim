@@ -33,7 +33,7 @@ func TestGeoStDWithinPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestGeoStDWithinWithUnit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestGeoStDWithinVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), vars, "user", "")
+	_, err = qc.Compile([]byte(gql), vars, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestGeoStContainsPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestGeoStWithinPolygon(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestGeoStIntersectsGeoJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestGeoNear(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestGeoStDWithinWithSRID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestGeoStTouches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestGeoStOverlaps(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestGeoStCoveredBy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestGeoStCovers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestGeoCombinedWithOtherFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = qc.Compile([]byte(gql), nil, "user", "")
+	_, err = qc.Compile([]byte(gql), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

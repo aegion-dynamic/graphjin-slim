@@ -12,7 +12,7 @@ func TestWhereNotEqualNullNamesIsNullRepair(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = compiler.Compile([]byte(`query { users(where: { email: { neq: null } }) { id } }`), nil, "user", "")
+	_, err = compiler.Compile([]byte(`query { users(where: { email: { neq: null } }) { id } }`), nil, "")
 	if err == nil {
 		t.Fatal("expected neq: null to fail")
 	}
@@ -26,7 +26,7 @@ func TestWhereAggregateOperandNamesTwoStepRepair(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = compiler.Compile([]byte(`query { users(where: { id: { gte: { max: id } } }) { id } }`), nil, "user", "")
+	_, err = compiler.Compile([]byte(`query { users(where: { id: { gte: { max: id } } }) { id } }`), nil, "")
 	if err == nil {
 		t.Fatal("expected embedded aggregate operand to fail")
 	}
@@ -42,7 +42,7 @@ func TestWhereLiteralComparisonStillCompiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := compiler.Compile([]byte(`query { users(where: { id: { gte: 10 } }) { id } }`), nil, "user", ""); err != nil {
+	if _, err := compiler.Compile([]byte(`query { users(where: { id: { gte: 10 } }) { id } }`), nil, ""); err != nil {
 		t.Fatalf("literal comparison regressed: %v", err)
 	}
 }

@@ -326,7 +326,6 @@ func (s *graphjinService) reqLog(res *core.Result, rc core.RequestConfig, resTim
 		fields = []zapcore.Field{
 			zap.String("op", res.OperationName()),
 			zap.String("name", res.QueryName()),
-			zap.String("role", res.Role()),
 			zap.Int64("responseTimeMs", resTimeMs),
 			zap.Bool("cacheHit", res.CacheHit()),
 		}

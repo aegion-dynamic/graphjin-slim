@@ -42,35 +42,30 @@ generation. Callers embedding the library should normally interact with
 ### `core`
 
 The public compiler and runtime package. It owns configuration, schema
-discovery, query execution, subscriptions, roles, caching hooks, filesystem
-tables, OpenAPI integration, and the stable `GraphJin` interface.
+discovery, query execution, caching hooks, filesystem tables, and the stable
+`GraphJin` interface.
 
-### `core/internal/graph`
+### `core/graph`
 
 GraphQL lexing, parsing, and schema syntax.
 
-### `core/internal/qcode`
+### `core/qcode`
 
-The internal query representation and validation layer between GraphQL and SQL
-generation.
+The normalized query compiler, IR representation, and AST validation layer
+between GraphQL and SQL generation.
 
-### `core/internal/psql`
+### `core/psql`
 
 SQL query and mutation compilation.
 
-### `core/internal/dialect`
+### `core/dialect`
 
-Database-specific SQL rendering. The supported runtime database types are
-Postgres and SQLite.
+Database-specific SQL rendering for Postgres and SQLite.
 
-### `core/internal/sdata`
+### `core/sdata`
 
 Database schema metadata, tables, columns, functions, relationships, and
 snapshots.
-
-### `core/openapi`
-
-OpenAPI loading and runtime calling for configured API sources.
 
 
 

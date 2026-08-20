@@ -16,8 +16,6 @@ func (co *Compiler) compileFields(
 	qc *QCode,
 	sel *Select,
 	field graph.Field,
-	tr trval,
-	role string,
 ) (err error) {
 	sel.Fields = make([]Field, 0, len(field.Children))
 	sel.BCols = make([]Column, 0, len(field.Children))
@@ -27,7 +25,7 @@ func (co *Compiler) compileFields(
 		return co.addColumns(qc, sel)
 	}
 
-	if err = co.compileChildColumns(st, op, qc, sel, field, tr, role); err != nil {
+	if err = co.compileChildColumns(st, op, qc, sel, field); err != nil {
 		return
 	}
 
@@ -41,10 +39,6 @@ func (co *Compiler) compileFields(
 			sel.GroupCols = true
 			break
 		}
-	}
-
-	if err = validateSelector(qc, sel, tr); err != nil {
-		return
 	}
 
 	if err = co.addColumns(qc, sel); err != nil {
@@ -112,8 +106,6 @@ func (co *Compiler) compileChildColumns(
 	qc *QCode,
 	sel *Select,
 	gf graph.Field,
-	tr trval,
-	role string,
 ) (err error) {
 	var aggExists bool
 	var id int32
@@ -182,22 +174,11 @@ func (co *Compiler) compileChildColumns(
 			// compilation: an aggregate carrying analytics window metadata
 			// emits one row per input row and must NOT trigger GROUP BY.
 			fieldAgg = fn.Agg
-			// For the new expression-aggregate path, run the AST validator
-			// with the role's column allowlist. This enforces type-checks
-			// (numeric columns under arithmetic), depth/node caps, and
-			// rejects any column reference the role isn't allowed to read.
-			// Closes a pre-existing gap where function arguments bypassed
-			// the allowlist that regular column fields go through.
+			// For the new expression-aggregate path, run the AST validator.
+			// This enforces type-checks (numeric columns under arithmetic)
+			// and depth/node caps.
 			if len(fn.Args) == 1 && fn.Args[0].Type == ArgTypeExpr {
-				// Convention (matches columnAllowed in config.go): an
-				// empty allowlist means "no restrictions". Pass nil to
-				// skip the role check in that case so unconfigured roles
-				// behave the same as for plain column fields.
-				var allowed map[string]struct{}
-				if len(tr.query.cols) > 0 {
-					allowed = tr.query.cols
-				}
-				if err := validateExprTree(fn.Args[0].Expr, sel.Ti, allowed); err != nil {
+				if err := validateExprTree(fn.Args[0].Expr, sel.Ti); err != nil {
 					return fmt.Errorf("field '%s': %w", name, err)
 				}
 			}
@@ -205,7 +186,7 @@ func (co *Compiler) compileChildColumns(
 			return fmt.Errorf("field '%s' is not a column or a function", name)
 		}
 
-		if err := co.compileFieldDirectives(sel, &field, f.Directives, role); err != nil {
+		if err := co.compileFieldDirectives(sel, &field, f.Directives); err != nil {
 			return err
 		}
 		if field.WindowFunc != WindowFuncNone && field.Window == nil {
@@ -218,7 +199,7 @@ func (co *Compiler) compileChildColumns(
 			aggExists = true
 		}
 
-		if err := co.compileFieldArgs(qc, sel, &field, f.Args, role); err != nil {
+		if err := co.compileFieldArgs(qc, sel, &field, f.Args); err != nil {
 			return err
 		}
 
@@ -479,42 +460,6 @@ func (co *Compiler) orderByIDCol(sel *Select) error {
 		}
 	}
 	return nil
-}
-
-func validateSelector(qc *QCode, sel *Select, tr trval) error {
-	for _, f := range sel.Fields {
-		if err := validateField(qc, f, tr); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateField(qc *QCode, f Field, tr trval) error {
-	switch f.Type {
-	case FieldTypeCol:
-		if !tr.columnAllowed(qc, f.Col.Name) {
-			return validateErr(tr, f.Col.Name, "db column blocked")
-		}
-	case FieldTypeFunc:
-		if tr.isFuncsBlocked() {
-			return validateErr(tr, f.Func.Name, "all db functions blocked")
-		}
-		if len(f.Args) != 0 && f.Args[0].Type == ArgTypeCol &&
-			!tr.columnAllowed(qc, f.Args[0].Col.Name) {
-			return validateErr(tr, f.Args[0].Col.Name, "db column blocked")
-		}
-		// ArgTypeExpr: column-allowlist enforcement happens in
-		// compileChildColumns via validateExprTree, which walks the
-		// entire expression tree (multi-column refs, case sub-trees,
-		// etc.) — a single Args[0].Col check here would miss them.
-	}
-
-	return nil
-}
-
-func validateErr(tr trval, name, msg string) error {
-	return fmt.Errorf("%s: %s (role: '%s')", msg, name, tr.role)
 }
 
 func (sel *Select) addField(f Field) {

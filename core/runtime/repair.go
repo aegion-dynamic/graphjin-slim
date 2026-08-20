@@ -1,4 +1,4 @@
-package engine
+package runtime
 
 import (
 	"fmt"
@@ -6,11 +6,30 @@ import (
 	"strings"
 )
 
+type Error struct {
+	Message    string         `json:"message"`
+	Extensions map[string]any `json:"extensions,omitempty"`
+}
+
 type ErrorRepair struct {
 	Kind          string   `json:"kind"`
 	Diagnosis     string   `json:"diagnosis"`
 	RepairedQuery string   `json:"repaired_query,omitempty"`
 	Next          []string `json:"next,omitempty"`
+}
+
+func NewError(query string, err error) (errList []Error) {
+	if err == nil {
+		return nil
+	}
+	res := Error{Message: err.Error()}
+	repair := BuildGraphJinErrorRepair(query, err.Error())
+	if repair.Known() {
+		res.Extensions = map[string]any{
+			"graphjin_repair": repair,
+		}
+	}
+	return []Error{res}
 }
 
 const (

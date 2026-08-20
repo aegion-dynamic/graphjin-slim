@@ -275,7 +275,7 @@ func TestMergeRootResults(t *testing.T) {
 		{
 			name: "single result",
 			results: []dbResult{
-				{database: "main", data: json.RawMessage(`{"users": [1,2,3]}`)},
+				{Database: "main", Data: json.RawMessage(`{"users": [1,2,3]}`)},
 			},
 			want:    `{"users": [1,2,3]}`,
 			wantErr: false,
@@ -283,8 +283,8 @@ func TestMergeRootResults(t *testing.T) {
 		{
 			name: "multiple results",
 			results: []dbResult{
-				{database: "main", data: json.RawMessage(`{"users": [1,2]}`)},
-				{database: "analytics", data: json.RawMessage(`{"events": [3,4]}`)},
+				{Database: "main", Data: json.RawMessage(`{"users": [1,2]}`)},
+				{Database: "analytics", Data: json.RawMessage(`{"events": [3,4]}`)},
 			},
 			want:    `{"events":[3,4],"users":[1,2]}`,
 			wantErr: false,
@@ -292,15 +292,15 @@ func TestMergeRootResults(t *testing.T) {
 		{
 			name: "duplicate key error",
 			results: []dbResult{
-				{database: "db1", data: json.RawMessage(`{"users": [1]}`)},
-				{database: "db2", data: json.RawMessage(`{"users": [2]}`)},
+				{Database: "db1", Data: json.RawMessage(`{"users": [1]}`)},
+				{Database: "db2", Data: json.RawMessage(`{"users": [2]}`)},
 			},
 			wantErr: true,
 		},
 		{
 			name: "result with error",
 			results: []dbResult{
-				{database: "main", data: nil, err: context.DeadlineExceeded},
+				{Database: "main", Data: nil, Err: context.DeadlineExceeded},
 			},
 			wantErr: true,
 		},

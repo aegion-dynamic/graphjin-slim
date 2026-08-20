@@ -1,21 +1,27 @@
-package engine
+package watcher
 
 import (
+	"context"
 	"testing"
 	"time"
 )
 
 func TestGraphJinCloseStopsWatcherPromptly(t *testing.T) {
-	g := &GraphJin{lifecycle: NewLifecycle()}
+	lc := NewLifecycle()
 
 	stopped := make(chan struct{})
 	go func() {
-		g.startDBWatcher(10 * time.Second)
+		Start(10*time.Second, lc, func(ctx context.Context) (bool, error) {
+			return false, nil
+		}, func() error {
+			return nil
+		})
+		<-lc.Done()
 		close(stopped)
 	}()
 
-	g.Close()
-	g.Close()
+	lc.Close()
+	lc.Close()
 
 	select {
 	case <-stopped:

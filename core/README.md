@@ -71,7 +71,10 @@ The compiler sub-packages provide modular stages in the compilation pipeline:
 
 | Package | Responsibility |
 | --- | --- |
-| `core/engine` | Engine execution, request state lifecycle, multi-DB coordination, and watchers |
+| `core/engine` | Core query execution pipeline, prepared statement caching, and gstate lifecycle |
+| `core/dbjoin` | Cross-database distributed joins and multi-database result merging |
+| `core/watcher` | Background database schema polling, change callbacks, and shutdown lifecycle |
+| `core/runtime` | Execution resilience, exponential backoff retry, field crypto, and error repair diagnostics |
 | `core/graph` | GraphQL lexer, parser, and syntax schema |
 | `core/qcode` | Normalized GraphQL query compiler and intermediate representation (IR) |
 | `core/psql` | SQL query and mutation compilation |
@@ -81,6 +84,7 @@ The compiler sub-packages provide modular stages in the compilation pipeline:
 | `core/jsn` | Specialized JSON scanning and mutation helpers |
 | `core/allow` | Saved-query allow-list storage and matching |
 | `core/valid` | Shared validation helpers |
+| `core/storage` | Filesystem and storage abstraction interfaces |
 | `core/util` | Small compiler data structures and graph utilities |
 | `core/schema` | GraphQL introspection schema generation |
 

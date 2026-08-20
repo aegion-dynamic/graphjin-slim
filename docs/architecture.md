@@ -46,9 +46,23 @@ public configuration, and execution results.
 
 ### `core/engine`
 
-The internal engine implementation. It owns request state lifecycle (`gstate`),
-multi-database execution coordination, runtime encryption, retry logic, and schema
-change callbacks.
+The core query execution orchestrator. It manages request execution states (`gstate`),
+prepared statement caching, parameter binding, and multi-database query dispatching.
+
+### `core/dbjoin`
+
+Cross-database distributed joins and multi-database result merging. Builds child
+GraphQL subqueries filtered by parent foreign keys and stitches nested JSON results.
+
+### `core/watcher`
+
+Background database schema polling, thread-safe schema change callbacks, and
+engine shutdown lifecycle management.
+
+### `core/runtime`
+
+Execution resilience, exponential backoff retry policies, field-level AES-GCM
+encryption, and error repair diagnostics.
 
 ### `core/graph`
 

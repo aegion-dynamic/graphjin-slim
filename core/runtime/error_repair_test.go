@@ -1,4 +1,4 @@
-package engine
+package runtime
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewErrorIncludesGraphJinRepairExtension(t *testing.T) {
-	errs := newError(`query { orders_aggregate { count } }`, errors.New(`table "orders_aggregate" not found`))
+	errs := NewError(`query { orders_aggregate { count } }`, errors.New(`table "orders_aggregate" not found`))
 	if len(errs) != 1 {
 		t.Fatalf("expected one error, got %d", len(errs))
 	}

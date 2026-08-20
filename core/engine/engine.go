@@ -23,7 +23,32 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/watcher"
+)
+
+type (
+	Lifecycle       = watcher.Lifecycle
+	SchemaCallbacks = watcher.SchemaCallbacks
+	Tracer          = runtime.Tracer
+	Spaner          = runtime.Spaner
+	StringAttr      = runtime.StringAttr
+	Error           = runtime.Error
+	ErrorRepair     = runtime.ErrorRepair
+)
+
+var (
+	NewLifecycle             = watcher.NewLifecycle
+	NewTracer                = runtime.NewTracer
+	BuildGraphJinErrorRepair = runtime.BuildGraphJinErrorRepair
+	RepairKindTableNotFound  = runtime.RepairKindTableNotFound
+	EncryptValues            = runtime.EncryptValues
+	DecryptValues            = runtime.DecryptValues
+	FirstCursorValue         = runtime.FirstCursorValue
+	RetryOperationForDB      = runtime.RetryOperationForDB
+	encryptValues            = runtime.EncryptValues
+	decryptValues            = runtime.DecryptValues
 )
 
 const (
@@ -437,11 +462,6 @@ func OptionSetTrace(trace Tracer) Option {
 // OptionSetResolver sets the resolver function to be used by GraphJin
 func OptionSetResolver(name string, fn ResolverFn) Option {
 	return func(s *graphjinEngine) error { return errResolversDisabled }
-}
-
-type Error struct {
-	Message    string         `json:"message"`
-	Extensions map[string]any `json:"extensions,omitempty"`
 }
 
 // Result struct contains the output of the GraphQL function this includes resulting json from the
@@ -1234,15 +1254,7 @@ func getFS(conf *Config) (fs FS, err error) {
 	return
 }
 
-// newError creates a new error list
-func newError(query string, err error) (errList []Error) {
-	e := Error{Message: err.Error()}
-	if repair := BuildGraphJinErrorRepair(query, err.Error()); repair.Known() {
-		e.Extensions = map[string]any{"graphjin_repair": repair}
-	}
-	errList = []Error{e}
-	return
-}
+var newError = runtime.NewError
 
 // stripGjIdFields removes all "__gj_id" fields from JSON response.
 // Uses JSON parse/delete/marshal for correctness - doesn't depend on QCode.

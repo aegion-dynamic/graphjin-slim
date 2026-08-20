@@ -5,99 +5,71 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/watcher"
 )
 
 // initDBWatcher initializes the database schema watcher
 func (g *GraphJin) initDBWatcher() error {
 	gj := g.Load().(*graphjinEngine)
-	if gj.disableDBSchemaWatcher {
-		return nil
-	}
-
-	// no schema polling in production
-	if gj.prod {
+	if gj.disableDBSchemaWatcher || gj.prod {
 		return nil
 	}
 
 	ps := gj.conf.DBSchemaPollDuration
-
-	switch {
-	case ps < (1 * time.Second):
+	if ps < 1*time.Second {
 		return nil
-
-	case ps < (5 * time.Second):
-		ps = 10 * time.Second
 	}
 
-	go func() {
-		g.startDBWatcher(ps)
-	}()
+	watcher.Start(ps, g.lifecycle, g.checkSchemaChanges, g.reloadOnSchemaChange)
 	return nil
 }
 
-// startDBWatcher starts the database schema watcher
-func (g *GraphJin) startDBWatcher(ps time.Duration) {
-	ticker := time.NewTicker(ps)
-	defer ticker.Stop()
+func (g *GraphJin) checkSchemaChanges(ctx context.Context) (bool, error) {
+	gj := g.Load().(*graphjinEngine)
 
-	for {
-		select {
-		case <-g.lifecycle.Done():
-			return
-		case <-ticker.C:
+	for _, dbCtx := range gj.databases {
+		if dbCtx.db == nil {
+			continue
 		}
 
-		gj := g.Load().(*graphjinEngine)
-
-		needsReload := false
-
-		// Check all databases for schema changes
-		for _, ctx := range gj.databases {
-			if ctx.db == nil {
-				continue
-			}
-
-			latestDi, err := introspection.GetDBInfo(
-				context.Background(),
-				ctx.db,
-				ctx.dbtype,
-				gj.conf.Blocklist)
-			if err != nil {
-				gj.log.Printf("database %s: schema poll error: %v", ctx.name, err)
-				continue
-			}
-
-			// Check if we're waiting for tables (schema is nil)
-			if ctx.schema == nil {
-				if len(latestDi.Tables) > 0 {
-					gj.log.Printf("database %s: tables discovered, reinitializing...", ctx.name)
-					needsReload = true
-					break
-				}
-				continue
-			}
-
-			// Normal operation - check for schema changes
-			if latestDi.Hash() != ctx.dbinfo.Hash() {
-				gj.log.Printf("database %s: schema change detected, reinitializing...", ctx.name)
-				needsReload = true
-				break
-			}
+		latestDi, err := introspection.GetDBInfo(
+			ctx,
+			dbCtx.db,
+			dbCtx.dbtype,
+			gj.conf.Blocklist)
+		if err != nil {
+			gj.log.Printf("database %s: schema poll error: %v", dbCtx.name, err)
+			continue
 		}
 
-		if needsReload {
-			g.reloadMu.Lock()
-			// Re-check after lock — another reload may have already updated the engine
-			gj = g.Load().(*graphjinEngine)
-			pdb := gj.primaryDB()
-			if pdb != nil {
-				if err := g.newGraphJin(gj.conf, pdb.db, nil, gj.fs, gj.opts...); err != nil {
-					gj.log.Println(err)
-				} else {
-					g.fireAllSchemaCallbacks()
-				}
+		if dbCtx.schema == nil {
+			if len(latestDi.Tables) > 0 {
+				gj.log.Printf("database %s: tables discovered, reinitializing...", dbCtx.name)
+				return true, nil
 			}
-			g.reloadMu.Unlock()
+			continue
+		}
+
+		if latestDi.Hash() != dbCtx.dbinfo.Hash() {
+			gj.log.Printf("database %s: schema change detected, reinitializing...", dbCtx.name)
+			return true, nil
 		}
 	}
+	return false, nil
+}
+
+func (g *GraphJin) reloadOnSchemaChange() error {
+	g.reloadMu.Lock()
+	defer g.reloadMu.Unlock()
+
+	gj := g.Load().(*graphjinEngine)
+	pdb := gj.primaryDB()
+	if pdb != nil {
+		if err := g.newGraphJin(gj.conf, pdb.db, nil, gj.fs, gj.opts...); err != nil {
+			gj.log.Println(err)
+			return err
+		}
+		g.fireAllSchemaCallbacks()
+	}
+	return nil
 }

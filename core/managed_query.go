@@ -12,6 +12,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/nanodb"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/subs"
 )
 
 func (gj *graphjinEngine) initManagedQueryTables() error {
@@ -367,7 +368,7 @@ func (s *gstate) pageManagedQueryResult(
 		if err != nil {
 			return nil, err
 		}
-		checkpoint := checkpointForSelect(sel, s.vmap)
+		checkpoint := subs.CheckpointForSelect(sel, s.vmap)
 		filterFields, err := managedCursorFilterFields(sel, rows)
 		if err != nil {
 			return nil, err
@@ -392,14 +393,14 @@ func (s *gstate) pageManagedQueryResult(
 		sort.SliceStable(filtered, func(i, j int) bool {
 			return managedRowLess(sel, filtered[i], filtered[j], orderFields)
 		})
-		start, err := pagingOffset(sel, s.vmap)
+		start, err := subs.PagingOffset(sel, s.vmap)
 		if err != nil {
 			return nil, err
 		}
 		if start > len(filtered) {
 			start = len(filtered)
 		}
-		limit, err := pagingLimit(sel, s.vmap)
+		limit, err := subs.PagingLimit(sel, s.vmap)
 		if err != nil {
 			return nil, err
 		}
@@ -412,7 +413,7 @@ func (s *gstate) pageManagedQueryResult(
 		var cursor any
 		if len(filtered) != 0 {
 			last := managedOrderRow(sel, filtered[len(filtered)-1], orderFields)
-			cursor = string(s.gj.printFormat) + encodeSystemCursor(sel.ID, systemCursorValues(sel, last))
+			cursor = string(s.gj.printFormat) + subs.EncodeSystemCursor(sel.ID, subs.SystemCursorValues(sel, last))
 		}
 		for _, row := range filtered {
 			for _, field := range orderFields {
@@ -494,7 +495,7 @@ func managedFilterColumns(ex *qcode.Exp) []string {
 	var columns []string
 	var visit func(*qcode.Exp)
 	visit = func(node *qcode.Exp) {
-		if node == nil || isSeekExp(node) {
+		if node == nil || subs.IsSeekExp(node) {
 			return
 		}
 		if node.Left.Table != "__cur" && node.Left.Col.Name != "" {
@@ -520,7 +521,7 @@ func managedOrderRow(sel *qcode.Select, row map[string]any, fields []string) map
 }
 
 func managedRowLess(sel *qcode.Select, left, right map[string]any, fields []string) bool {
-	return systemRowLess(sel, managedOrderRow(sel, left, fields), managedOrderRow(sel, right, fields))
+	return subs.SystemRowLess(sel, managedOrderRow(sel, left, fields), managedOrderRow(sel, right, fields))
 }
 
 func managedSelectedFields(fields []qcode.Field) []ManagedMutationField {
@@ -571,7 +572,7 @@ func managedFilterToValueWithoutSeek(ex *qcode.Exp, vars map[string]json.RawMess
 }
 
 func managedExpToValueWithoutSeek(ex *qcode.Exp, vars map[string]json.RawMessage) interface{} {
-	if ex == nil || isSeekExp(ex) {
+	if ex == nil || subs.IsSeekExp(ex) {
 		return nil
 	}
 	switch ex.Op {

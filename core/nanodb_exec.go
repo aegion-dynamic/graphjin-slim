@@ -13,6 +13,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/nanodb"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/subs"
 )
 
 func (s *gstate) executeNanoDB(ctx context.Context, dbCtx *dbContext) error {
@@ -92,7 +93,7 @@ func (s *gstate) renderNanoSelect(
 	}
 
 	search := nanoSearchTerm(sel, s.vmap)
-	checkpoint := checkpointForSelect(sel, s.vmap)
+	checkpoint := subs.CheckpointForSelect(sel, s.vmap)
 	parentRows := parent
 	filtered := make([]nanodb.Row, 0, len(rows))
 	for _, row := range rows {
@@ -138,14 +139,14 @@ func (s *gstate) renderNanoSelect(
 		return s.nanoLess(snap, sel, filtered[i], filtered[j], search)
 	})
 
-	start, err := pagingOffset(sel, s.vmap)
+	start, err := subs.PagingOffset(sel, s.vmap)
 	if err != nil {
 		return nil, nil, err
 	}
 	if start > len(filtered) {
 		start = len(filtered)
 	}
-	limit, err := pagingLimit(sel, s.vmap)
+	limit, err := subs.PagingLimit(sel, s.vmap)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -168,7 +169,7 @@ func (s *gstate) renderNanoSelect(
 	}
 	var cursor any
 	if sel.Paging.Cursor && len(filtered) != 0 {
-		cursor = string(s.gj.printFormat) + encodeSystemCursor(sel.ID, systemCursorValues(sel, filtered[len(filtered)-1]))
+		cursor = string(s.gj.printFormat) + subs.EncodeSystemCursor(sel.ID, subs.SystemCursorValues(sel, filtered[len(filtered)-1]))
 	}
 	if sel.Singular {
 		if len(items) == 0 {
@@ -299,7 +300,7 @@ func (s *gstate) nanoLess(snap *nanodb.Snapshot, sel *qcode.Select, a, b nanodb.
 			av = a[col]
 			bv = b[col]
 		}
-		cmp := compareValues(av, bv)
+		cmp := subs.CompareValues(av, bv)
 		if cmp == 0 {
 			continue
 		}
@@ -316,7 +317,7 @@ func (s *gstate) nanoEval(
 	ex *qcode.Exp,
 	row nanodb.Row,
 	parent map[int32]nanodb.Row,
-	checkpoint cursorCheckpoint,
+	checkpoint subs.CursorCheckpoint,
 ) bool {
 	if ex == nil {
 		return true
@@ -349,7 +350,7 @@ func (s *gstate) nanoEval(
 
 	left := row[ex.Left.Col.Name]
 	if ex.Left.Table == "__cur" {
-		left = checkpoint.values[systemCursorExpKey(ex.Left.Col.Name, ex.Left.ColName)]
+		left = checkpoint.Values[systemCursorExpKey(ex.Left.Col.Name, ex.Left.ColName)]
 	}
 	right := s.nanoRight(ctx, ex, parent, checkpoint)
 	if ex.Right.Table == "__cur" && right == nil {
@@ -375,13 +376,13 @@ func (s *gstate) nanoEval(
 		}
 		return true
 	case qcode.OpGreaterThan:
-		return compareValues(left, right) > 0
+		return subs.CompareValues(left, right) > 0
 	case qcode.OpGreaterOrEquals:
-		return compareValues(left, right) >= 0
+		return subs.CompareValues(left, right) >= 0
 	case qcode.OpLesserThan:
-		return compareValues(left, right) < 0
+		return subs.CompareValues(left, right) < 0
 	case qcode.OpLesserOrEquals:
-		return compareValues(left, right) <= 0
+		return subs.CompareValues(left, right) <= 0
 	case qcode.OpLike, qcode.OpILike:
 		return likeValue(left, right, ex.Op == qcode.OpILike)
 	case qcode.OpNotLike, qcode.OpNotILike:
@@ -406,13 +407,13 @@ func (s *gstate) nanoRight(
 	ctx context.Context,
 	ex *qcode.Exp,
 	parent map[int32]nanodb.Row,
-	checkpoint cursorCheckpoint,
+	checkpoint subs.CursorCheckpoint,
 ) any {
 	if ex == nil {
 		return nil
 	}
 	if ex.Right.Table == "__cur" {
-		return checkpoint.values[systemCursorExpKey(ex.Right.Col.Name, ex.Right.ColName)]
+		return checkpoint.Values[systemCursorExpKey(ex.Right.Col.Name, ex.Right.ColName)]
 	}
 	if ex.Right.ID >= 0 && ex.Right.Col.Name != "" {
 		if row, ok := parent[ex.Right.ID]; ok {

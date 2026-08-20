@@ -1,4 +1,4 @@
-package core
+package query
 
 import (
 	"encoding/json"
@@ -23,7 +23,7 @@ func TestReshapeHasuraAggregateData(t *testing.T) {
 			{NativeField: "sum_price", Path: []string{"aggregate", "sum", "price"}},
 		}},
 	}
-	got, err := reshapeHasuraAggregateData(data, plans)
+	got, err := ReshapeHasuraAggregateData(data, plans)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestReshapeHasuraAggregateDataPreservesNullRoot(t *testing.T) {
 	plan := []qcode.HasuraAggregateRoot{{ResponseKey: "private_aggregate", Fields: []qcode.HasuraAggregateField{
 		{NativeField: "count_id", Path: []string{"aggregate", "count"}},
 	}}}
-	got, err := reshapeHasuraAggregateData([]byte(`{"private_aggregate":null}`), plan)
+	got, err := ReshapeHasuraAggregateData([]byte(`{"private_aggregate":null}`), plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestReshapeShallowHasuraAggregateData(t *testing.T) {
 		{NativeField: "count_id", Path: []string{"count"}},
 		{NativeField: "min_created_at", Path: []string{"min", "created_at"}},
 	}}}
-	got, err := reshapeHasuraAggregateData(data, plans)
+	got, err := ReshapeHasuraAggregateData(data, plans)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/query"
 )
 
 type gstate struct {
@@ -516,7 +517,7 @@ func (s *gstate) compileAndExecuteWrapper(c context.Context) (err error) {
 	}
 
 	if len(cs.st.qc.HasuraAggregates) != 0 {
-		if s.data, err = reshapeHasuraAggregateData(s.data, cs.st.qc.HasuraAggregates); err != nil {
+		if s.data, err = query.ReshapeHasuraAggregateData(s.data, cs.st.qc.HasuraAggregates); err != nil {
 			return fmt.Errorf("reshape Hasura-compatible aggregate response: %w", err)
 		}
 	}

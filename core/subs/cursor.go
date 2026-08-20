@@ -1,4 +1,4 @@
-package core
+package subs
 
 import (
 	"encoding/base64"
@@ -12,13 +12,13 @@ import (
 
 const systemCursorVersion = "m1:"
 
-type cursorCheckpoint struct {
-	selectionID int32
-	values      map[string]any
-	ok          bool
+type CursorCheckpoint struct {
+	SelectionID int32
+	Values      map[string]any
+	Ok          bool
 }
 
-func encodeSystemCursor(selectionID int32, values []any) string {
+func EncodeSystemCursor(selectionID int32, values []any) string {
 	data, err := json.Marshal(values)
 	if err != nil {
 		return ""
@@ -27,7 +27,7 @@ func encodeSystemCursor(selectionID int32, values []any) string {
 		base64.RawURLEncoding.EncodeToString(data)
 }
 
-func decodeSystemCursor(raw string) (int32, []any, bool) {
+func DecodeSystemCursor(raw string) (int32, []any, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return 0, nil, false
@@ -65,48 +65,48 @@ func decodeSystemCursor(raw string) (int32, []any, bool) {
 	return int32(id), values, true
 }
 
-func checkpointForSelect(sel *qcode.Select, vars map[string]json.RawMessage) cursorCheckpoint {
+func CheckpointForSelect(sel *qcode.Select, vars map[string]json.RawMessage) CursorCheckpoint {
 	if sel == nil || !sel.Paging.Cursor || sel.Paging.CursorVar == "" {
-		return cursorCheckpoint{}
+		return CursorCheckpoint{}
 	}
 	var raw string
 	if err := json.Unmarshal(vars[sel.Paging.CursorVar], &raw); err != nil || raw == "" {
-		return cursorCheckpoint{}
+		return CursorCheckpoint{}
 	}
-	selectionID, values, ok := decodeSystemCursor(raw)
+	selectionID, values, ok := DecodeSystemCursor(raw)
 	if !ok || selectionID != sel.ID || len(values) < len(sel.OrderBy) {
-		return cursorCheckpoint{}
+		return CursorCheckpoint{}
 	}
-	cp := cursorCheckpoint{
-		selectionID: selectionID,
-		values:      make(map[string]any, len(sel.OrderBy)),
-		ok:          true,
+	cp := CursorCheckpoint{
+		SelectionID: selectionID,
+		Values:      make(map[string]any, len(sel.OrderBy)),
+		Ok:          true,
 	}
 	for i, order := range sel.OrderBy {
-		cp.values[systemCursorOrderKey(order)] = values[i]
+		cp.Values[SystemCursorOrderKey(order)] = values[i]
 	}
 	return cp
 }
 
-func systemCursorOrderKey(order qcode.OrderBy) string {
+func SystemCursorOrderKey(order qcode.OrderBy) string {
 	if order.Key != "" {
 		return order.Col.Name + "_" + order.Key
 	}
 	return order.Col.Name
 }
 
-func systemCursorValues(sel *qcode.Select, row map[string]any) []any {
+func SystemCursorValues(sel *qcode.Select, row map[string]any) []any {
 	if sel == nil || len(sel.OrderBy) == 0 || row == nil {
 		return nil
 	}
 	values := make([]any, 0, len(sel.OrderBy))
 	for _, order := range sel.OrderBy {
-		values = append(values, systemOrderValue(row, order))
+		values = append(values, SystemOrderValue(row, order))
 	}
 	return values
 }
 
-func systemOrderValue(row map[string]any, order qcode.OrderBy) any {
+func SystemOrderValue(row map[string]any, order qcode.OrderBy) any {
 	value := row[order.Col.Name]
 	if order.Key == "" {
 		return value
@@ -133,22 +133,22 @@ func systemOrderValue(row map[string]any, order qcode.OrderBy) any {
 	return nil
 }
 
-func findSeekExp(ex *qcode.Exp) *qcode.Exp {
+func FindSeekExp(ex *qcode.Exp) *qcode.Exp {
 	if ex == nil {
 		return nil
 	}
-	if isSeekExp(ex) {
+	if IsSeekExp(ex) {
 		return ex
 	}
 	for _, child := range ex.Children {
-		if found := findSeekExp(child); found != nil {
+		if found := FindSeekExp(child); found != nil {
 			return found
 		}
 	}
 	return nil
 }
 
-func isSeekExp(ex *qcode.Exp) bool {
+func IsSeekExp(ex *qcode.Exp) bool {
 	return ex != nil &&
 		ex.Op == qcode.OpOr &&
 		len(ex.Children) != 0 &&
@@ -157,12 +157,12 @@ func isSeekExp(ex *qcode.Exp) bool {
 		ex.Children[0].Left.Table == "__cur"
 }
 
-func systemRowLess(sel *qcode.Select, left, right map[string]any) bool {
+func SystemRowLess(sel *qcode.Select, left, right map[string]any) bool {
 	if sel == nil {
 		return false
 	}
 	for _, order := range sel.OrderBy {
-		cmp := compareValues(systemOrderValue(left, order), systemOrderValue(right, order))
+		cmp := CompareValues(SystemOrderValue(left, order), SystemOrderValue(right, order))
 		if cmp == 0 {
 			continue
 		}
@@ -176,7 +176,7 @@ func systemRowLess(sel *qcode.Select, left, right map[string]any) bool {
 	return false
 }
 
-func pagingLimit(sel *qcode.Select, vars map[string]json.RawMessage) (int, error) {
+func PagingLimit(sel *qcode.Select, vars map[string]json.RawMessage) (int, error) {
 	if sel == nil {
 		return 0, nil
 	}
@@ -186,7 +186,7 @@ func pagingLimit(sel *qcode.Select, vars map[string]json.RawMessage) (int, error
 	return int(sel.Paging.Limit), nil
 }
 
-func pagingOffset(sel *qcode.Select, vars map[string]json.RawMessage) (int, error) {
+func PagingOffset(sel *qcode.Select, vars map[string]json.RawMessage) (int, error) {
 	if sel == nil {
 		return 0, nil
 	}
@@ -216,4 +216,43 @@ func pagingIntVar(kind, name string, vars map[string]json.RawMessage, allowZero 
 		return 0, fmt.Errorf("%s variable %q must be %s", kind, name, qualifier)
 	}
 	return int(value), nil
+}
+
+func CompareValues(a, b any) int {
+	af, aok := numberValue(a)
+	bf, bok := numberValue(b)
+	if aok && bok {
+		switch {
+		case af < bf:
+			return -1
+		case af > bf:
+			return 1
+		default:
+			return 0
+		}
+	}
+	as, bs := fmt.Sprint(a), fmt.Sprint(b)
+	return strings.Compare(as, bs)
+}
+
+func numberValue(v any) (float64, bool) {
+	switch x := v.(type) {
+	case int:
+		return float64(x), true
+	case int64:
+		return float64(x), true
+	case float64:
+		return x, true
+	case float32:
+		return float64(x), true
+	case json.Number:
+		f, err := x.Float64()
+		return f, err == nil
+	case string:
+		f, err := strconv.ParseFloat(x, 64)
+		return f, err == nil
+	default:
+		f, err := strconv.ParseFloat(fmt.Sprint(v), 64)
+		return f, err == nil
+	}
 }

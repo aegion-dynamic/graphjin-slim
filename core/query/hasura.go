@@ -1,4 +1,4 @@
-package core
+package query
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 // compatibility syntax after GraphJin has executed its native aggregate
 // fields. Raw JSON leaves are preserved so numbers do not pass through a
 // float64 conversion and encrypted values remain byte-for-byte intact.
-func reshapeHasuraAggregateData(data []byte, plans []qcode.HasuraAggregateRoot) ([]byte, error) {
+func ReshapeHasuraAggregateData(data []byte, plans []qcode.HasuraAggregateRoot) ([]byte, error) {
 	if len(data) == 0 || len(plans) == 0 {
 		return data, nil
 	}
@@ -50,7 +50,7 @@ func reshapeHasuraAggregateData(data []byte, plans []qcode.HasuraAggregateRoot) 
 			if !ok {
 				value = json.RawMessage("null")
 			}
-			if err := setHasuraAggregatePath(root, field.Path, value); err != nil {
+			if err := SetHasuraAggregatePath(root, field.Path, value); err != nil {
 				return nil, fmt.Errorf("root %q: %w", plan.ResponseKey, err)
 			}
 		}
@@ -63,7 +63,7 @@ func reshapeHasuraAggregateData(data []byte, plans []qcode.HasuraAggregateRoot) 
 	return json.Marshal(document)
 }
 
-func setHasuraAggregatePath(root map[string]any, path []string, value json.RawMessage) error {
+func SetHasuraAggregatePath(root map[string]any, path []string, value json.RawMessage) error {
 	if len(path) == 0 {
 		return fmt.Errorf("empty aggregate response path")
 	}

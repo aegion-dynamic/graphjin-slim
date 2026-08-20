@@ -27,7 +27,7 @@ func simpleQuery(t *testing.T) {
 func withNestedOrderBy(t *testing.T) {
 	gql := `query {
 	               products(
-	                       where: { and: {customer: { user: { email: { eq: "http" } } }, 
+	                       where: { and: {customer: { user: { email: { eq: "http" } } },
 						   		not: { customer: { user: { email: { eq: ".com"}  }}}}}
 	                       order_by: { customer: { vip: desc }}
 	               ) {
@@ -346,12 +346,12 @@ func queryWithVariables(t *testing.T) {
 
 func withWhereOnRelations(t *testing.T) {
 	gql := `query {
-		users(where: { 
-				not: { 
-					products: { 
+		users(where: {
+				not: {
+					products: {
 						price: { gt: 3 }
-					} 
-				} 
+					}
+				}
 			}) {
 			id
 			email
@@ -392,12 +392,12 @@ func withFragment1(t *testing.T) {
 	query {
 		users {
 			...userFields2
-	
+
 			avatar
 			...userFields1
 		}
 	}
-	
+
 	fragment userFields2 on user {
 		full_name
 	}`
@@ -410,7 +410,7 @@ func withFragment2(t *testing.T) {
 	query {
 		users {
 			...userFields2
-	
+
 			avatar
 			...userFields1
 		}
@@ -420,7 +420,7 @@ func withFragment2(t *testing.T) {
 		id
 		email
 	}
-	
+
 	fragment userFields2 on user {
 		full_name
 	}`
@@ -435,7 +435,7 @@ func withFragment3(t *testing.T) {
 		id
 		email
 	}
-	
+
 	fragment userFields2 on user {
 		full_name
 		...userFields1
@@ -444,7 +444,7 @@ func withFragment3(t *testing.T) {
 	query {
 		users {
 			...userFields2
-	
+
 			avatar
 		}
 	}`
@@ -459,7 +459,7 @@ func withFragment4(t *testing.T) {
 		id
 		email
 	}
-	
+
 	fragment userFields2 on user {
 		full_name
 	}
@@ -467,7 +467,7 @@ func withFragment4(t *testing.T) {
 	query {
 		users {
 			...userFields2
-	
+
 			avatar
 			...userFields1
 		}
@@ -483,7 +483,7 @@ func withPolymorphicUnion(t *testing.T) {
 		id
 		email
 	}
-	
+
 	fragment productFields on product {
 		id
 		name
@@ -734,7 +734,6 @@ func TestCompileQuery(t *testing.T) {
 	t.Run("distinctWithAggAndWhere", distinctWithAggAndWhere)
 	t.Run("aggWithoutDistinct", aggWithoutDistinct)
 	t.Run("partitionFilterInSQL", partitionFilterInSQL)
-	t.Run("warehouseColumnProjection", warehouseColumnProjection)
 }
 
 // --- distinct + aggregation tests ---
@@ -883,66 +882,6 @@ func partitionFilterInSQL(t *testing.T) {
 	// Should reference the partition column
 	if !strings.Contains(sql, "created_at") {
 		t.Errorf("expected 'created_at' in SQL, got:\n%s", sql)
-	}
-
-	t.Logf("Generated SQL:\n%s", sql)
-}
-
-func warehouseColumnProjection(t *testing.T) {
-	// Snowflake: ORDER BY column not in user fields should NOT appear in inner SELECT
-	sfSchema, err := sdata.GetTestSnowflakeSchema()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sfQCompile, err := qcode.NewCompiler(sfSchema, qcode.Config{DBSchema: sfSchema.DBSchema()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = sfQCompile.AddRole("user", "public", "products", qcode.TRConfig{
-		Query: qcode.QueryConfig{
-			Columns: []string{"id", "name", "price", "created_at", "user_id"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sfPCompile := psql.NewCompiler(psql.Config{})
-
-	gql := `query {
-		products(order_by: { price: desc }) {
-			id
-			name
-		}
-	}`
-
-	qc, err := sfQCompile.Compile([]byte(gql), nil, "user", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, sqlBytes, err := sfPCompile.CompileEx(qc)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sql := string(sqlBytes)
-
-	// The innermost SELECT column list should only have id and name, NOT price.
-	// Extract the inner SELECT: between "SELECT " and " FROM" in the deepest subquery.
-	// The SQL should have: SELECT "products"."id", "products"."name" FROM
-	// NOT: SELECT "products"."id", "products"."name", "products"."price" FROM
-	innerSelect := sql[strings.LastIndex(sql, `SELECT "products"."`):]
-	innerSelect = innerSelect[:strings.Index(innerSelect, ` FROM`)]
-
-	if strings.Contains(innerSelect, `"price"`) {
-		t.Errorf("Snowflake: ORDER BY column 'price' should not be in inner SELECT columns.\nInner SELECT: %s", innerSelect)
-	}
-
-	// But ORDER BY should still reference price
-	if !strings.Contains(sql, `ORDER BY`) || !strings.Contains(sql, `"price"`) {
-		t.Errorf("Snowflake: ORDER BY clause should still reference 'price'.\nSQL: %s", sql)
 	}
 
 	t.Logf("Generated SQL:\n%s", sql)

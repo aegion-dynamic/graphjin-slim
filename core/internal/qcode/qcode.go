@@ -739,9 +739,6 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation, role string) er
 		// Check partition key filter: inject default or warn
 		co.checkPartitionFilter(qc, sel)
 
-		// Detect dangerous Snowflake query patterns (broad scans, unfiltered aggs)
-		co.checkDangerousQuery(qc, sel)
-
 		// If an actual cursor is available
 		if sel.Paging.Cursor {
 			// Skip cursor PK ordering when aggregation is active — adding PK
@@ -750,9 +747,6 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation, role string) er
 			if sel.GroupCols {
 				sel.Paging.Cursor = false
 			} else {
-				// Prepend clustering key columns to ORDER BY for better
-				// Snowflake micro-partition alignment during cursor seeks.
-				co.orderByClusterKeys(sel)
 
 				// Set tie-breaker order column for the cursor direction
 				// this column needs to be the last in the order series.
@@ -1474,60 +1468,6 @@ func HasFilterOnColumn(ex *Exp, colName string) bool {
 		}
 	}
 	return false
-}
-
-// checkDangerousQuery detects Snowflake query patterns that could trigger
-// expensive full-table scans and appends warnings to qc.Warnings.
-//
-// Patterns detected:
-//  1. Aggregation (GROUP BY) with no WHERE filter at all
-//  2. Query on a clustered table that doesn't filter on any clustering key
-//  3. Any query with no WHERE filter and a large or unlimited result set
-func (co *Compiler) checkDangerousQuery(qc *QCode, sel *Select) {
-	if co.s.DBType() != "snowflake" {
-		return
-	}
-	if qc.Type != QTQuery && qc.Type != QTSubscription {
-		return
-	}
-
-	hasFilter := sel.Where.Exp != nil
-
-	// 1. Aggregation without any filter — scans and groups the entire table
-	if sel.GroupCols && !hasFilter {
-		qc.Warnings = append(qc.Warnings,
-			fmt.Sprintf("query on %q uses aggregation with no WHERE filter — this will scan the entire table",
-				sel.Ti.Name))
-	}
-
-	// 2. Clustered table but no filter on any clustering key column
-	if len(sel.Ti.ClusteringKeys) > 0 {
-		if !hasFilter {
-			qc.Warnings = append(qc.Warnings,
-				fmt.Sprintf("query on %q has no filter on clustering key columns %v — full table scan required",
-					sel.Ti.Name, sel.Ti.ClusteringKeys))
-		} else {
-			hasClusterFilter := false
-			for _, ck := range sel.Ti.ClusteringKeys {
-				if HasFilterOnColumn(sel.Where.Exp, ck) {
-					hasClusterFilter = true
-					break
-				}
-			}
-			if !hasClusterFilter {
-				qc.Warnings = append(qc.Warnings,
-					fmt.Sprintf("query on %q filters on non-clustering columns — consider filtering on clustering keys %v for better pruning",
-						sel.Ti.Name, sel.Ti.ClusteringKeys))
-			}
-		}
-	}
-
-	// 3. No filter with unlimited or very large result set
-	if !hasFilter && (sel.Paging.NoLimit || sel.Paging.Limit > 10000) {
-		qc.Warnings = append(qc.Warnings,
-			fmt.Sprintf("query on %q has no WHERE filter with a large or unlimited result set — this will scan the entire table",
-				sel.Ti.Name))
-	}
 }
 
 func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation, role string) error {

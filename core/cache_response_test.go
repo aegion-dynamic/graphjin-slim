@@ -84,21 +84,6 @@ func TestExtractMutationRefs_AcceptsInnerAndEnvelopedData(t *testing.T) {
 	}
 }
 
-func TestScopeDBRefs_CodeSQLManagedDatabase(t *testing.T) {
-	refs := ExtractMutationRefs(mutationCacheTestQCode(), []byte(`{"users":{"id":1}}`))
-	s := &gstate{gj: &graphjinEngine{conf: &Config{Databases: map[string]DatabaseConfig{
-		"repo": {ManagedType: "codesql"},
-	}}}}
-
-	scoped := s.scopeDBRefs("repo", refs)
-	if len(scoped) != 1 {
-		t.Fatalf("got %d refs, want 1", len(scoped))
-	}
-	if scoped[0].Source != CacheSourceCodeSQL || scoped[0].Scope != "repo" {
-		t.Fatalf("expected codesql/repo scoped ref, got %+v", scoped[0])
-	}
-}
-
 func TestRemoteFragmentKeyIncludesResolverFingerprint(t *testing.T) {
 	s := &gstate{
 		gj: &graphjinEngine{

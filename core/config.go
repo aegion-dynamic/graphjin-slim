@@ -9,10 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/featurecap"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/openapi"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
 )
 
@@ -165,35 +163,15 @@ func (c *Config) ValidateIsSourcesUsed() error {
 }
 
 func (c *Config) validateFeatureConfig() error {
-	for key := range c.System.Capabilities {
-		if _, ok := featurecap.Lookup(featurecap.KindSystem, key); !ok {
-			return fmt.Errorf("system.capabilities.%s: unsupported capability (supported: %s)", key, featurecap.ValidKeyList(featurecap.KindSystem))
-		}
-	}
-	for key := range c.Workflows.Capabilities {
-		if _, ok := featurecap.Lookup(featurecap.KindWorkflows, key); !ok {
-			return fmt.Errorf("workflows.capabilities.%s: unsupported capability (supported: %s)", key, featurecap.ValidKeyList(featurecap.KindWorkflows))
-		}
-	}
-	for root, mode := range c.System.RootAccess {
-		if !featurecap.ValidSystemRoot(root) {
-			return fmt.Errorf("system.root_access.%s: unsupported system root (supported: %s)", root, strings.Join(featurecap.SystemRoots(), ", "))
-		}
-		if !validReadAccessMode(mode) {
-			return fmt.Errorf("system.root_access.%s: unsupported access mode %q", root, mode)
-		}
-	}
+	// System/workflows/MCP capability tables removed in slim.
 	return nil
 }
 
 func (c *Config) validateLegacyMode() error {
 	for name, dbConf := range c.Databases {
 		if strings.EqualFold(strings.TrimSpace(dbConf.Type), "codesql") {
-			return fmt.Errorf("database %q uses type codesql; move CodeSQL configuration to sources with kind: code", name)
+			return fmt.Errorf("database %q uses type codesql; CodeSQL is not supported", name)
 		}
-	}
-	if strings.TrimSpace(c.OpenAPISpecsDir) != "" || len(c.OpenAPI) != 0 {
-		return fmt.Errorf("top-level openapi/openapi_specs_dir is no longer supported; move API providers to sources with kind: api")
 	}
 	if c.metadataConfigured() {
 		return fmt.Errorf("top-level metadata is no longer supported; use system.capabilities.catalog.read")
@@ -212,9 +190,6 @@ func (c *Config) validateIsSourcesUsed() error {
 	}
 	if len(c.Databases) != 0 && !c.sourcesNormalized {
 		return fmt.Errorf("databases is legacy database-only config; move SQL/CodeSQL providers to sources")
-	}
-	if (strings.TrimSpace(c.OpenAPISpecsDir) != "" || len(c.OpenAPI) != 0) && !c.sourcesNormalized {
-		return fmt.Errorf("top-level openapi/openapi_specs_dir is legacy config; move API providers to sources")
 	}
 	if c.metadataConfigured() {
 		return fmt.Errorf("top-level metadata is legacy config; configure GraphJin metadata through sources")
@@ -271,15 +246,6 @@ func (c *Config) validateIsSourcesUsed() error {
 			}
 		}
 	}
-	if err := c.validateArtifactsConfig(); err != nil {
-		return err
-	}
-	if err := c.validateWatchesConfig(); err != nil {
-		return err
-	}
-	if err := c.validateTasksConfig(); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -322,12 +288,6 @@ func (c *Config) clone() *Config {
 				out.Sources[i].Capabilities = make(map[string]bool, len(c.Sources[i].Capabilities))
 				for k, v := range c.Sources[i].Capabilities {
 					out.Sources[i].Capabilities[k] = v
-				}
-			}
-			if c.Sources[i].Specs != nil {
-				out.Sources[i].Specs = make(map[string]openapi.SpecConfig, len(c.Sources[i].Specs))
-				for k, v := range c.Sources[i].Specs {
-					out.Sources[i].Specs[k] = v
 				}
 			}
 		}
@@ -486,7 +446,7 @@ func (c *Config) validateArtifactsConfig() error {
 		readOnly = db.ReadOnly
 	}
 	switch strings.ToLower(strings.TrimSpace(sourceType)) {
-	case "mongodb", "nanodb", "cassandra", "clickhouse":
+	case "mongodb", "cassandra", "clickhouse":
 		return fmt.Errorf("artifacts.source %q must be a writable SQL database source", sourceName)
 	}
 	if readOnly {
@@ -827,16 +787,15 @@ func (c SourceAccessConfig) clone() SourceAccessConfig {
 }
 
 // FeatureCapability returns a system/workflow capability after applying the
-// deployment-mode default. Explicit top-level feature configuration wins.
+// FeatureCapability reports whether a built-in feature is enabled.
+// Slim keeps the method for call-site compatibility; system/workflow
+// feature tables are removed so this always returns false unless an
+// explicit System/Workflows map entry is set.
 func (c *Config) FeatureCapability(kind, key string) bool {
-	if c == nil {
-		return false
-	}
 	if value, explicit := c.FeatureCapabilityConfigured(kind, key); explicit {
 		return value
 	}
-	def, ok := featurecap.Lookup(kind, key)
-	return ok && def.Default(c.modeForSourceDefaults())
+	return false
 }
 
 // FeatureCapabilityConfigured reports an explicit top-level feature override.
@@ -846,9 +805,9 @@ func (c *Config) FeatureCapabilityConfigured(kind, key string) (bool, bool) {
 	}
 	var capabilities map[string]bool
 	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case featurecap.KindSystem:
+	case "system":
 		capabilities = c.System.Capabilities
-	case featurecap.KindWorkflows:
+	case "workflows":
 		capabilities = c.Workflows.Capabilities
 	default:
 		return false, false
@@ -928,8 +887,6 @@ func (c *Config) NormalizeSources() error {
 
 	sqlSources := make([]string, 0, len(c.Sources))
 	c.Databases = make(map[string]DatabaseConfig)
-	c.OpenAPISpecsDir = ""
-	c.OpenAPI = nil
 
 	for _, source := range c.Sources {
 		name := strings.TrimSpace(source.Name)
@@ -944,35 +901,16 @@ func (c *Config) NormalizeSources() error {
 				dbConf.Type = "postgres"
 			}
 			if strings.EqualFold(dbConf.Type, "codesql") {
-				return fmt.Errorf("sources[%q]: use kind: code instead of kind: database with type: codesql", name)
+				return fmt.Errorf("sources[%q]: type codesql is not supported", name)
 			}
 			c.Databases[name] = dbConf
 			sqlSources = append(sqlSources, name)
 		case "code":
-			dbConf := source.databaseConfig()
-			dbConf.Type = "codesql"
-			c.Databases[name] = dbConf
-			sqlSources = append(sqlSources, name)
+			return fmt.Errorf("sources[%q]: kind code (CodeSQL) is not supported", name)
 		case "file":
 			return fmt.Errorf("sources[%q]: kind file (filesystem virtual tables) is not supported", name)
 		case "api":
-			if source.SpecsDir != "" {
-				if c.OpenAPISpecsDir != "" && c.OpenAPISpecsDir != source.SpecsDir {
-					return fmt.Errorf("sources[%q]: multiple openapi specs_dir values are not supported", name)
-				}
-				c.OpenAPISpecsDir = source.SpecsDir
-			}
-			if len(source.Specs) != 0 {
-				if c.OpenAPI == nil {
-					c.OpenAPI = make(map[string]openapi.SpecConfig, len(source.Specs))
-				}
-				for key, spec := range source.Specs {
-					if _, exists := c.OpenAPI[key]; exists {
-						return fmt.Errorf("sources[%q]: duplicate openapi spec config %q", name, key)
-					}
-					c.OpenAPI[key] = spec
-				}
-			}
+			return fmt.Errorf("sources[%q]: kind api (OpenAPI remote sources) is not supported", name)
 		}
 	}
 
@@ -1006,8 +944,6 @@ func (c *Config) RenormalizeSources() error {
 	c.sourcesNormalized = false
 	if c.IsSourcesUsed() {
 		c.Databases = nil
-		c.OpenAPISpecsDir = ""
-		c.OpenAPI = nil
 		for i := range c.Tables {
 			c.Tables[i].Database = ""
 		}
@@ -1041,7 +977,7 @@ func (c *Config) defaultDatabaseName() string {
 	var sourceNames []string
 	for _, source := range c.Sources {
 		kind := source.CanonicalKind()
-		if kind != sourcecap.KindDatabase && kind != sourcecap.KindCode {
+		if kind != sourcecap.KindDatabase && kind != "code" {
 			continue
 		}
 		if _, ok := c.Databases[source.Name]; !ok {
@@ -1333,19 +1269,6 @@ type Config struct {
 	// Tasks configures owner-scoped declared goals and their immutable trail.
 	Tasks TasksConfig `mapstructure:"tasks" json:"tasks" yaml:"tasks" jsonschema:"title=Tasks"`
 
-	// OpenAPISpecsDir is the directory that GraphJin scans at startup for
-	// OpenAPI 3 specification files (*.yaml / *.yml). Each spec dropped in
-	// is parsed, classified, and exposed as remote-joinable fields and/or
-	// top-level virtual tables. Defaults to "./config/specs" when empty.
-	OpenAPISpecsDir string `mapstructure:"openapi_specs_dir" json:"openapi_specs_dir" yaml:"openapi_specs_dir" jsonschema:"title=OpenAPI Specs Directory,default=./config/specs"`
-
-	// OpenAPI carries per-spec configuration keyed by the spec filename
-	// without extension (e.g. "interaction_studio" matches
-	// "config/specs/interaction_studio.yaml"). Operations classifiable from
-	// the spec are auto-exposed; entries here add credentials, base URL
-	// overrides, DB-to-API join wiring, and concurrency caps.
-	OpenAPI map[string]openapi.SpecConfig `mapstructure:"openapi" json:"openapi" yaml:"openapi" jsonschema:"-"`
-
 	// All table specific configuration such as aliased tables and relationships
 	// between tables
 	Tables []Table `jsonschema:"title=Tables"`
@@ -1367,8 +1290,8 @@ type Config struct {
 	// and 'anon' when it's not. Use the 'Roles Query' config to add more custom roles
 	Roles []Role
 
-	// Database type name Defaults to 'postgres' (options: postgres, mysql, mariadb, sqlite, oracle, mssql, nanodb)
-	DBType string `mapstructure:"db_type" json:"db_type" yaml:"db_type" jsonschema:"title=Database Type,enum=postgres,enum=mysql,enum=mariadb,enum=sqlite,enum=oracle,enum=mssql,enum=snowflake,enum=nanodb"`
+	// Database type name Defaults to 'postgres' (options: postgres, sqlite)
+	DBType string `mapstructure:"db_type" json:"db_type" yaml:"db_type" jsonschema:"title=Database Type,enum=postgres,enum=sqlite"`
 
 	// Log warnings and other debug information
 	Debug bool `jsonschema:"title=Debug,default=false"`
@@ -1408,7 +1331,6 @@ type Config struct {
 
 	// When set to true, GraphJin will not connect to a database and instead
 	// return mock data based on the query structure.
-	MockDB bool `mapstructure:"mock_db" json:"mock_db" yaml:"mock_db" jsonschema:"title=Mock DB,default=false"`
 
 	// Enable automatic coversion of camel case in GraphQL to snake case in SQL
 	EnableCamelcase bool `mapstructure:"enable_camelcase" json:"enable_camelcase" yaml:"enable_camelcase" jsonschema:"title=Enable Camel Case,default=false"`
@@ -1557,48 +1479,48 @@ type SourceConfig struct {
 	Kind    string `mapstructure:"kind" json:"kind" yaml:"kind" jsonschema:"title=Kind,enum=database,enum=code,enum=api"`
 	Default bool   `mapstructure:"default" json:"default" yaml:"default" jsonschema:"title=Default Source"`
 
-	Type                   string                        `mapstructure:"type" json:"type" yaml:"type" jsonschema:"title=Database Type"`
-	ConnString             string                        `mapstructure:"connection_string" json:"connection_string" yaml:"connection_string" jsonschema:"title=Connection String" jsonschema_extras:"x-graphjin-sensitive=connection"`
-	Host                   string                        `mapstructure:"host" json:"host" yaml:"host" jsonschema:"title=Host"`
-	Port                   int                           `mapstructure:"port" json:"port" yaml:"port" jsonschema:"title=Port"`
-	DBName                 string                        `mapstructure:"dbname" json:"dbname" yaml:"dbname" jsonschema:"title=Database Name"`
-	User                   string                        `mapstructure:"user" json:"user" yaml:"user" jsonschema:"title=User"`
-	Password               string                        `mapstructure:"password" json:"password" yaml:"password" jsonschema:"title=Password" jsonschema_extras:"x-graphjin-sensitive=secret"`
-	Path                   string                        `mapstructure:"path" json:"path" yaml:"path" jsonschema:"title=Path"`
-	MaxOpenConns           int                           `mapstructure:"max_open_conns" json:"max_open_conns" yaml:"max_open_conns" jsonschema:"title=Max Open Connections"`
-	MaxIdleConns           int                           `mapstructure:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns" jsonschema:"title=Max Idle Connections"`
-	Schema                 string                        `mapstructure:"schema" json:"schema" yaml:"schema" jsonschema:"title=Schema"`
-	PoolSize               int                           `mapstructure:"pool_size" json:"pool_size" yaml:"pool_size" jsonschema:"title=Connection Pool Size"`
-	MaxConnections         int                           `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections" jsonschema:"title=Maximum Connections"`
-	MaxConnIdleTime        time.Duration                 `mapstructure:"max_connection_idle_time" json:"max_connection_idle_time" yaml:"max_connection_idle_time" jsonschema:"title=Connection Idle Time"`
-	MaxConnLifeTime        time.Duration                 `mapstructure:"max_connection_life_time" json:"max_connection_life_time" yaml:"max_connection_life_time" jsonschema:"title=Connection Life Time"`
-	PingTimeout            time.Duration                 `mapstructure:"ping_timeout" json:"ping_timeout" yaml:"ping_timeout" jsonschema:"title=Healthcheck Ping Timeout"`
-	EnableTLS              bool                          `mapstructure:"enable_tls" json:"enable_tls" yaml:"enable_tls" jsonschema:"title=Enable TLS"`
-	ServerName             string                        `mapstructure:"server_name" json:"server_name" yaml:"server_name" jsonschema:"title=TLS Server Name"`
-	ServerCert             string                        `mapstructure:"server_cert" json:"server_cert" yaml:"server_cert" jsonschema:"title=Server Certificate" jsonschema_extras:"x-graphjin-sensitive=certificate"`
-	ClientCert             string                        `mapstructure:"client_cert" json:"client_cert" yaml:"client_cert" jsonschema:"title=Client Certificate" jsonschema_extras:"x-graphjin-sensitive=certificate"`
-	ClientKey              string                        `mapstructure:"client_key" json:"client_key" yaml:"client_key" jsonschema:"title=Client Key" jsonschema_extras:"x-graphjin-sensitive=key_material"`
-	Encrypt                *bool                         `mapstructure:"encrypt" json:"encrypt,omitempty" yaml:"encrypt,omitempty" jsonschema:"title=MSSQL Encrypt"`
-	TrustServerCertificate *bool                         `mapstructure:"trust_server_certificate" json:"trust_server_certificate,omitempty" yaml:"trust_server_certificate,omitempty" jsonschema:"title=MSSQL Trust Server Certificate"`
-	PrivateKeyPath         string                        `mapstructure:"private_key_path" json:"private_key_path" yaml:"private_key_path" jsonschema:"title=Private Key File Path (Snowflake)" jsonschema_extras:"x-graphjin-sensitive=secret_ref"`
-	PrivateKeyPEM          string                        `mapstructure:"private_key_pem" json:"private_key_pem" yaml:"private_key_pem" jsonschema:"title=Private Key PEM (Snowflake)" jsonschema_extras:"x-graphjin-sensitive=key_material"`
-	KeyPassphrase          string                        `mapstructure:"key_passphrase" json:"key_passphrase" yaml:"key_passphrase" jsonschema:"title=Key Passphrase (Snowflake)" jsonschema_extras:"x-graphjin-sensitive=secret"`
-	ReadOnly               bool                          `mapstructure:"read_only" json:"read_only" yaml:"read_only" jsonschema:"title=Read Only"`
-	AnalyticsMode          *bool                         `mapstructure:"analytics_mode" json:"analytics_mode,omitempty" yaml:"analytics_mode,omitempty" jsonschema:"title=Analytics Mode"`
-	InferDBRefs            *bool                         `mapstructure:"infer_db_refs" json:"infer_db_refs,omitempty" yaml:"infer_db_refs,omitempty" jsonschema:"title=Infer Database References"`
-	Backend                string                        `mapstructure:"backend" json:"backend" yaml:"backend" jsonschema:"title=Filesystem Backend"`
-	Bucket                 string                        `mapstructure:"bucket" json:"bucket" yaml:"bucket" jsonschema:"title=Bucket"`
-	Region                 string                        `mapstructure:"region" json:"region" yaml:"region" jsonschema:"title=Region"`
-	Endpoint               string                        `mapstructure:"endpoint" json:"endpoint" yaml:"endpoint" jsonschema:"title=Endpoint"`
-	Prefix                 string                        `mapstructure:"prefix" json:"prefix" yaml:"prefix" jsonschema:"title=Prefix"`
-	Root                   string                        `mapstructure:"root" json:"root" yaml:"root" jsonschema:"title=Root"`
-	PresignTTL             time.Duration                 `mapstructure:"presign_ttl" json:"presign_ttl" yaml:"presign_ttl" jsonschema:"title=Presigned URL TTL"`
-	PublicBaseURL          string                        `mapstructure:"public_base_url" json:"public_base_url" yaml:"public_base_url" jsonschema:"title=Public Base URL"`
-	MaxListPageSize        int                           `mapstructure:"max_list_page_size" json:"max_list_page_size" yaml:"max_list_page_size" jsonschema:"title=Max List Page Size"`
-	SpecsDir               string                        `mapstructure:"specs_dir" json:"specs_dir" yaml:"specs_dir" jsonschema:"title=OpenAPI Specs Directory"`
-	Specs                  map[string]openapi.SpecConfig `mapstructure:"specs" json:"specs" yaml:"specs" jsonschema:"-"`
-	Capabilities           map[string]bool               `mapstructure:"capabilities" json:"capabilities,omitempty" yaml:"capabilities,omitempty" jsonschema:"title=Capabilities"`
-	Access                 SourceAccessConfig            `mapstructure:"access" json:"access" yaml:"access" jsonschema:"title=Access"`
+	Type                   string                            `mapstructure:"type" json:"type" yaml:"type" jsonschema:"title=Database Type"`
+	ConnString             string                            `mapstructure:"connection_string" json:"connection_string" yaml:"connection_string" jsonschema:"title=Connection String" jsonschema_extras:"x-graphjin-sensitive=connection"`
+	Host                   string                            `mapstructure:"host" json:"host" yaml:"host" jsonschema:"title=Host"`
+	Port                   int                               `mapstructure:"port" json:"port" yaml:"port" jsonschema:"title=Port"`
+	DBName                 string                            `mapstructure:"dbname" json:"dbname" yaml:"dbname" jsonschema:"title=Database Name"`
+	User                   string                            `mapstructure:"user" json:"user" yaml:"user" jsonschema:"title=User"`
+	Password               string                            `mapstructure:"password" json:"password" yaml:"password" jsonschema:"title=Password" jsonschema_extras:"x-graphjin-sensitive=secret"`
+	Path                   string                            `mapstructure:"path" json:"path" yaml:"path" jsonschema:"title=Path"`
+	MaxOpenConns           int                               `mapstructure:"max_open_conns" json:"max_open_conns" yaml:"max_open_conns" jsonschema:"title=Max Open Connections"`
+	MaxIdleConns           int                               `mapstructure:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns" jsonschema:"title=Max Idle Connections"`
+	Schema                 string                            `mapstructure:"schema" json:"schema" yaml:"schema" jsonschema:"title=Schema"`
+	PoolSize               int                               `mapstructure:"pool_size" json:"pool_size" yaml:"pool_size" jsonschema:"title=Connection Pool Size"`
+	MaxConnections         int                               `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections" jsonschema:"title=Maximum Connections"`
+	MaxConnIdleTime        time.Duration                     `mapstructure:"max_connection_idle_time" json:"max_connection_idle_time" yaml:"max_connection_idle_time" jsonschema:"title=Connection Idle Time"`
+	MaxConnLifeTime        time.Duration                     `mapstructure:"max_connection_life_time" json:"max_connection_life_time" yaml:"max_connection_life_time" jsonschema:"title=Connection Life Time"`
+	PingTimeout            time.Duration                     `mapstructure:"ping_timeout" json:"ping_timeout" yaml:"ping_timeout" jsonschema:"title=Healthcheck Ping Timeout"`
+	EnableTLS              bool                              `mapstructure:"enable_tls" json:"enable_tls" yaml:"enable_tls" jsonschema:"title=Enable TLS"`
+	ServerName             string                            `mapstructure:"server_name" json:"server_name" yaml:"server_name" jsonschema:"title=TLS Server Name"`
+	ServerCert             string                            `mapstructure:"server_cert" json:"server_cert" yaml:"server_cert" jsonschema:"title=Server Certificate" jsonschema_extras:"x-graphjin-sensitive=certificate"`
+	ClientCert             string                            `mapstructure:"client_cert" json:"client_cert" yaml:"client_cert" jsonschema:"title=Client Certificate" jsonschema_extras:"x-graphjin-sensitive=certificate"`
+	ClientKey              string                            `mapstructure:"client_key" json:"client_key" yaml:"client_key" jsonschema:"title=Client Key" jsonschema_extras:"x-graphjin-sensitive=key_material"`
+	Encrypt                *bool                             `mapstructure:"encrypt" json:"encrypt,omitempty" yaml:"encrypt,omitempty" jsonschema:"title=MSSQL Encrypt"`
+	TrustServerCertificate *bool                             `mapstructure:"trust_server_certificate" json:"trust_server_certificate,omitempty" yaml:"trust_server_certificate,omitempty" jsonschema:"title=MSSQL Trust Server Certificate"`
+	PrivateKeyPath         string                            `mapstructure:"private_key_path" json:"private_key_path" yaml:"private_key_path" jsonschema:"title=Private Key File Path (Snowflake)" jsonschema_extras:"x-graphjin-sensitive=secret_ref"`
+	PrivateKeyPEM          string                            `mapstructure:"private_key_pem" json:"private_key_pem" yaml:"private_key_pem" jsonschema:"title=Private Key PEM (Snowflake)" jsonschema_extras:"x-graphjin-sensitive=key_material"`
+	KeyPassphrase          string                            `mapstructure:"key_passphrase" json:"key_passphrase" yaml:"key_passphrase" jsonschema:"title=Key Passphrase (Snowflake)" jsonschema_extras:"x-graphjin-sensitive=secret"`
+	ReadOnly               bool                              `mapstructure:"read_only" json:"read_only" yaml:"read_only" jsonschema:"title=Read Only"`
+	AnalyticsMode          *bool                             `mapstructure:"analytics_mode" json:"analytics_mode,omitempty" yaml:"analytics_mode,omitempty" jsonschema:"title=Analytics Mode"`
+	InferDBRefs            *bool                             `mapstructure:"infer_db_refs" json:"infer_db_refs,omitempty" yaml:"infer_db_refs,omitempty" jsonschema:"title=Infer Database References"`
+	Backend                string                            `mapstructure:"backend" json:"backend" yaml:"backend" jsonschema:"title=Filesystem Backend"`
+	Bucket                 string                            `mapstructure:"bucket" json:"bucket" yaml:"bucket" jsonschema:"title=Bucket"`
+	Region                 string                            `mapstructure:"region" json:"region" yaml:"region" jsonschema:"title=Region"`
+	Endpoint               string                            `mapstructure:"endpoint" json:"endpoint" yaml:"endpoint" jsonschema:"title=Endpoint"`
+	Prefix                 string                            `mapstructure:"prefix" json:"prefix" yaml:"prefix" jsonschema:"title=Prefix"`
+	Root                   string                            `mapstructure:"root" json:"root" yaml:"root" jsonschema:"title=Root"`
+	PresignTTL             time.Duration                     `mapstructure:"presign_ttl" json:"presign_ttl" yaml:"presign_ttl" jsonschema:"title=Presigned URL TTL"`
+	PublicBaseURL          string                            `mapstructure:"public_base_url" json:"public_base_url" yaml:"public_base_url" jsonschema:"title=Public Base URL"`
+	MaxListPageSize        int                               `mapstructure:"max_list_page_size" json:"max_list_page_size" yaml:"max_list_page_size" jsonschema:"title=Max List Page Size"`
+	SpecsDir               string                            `mapstructure:"specs_dir" json:"specs_dir" yaml:"specs_dir" jsonschema:"title=OpenAPI Specs Directory"`
+	Specs                  map[string]map[string]interface{} `mapstructure:"specs" json:"specs" yaml:"specs" jsonschema:"-"`
+	Capabilities           map[string]bool                   `mapstructure:"capabilities" json:"capabilities,omitempty" yaml:"capabilities,omitempty" jsonschema:"title=Capabilities"`
+	Access                 SourceAccessConfig                `mapstructure:"access" json:"access" yaml:"access" jsonschema:"title=Access"`
 }
 
 type RelationshipConfig struct {
@@ -1654,7 +1576,7 @@ func (c *Config) CatalogEnabled() bool {
 	if c.modeForSourceDefaults() == sourcecap.ModeProd {
 		return false
 	}
-	return c.FeatureCapability(featurecap.KindSystem, featurecap.KeyCatalogRead)
+	return c.FeatureCapability("system", "catalog.read")
 }
 
 func (c *Config) CatalogDatabaseName() string {

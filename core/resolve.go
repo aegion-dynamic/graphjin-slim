@@ -23,30 +23,12 @@ type resItem struct {
 
 // newRTMap returns a map of resolver functions
 func (gj *graphjinEngine) newRTMap() map[string]ResolverFn {
-	return map[string]ResolverFn{
-		"remote_api": func(v ResolverProps) (Resolver, error) {
-			return newRemoteAPI(v, gj.trace.NewHTTPClient())
-		},
-		// "openapi" wraps an openapi.Caller resolved at request time
-		// from gj.openapiRuntime. The factory closes over gj so the
-		// runtime reference doesn't have to ride on every Props bag.
-		"openapi": gj.newOpenAPIResolverFn(),
-	}
+	return map[string]ResolverFn{}
 }
 
 // initResolvers initializes the resolvers
 func (gj *graphjinEngine) initResolvers() error {
 	gj.rmap = make(map[string]resItem)
-
-	if gj.conf.IsSourcesUsed() {
-		// Load OpenAPI integration before the rtmap is built so the
-		// "openapi" factory in newRTMap can see gj.openapiRuntime, and
-		// before the resolver loop so any synthesised ResolverConfigs are
-		// processed in the same pass as user-declared ones.
-		if err := gj.loadOpenAPIIntegration(); err != nil {
-			return err
-		}
-	}
 
 	if gj.rtmap == nil {
 		gj.rtmap = gj.newRTMap()

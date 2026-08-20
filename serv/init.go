@@ -47,14 +47,6 @@ func validateConf(s *graphjinService) error {
 		s.conf.AuthFailBlock = false
 	}
 
-	// Fail closed (security, audit F2): in agentic mode the MCP/agent surface is
-	// prod hard-gate: force-disable agentic-only features in production mode.
-	if s.conf.Serv.Production {
-		if s.conf.Core.Artifacts.Enabled {
-			s.conf.Core.Artifacts.Enabled = false
-		}
-	}
-
 	return nil
 }
 
@@ -229,34 +221,7 @@ func (s *graphjinService) initAllDBs() error {
 // initLegacyDB creates a single connection from the legacy conf.DB fields.
 func (s *graphjinService) initLegacyDB() error {
 	if isCodeSQLType(s.conf.DB.Type) || isCodeSQLType(s.conf.DBType) {
-		dbConf := core.DatabaseConfig{
-			Type:            dbTypeCodeSQL,
-			Path:            s.conf.DB.Path,
-			PingTimeout:     s.conf.DB.PingTimeout,
-			PoolSize:        s.conf.DB.PoolSize,
-			MaxConnections:  s.conf.DB.MaxConnections,
-			MaxConnIdleTime: s.conf.DB.MaxConnIdleTime,
-			MaxConnLifeTime: s.conf.DB.MaxConnLifeTime,
-		}
-		db, err := s.newDBFromDatabaseConfigInto(core.DefaultDBName, dbConf, s.runtimeCore)
-		if err != nil {
-			// runtime event removed
-			if s.conf.Serv.Production {
-				return fmt.Errorf("%s", redactRuntimeStringValue(err.Error()))
-			}
-			s.log.Warnf("CodeSQL database initialization failed: %s. Server starting without database — use MCP to configure.", redactRuntimeStringValue(err.Error()))
-			return nil
-		}
-		s.dbs[core.DefaultDBName] = db
-		// runtime event removed
-		if s.runtimeCore.Databases != nil {
-			runtime := s.runtimeCore.Databases[core.DefaultDBName]
-			s.conf.DB.Type = runtime.Type
-			s.conf.DB.Path = runtime.Path
-			s.conf.DB.ConnString = runtime.ConnString
-			s.conf.DBType = runtime.Type
-		}
-		return nil
+		return fmt.Errorf("codesql databases are not supported in slim build")
 	}
 
 	var db *sql.DB

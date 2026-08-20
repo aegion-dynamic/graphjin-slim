@@ -137,11 +137,7 @@ func (s *gstate) scopeDBRefs(dbName string, refs []RowRef) []RowRef {
 }
 
 func (s *gstate) isCodeSQLDatabase(dbName string) bool {
-	if s.gj == nil || s.gj.conf == nil {
-		return false
-	}
-	dbConf, ok := s.gj.conf.Databases[dbName]
-	return ok && dbConf.ManagedType == "codesql"
+	return false
 }
 
 func codeSQLSelectedTableRefs(dbName string, qc *qcode.QCode) []RowRef {

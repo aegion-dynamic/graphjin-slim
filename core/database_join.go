@@ -157,17 +157,6 @@ func (s *gstate) executeDatabaseJoinQuery(
 		return nil, fmt.Errorf("qcode compile failed: %w", err)
 	}
 
-	if dbCtx.nano != nil {
-		raw, err := s.renderNanoDBQuery(ctx, dbCtx, qc)
-		if err == nil && len(raw) == 0 {
-			if sel.Singular {
-				raw = []byte(`{"` + sel.Table + `": null}`)
-			} else {
-				raw = []byte(`{"` + sel.Table + `": []}`)
-			}
-		}
-		return raw, err
-	}
 
 	// Compile to SQL using the target database's SQL compiler
 	var sqlBuf bytes.Buffer
@@ -802,17 +791,6 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 		return nil, fmt.Errorf("qcode compile failed for %s: %w", dbName, err)
 	}
 
-	if dbCtx.nano != nil {
-		raw, err := s.renderNanoDBQuery(ctx, dbCtx, qc)
-		if err != nil {
-			return nil, fmt.Errorf("nanodb query failed for %s: %w", dbName, err)
-		}
-		encrypted, _, err := encryptResultFragment(raw, s.gj.printFormat, s.gj.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("encryption failed for %s: %w", dbName, err)
-		}
-		return encrypted, nil
-	}
 
 	// Compile SQL
 	var sqlBuf bytes.Buffer

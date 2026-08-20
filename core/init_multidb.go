@@ -65,10 +65,10 @@ func (gj *graphjinEngine) discoverDatabase(ctx *dbContext) error {
 
 	// For the primary DB: load schema from GraphJin DDL when in MockDB mode
 	// or when EnableSchema is on in production.
-	if isPrimary && ((gj.prod && gj.conf.EnableSchema) || gj.conf.MockDB) {
+	if isPrimary && (gj.prod && gj.conf.EnableSchema) {
 		b, schemaPath, err := gj.loadSchemaDDL()
 		if err != nil {
-			if gj.conf.MockDB {
+			if false {
 				return fmt.Errorf("mock_db is enabled but %s not found: %w", SchemaDDLFile, err)
 			}
 			// EnableSchema in prod but file not found — fall through to live discovery
@@ -90,7 +90,7 @@ func (gj *graphjinEngine) discoverDatabase(ctx *dbContext) error {
 		return nil
 	}
 
-	if gj.conf.MockDB {
+	if false {
 		return fmt.Errorf("mock_db is enabled but %s not found", SchemaDDLFile)
 	}
 
@@ -341,11 +341,6 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 		return fmt.Errorf("database %s: source access failed: %w", ctx.name, err)
 	}
 
-	if dbConf, ok := gj.conf.Databases[ctx.name]; ok && dbConf.ManagedType == "codesql" {
-		addCodeSQLVirtualColumns(ctx.dbinfo)
-		hideRawCodeSQLTables(ctx.dbinfo)
-	}
-
 	// Create schema
 	var err error
 	ctx.schema, err = sdata.NewDBSchema(ctx.dbinfo, getDBTableAliases(gj.conf))
@@ -387,46 +382,6 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 	ctx.psqlCompiler.SetSchemaInfo(ctx.schema.GetTables())
 
 	return nil
-}
-
-func addCodeSQLVirtualColumns(di *sdata.DBInfo) {
-	for _, table := range []string{"code_symbols", "code_nodes", "code_captures", "gj_code"} {
-		for _, col := range []string{"code", "code_context"} {
-			_ = di.AddColumn(di.Schema, table, sdata.DBColumn{
-				Name:           col,
-				Type:           "text",
-				CodeSQLVirtual: col,
-			})
-		}
-	}
-	for _, colName := range []string{"file_id", "symbol_id", "parent_id", "target_symbol_id"} {
-		col, err := di.GetColumn(di.Schema, "gj_code", colName)
-		if err != nil {
-			continue
-		}
-		col.FKeySchema = di.Schema
-		col.FKeyTable = "gj_code"
-		col.FKeyCol = "id"
-		col.FKeyIsUnique = true
-	}
-}
-
-func hideRawCodeSQLTables(di *sdata.DBInfo) {
-	if di == nil {
-		return
-	}
-	for i := range di.Tables {
-		name := strings.ToLower(di.Tables[i].Name)
-		if name == "gj_code" {
-			continue
-		}
-		if strings.HasPrefix(name, "code_") {
-			di.Tables[i].Blocked = true
-			for j := range di.Tables[i].Columns {
-				di.Tables[i].Columns[j].Blocked = true
-			}
-		}
-	}
 }
 
 // initDBContext creates a fully initialized database context for runtime additions.

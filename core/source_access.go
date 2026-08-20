@@ -78,27 +78,7 @@ func modeForMissingNamespaceColumn(mode string, table *sdata.DBTable, access Sou
 }
 
 func (gj *graphjinEngine) isArtifactPhysicalTable(database string, table *sdata.DBTable) bool {
-	if gj == nil || gj.conf == nil || table == nil || !gj.conf.Artifacts.Enabled {
-		return false
-	}
-	cfg := gj.conf.EffectiveArtifactsConfig()
-	if cfg.Source != database {
-		return false
-	}
-	schema := strings.ToLower(strings.TrimSpace(cfg.Schema))
-	name := strings.ToLower(table.Name)
-	if strings.ToLower(table.Schema) == schema {
-		switch name {
-		case "artifacts", "revisions", "watches", "watch_events", "tasks", "task_entries":
-			return true
-		}
-	}
-	switch name {
-	case schema + "_artifacts", schema + "_revisions", schema + "_watches", schema + "_watch_events", schema + "_tasks", schema + "_task_entries":
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 type tableAccessClass struct {

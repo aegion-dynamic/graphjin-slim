@@ -26,7 +26,6 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/openapi"
 	corequery "github.com/aegion-dynamic/graphjin-slim/core/v3/query"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 )
@@ -80,7 +79,6 @@ type dbContext struct {
 	name          string          // Database name (key in Config.Databases)
 	db            *sql.DB         // Connection pool for this database
 	dbtype        string          // Database type (postgres, mysql, sqlite, etc.)
-	nano          *NanoDB         // Pure-Go compact built-in system/catalog/workflow tables
 	dbinfo        *sdata.DBInfo   // Raw schema metadata
 	schema        *sdata.DBSchema // Processed schema with relationships
 	qcodeCompiler *qcode.Compiler // GraphQL to QCode compiler (validates against this DB's schema)
@@ -91,7 +89,6 @@ type dbContext struct {
 // datase schemas, relationships, etc that the GraphQL to SQL compiler would need to do it's job.
 type graphjinEngine struct {
 	conf                       *Config
-	catalogConf                *Config
 	log                        *_log.Logger
 	fs                         FS
 	trace                      Tracer
@@ -111,7 +108,6 @@ type graphjinEngine struct {
 	tmap                       map[string]qcode.TConfig
 	rtmap                      map[string]ResolverFn
 	rmap                       map[string]resItem
-	openapiRuntime             *openapi.Runtime
 	abacEnabled                bool
 	subs                       sync.Map
 	prod                       bool
@@ -135,15 +131,6 @@ type graphjinEngine struct {
 	responseCache ResponseCacheProvider
 	// Cache key builder
 	cacheKeyBuilder *CacheKeyBuilder
-
-	// Managed mutation handlers intercept selected mutation tables before
-	// normal SQL execution. The runtime database can remain read-only while
-	// a service-owned handler applies guarded side effects.
-	managedMutationHandlers map[string]ManagedMutationHandler
-
-	// Managed query handlers expose service-owned, synthetic read roots through
-	// GraphJin's normal GraphQL query surface without hitting user tables.
-	managedQueryHandlers map[string]ManagedQueryHandler
 
 	// reservedRoleAuthorizer can allow package-internal service contexts to use
 	// reserved roles. Request-derived roles are denied by default.
@@ -404,7 +391,6 @@ func (g *GraphJin) newGraphJin(conf *Config,
 	// Catalog configuration revisions describe the normalized caller config,
 	// not derived table entries added during schema finalization. Keeping this
 	// snapshot stable also makes live- and cache-discovered engines comparable.
-	gj.catalogConf = gj.conf.clone()
 
 	// Phase 1: Discover all databases (get raw schema metadata)
 	if err = gj.discoverAllDatabases(); err != nil {
@@ -417,9 +403,6 @@ func (g *GraphJin) newGraphJin(conf *Config,
 	}
 
 	// Phase 3: Managed service-owned tables (adds synthetic gj_* roots)
-	if err = gj.initManagedQueryTables(); err != nil {
-		return
-	}
 
 	// Phase 4: Finalize schemas and compilers for all databases
 	if err = gj.finalizeAllDatabases(); err != nil {
@@ -552,123 +535,6 @@ func OptionSetResponseCache(cache ResponseCacheProvider) Option {
 	return func(s *graphjinEngine) error {
 		s.responseCache = cache
 		s.cacheKeyBuilder = NewCacheKeyBuilder()
-		return nil
-	}
-}
-
-// ManagedMutationField describes one selected return field on a managed
-// mutation root.
-type ManagedMutationField struct {
-	Name   string
-	Column string
-}
-
-// ManagedColumn describes a synthetic service-owned table column.
-type ManagedColumn struct {
-	Name       string
-	Type       string
-	PrimaryKey bool
-	FullText   bool
-}
-
-// ManagedTable describes a synthetic service-owned GraphQL table.
-type ManagedTable struct {
-	Name    string
-	Columns []ManagedColumn
-}
-
-// ManagedOrderBy describes one order_by entry on a managed query root.
-type ManagedOrderBy struct {
-	Column string
-	Order  string
-}
-
-// ManagedQueryRoot describes one root query routed to a managed handler.
-type ManagedQueryRoot struct {
-	FieldName string
-	Table     string
-	Fields    []ManagedMutationField
-	Where     map[string]interface{}
-	OrderBy   []ManagedOrderBy
-	Limit     int
-	Offset    int
-}
-
-// ManagedQueryRequest is passed to service-owned query handlers.
-type ManagedQueryRequest struct {
-	Database string
-	Roots    []ManagedQueryRoot
-}
-
-// ManagedQueryHandler handles GraphQL queries for service-managed tables.
-type ManagedQueryHandler interface {
-	ManagedQueryTables() []ManagedTable
-	ExecuteManagedQuery(context.Context, ManagedQueryRequest) (json.RawMessage, error)
-}
-
-// ManagedMutationRoot describes one root mutation routed to a managed handler.
-type ManagedMutationRoot struct {
-	FieldName string
-	Table     string
-	Operation string
-	Input     map[string]interface{}
-	Where     map[string]interface{}
-	Fields    []ManagedMutationField
-}
-
-// ManagedMutationRequest is passed to service-owned mutation handlers.
-type ManagedMutationRequest struct {
-	Database  string
-	Operation string
-	Roots     []ManagedMutationRoot
-}
-
-// ManagedMutationHandler handles GraphQL mutations for service-managed tables.
-type ManagedMutationHandler interface {
-	ManagedMutationTables() []string
-	ExecuteManagedMutation(context.Context, ManagedMutationRequest) (json.RawMessage, error)
-}
-
-// OptionSetManagedMutationHandler registers a handler for service-managed
-// mutation tables in a database.
-func OptionSetManagedMutationHandler(database string, handler ManagedMutationHandler) Option {
-	return func(s *graphjinEngine) error {
-		if database == "" {
-			database = s.defaultDB
-		}
-		if handler == nil {
-			return errors.New("managed mutation handler: nil handler")
-		}
-		if s.managedMutationHandlers == nil {
-			s.managedMutationHandlers = make(map[string]ManagedMutationHandler)
-		}
-		combined, err := combineManagedMutationHandlers(s.managedMutationHandlers[database], handler)
-		if err != nil {
-			return err
-		}
-		s.managedMutationHandlers[database] = combined
-		return nil
-	}
-}
-
-// OptionSetManagedQueryHandler registers a handler for service-managed query
-// tables in a database.
-func OptionSetManagedQueryHandler(database string, handler ManagedQueryHandler) Option {
-	return func(s *graphjinEngine) error {
-		if database == "" {
-			database = s.defaultDB
-		}
-		if handler == nil {
-			return errors.New("managed query handler: nil handler")
-		}
-		if s.managedQueryHandlers == nil {
-			s.managedQueryHandlers = make(map[string]ManagedQueryHandler)
-		}
-		combined, err := combineManagedQueryHandlers(s.managedQueryHandlers[database], handler)
-		if err != nil {
-			return err
-		}
-		s.managedQueryHandlers[database] = combined
 		return nil
 	}
 }
@@ -1160,9 +1026,6 @@ func (g *GraphJin) ReloadFromRuntimeSchemaCache(dir string) error {
 		db = primary.db
 	}
 	reloadConf := base.conf
-	if base.catalogConf != nil {
-		reloadConf = base.catalogConf
-	}
 	opts := append([]Option(nil), base.opts...)
 	opts = append(opts,
 		OptionSetRuntimeSchemaDDLDir(dir),
@@ -1234,7 +1097,6 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 			return err
 		}
 	}
-	gj.catalogConf = gj.conf.clone()
 	if gj.databases == nil {
 		gj.databases = make(map[string]*dbContext)
 	}
@@ -1248,7 +1110,7 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 			reloadSet[name] = struct{}{}
 			continue
 		}
-		if !reflect.DeepEqual(base.conf.Databases[name], conf.Databases[name]) || baseCtx.db != ctx.db || baseCtx.nano != ctx.nano {
+		if !reflect.DeepEqual(base.conf.Databases[name], conf.Databases[name]) || baseCtx.db != ctx.db {
 			reloadSet[name] = struct{}{}
 			continue
 		}
@@ -1269,7 +1131,6 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 	} else {
 		gj.rtmap = base.rtmap
 		gj.rmap = base.rmap
-		gj.openapiRuntime = base.openapiRuntime
 	}
 
 	reloadNames := make([]string, 0, len(reloadSet))
@@ -1286,25 +1147,13 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 		target.schema = nil
 		target.qcodeCompiler = nil
 		target.psqlCompiler = nil
-		if target.nano != nil {
-			snap := target.nano.Snapshot()
-			if snap == nil {
-				return fmt.Errorf("database %q has no nanodb snapshot", name)
-			}
-			target.dbtype = "nanodb"
-			target.dbinfo = snap.DBInfo(name)
-		} else if err := gj.discoverDatabase(target); err != nil {
+		if err := gj.discoverDatabase(target); err != nil {
 			return err
-		}
-		if handler := gj.managedQueryHandlers[name]; handler != nil {
-			if err := gj.initManagedQueryTablesForDatabase(name, handler); err != nil {
-				return err
-			}
 		}
 		if err := gj.finalizeDatabaseSchema(target); err != nil {
 			return err
 		}
-		if target.nano == nil && !schemaHasApplicationTables(target.schema) {
+		if !schemaHasApplicationTables(target.schema) {
 			return fmt.Errorf("database connected but schema discovery found no tables")
 		}
 	}
@@ -1389,11 +1238,6 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 			return err
 		}
 	}
-	if base.catalogConf != nil {
-		gj.catalogConf = base.catalogConf.clone()
-	} else {
-		gj.catalogConf = gj.conf.clone()
-	}
 
 	gj.databases = make(map[string]*dbContext, len(base.databases))
 	for name, ctx := range base.databases {
@@ -1408,14 +1252,7 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 	target.qcodeCompiler = nil
 	target.psqlCompiler = nil
 
-	if target.nano != nil {
-		snap := target.nano.Snapshot()
-		if snap == nil {
-			return fmt.Errorf("database %q has no nanodb snapshot", database)
-		}
-		target.dbtype = "nanodb"
-		target.dbinfo = snap.DBInfo(database)
-	} else if err := gj.discoverDatabase(target); err != nil {
+	if err := gj.discoverDatabase(target); err != nil {
 		return err
 	}
 
@@ -1426,12 +1263,6 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 	} else {
 		gj.rtmap = base.rtmap
 		gj.rmap = base.rmap
-		gj.openapiRuntime = base.openapiRuntime
-	}
-	if handler := gj.managedQueryHandlers[database]; handler != nil {
-		if err := gj.initManagedQueryTablesForDatabase(database, handler); err != nil {
-			return err
-		}
 	}
 	if err := gj.finalizeDatabaseSchema(target); err != nil {
 		return err
@@ -1464,7 +1295,6 @@ func cloneDBContextForReload(ctx *dbContext) *dbContext {
 		name:          ctx.name,
 		db:            ctx.db,
 		dbtype:        ctx.dbtype,
-		nano:          ctx.nano,
 		dbinfo:        ctx.dbinfo,
 		schema:        ctx.schema,
 		qcodeCompiler: ctx.qcodeCompiler,

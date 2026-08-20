@@ -36,9 +36,11 @@ func TestRegistryCompleteness(t *testing.T) {
 func TestCanonicalKindRejectsOldNames(t *testing.T) {
 	tests := map[string]string{
 		"sql":        "kind: database",
-		"codesql":    "kind: code",
+		"codesql":    "CodeSQL is not supported",
+		"code":       "CodeSQL is not supported",
 		"filesystem": "filesystem virtual tables",
-		"openapi":    "kind: api",
+		"openapi":    "OpenAPI remote sources are not supported",
+		"api":        "OpenAPI remote sources are not supported",
 		"graphjin":   "top-level system",
 		"workflow":   "top-level workflows",
 		"workflows":  "top-level workflows",

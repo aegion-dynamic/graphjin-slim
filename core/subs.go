@@ -403,7 +403,7 @@ func subscriptionRootInfo(state *gstate, vars map[string]json.RawMessage) []Subs
 			Table:     sel.Ti.Name,
 			Database:  database,
 			CursorVar: sel.Paging.CursorVar,
-			Filter:    cloneSubscriptionFilter(managedFilterToValueWithoutSeek(sel.Where.Exp, vars)),
+			Filter:    nil,
 		})
 	}
 	return roots
@@ -529,29 +529,7 @@ func (gj *graphjinEngine) initSub(c context.Context, sub *sub) (err error) {
 }
 
 func (gj *graphjinEngine) subscriptionKind(state *gstate) subscriptionKind {
-	if state == nil || state.cs == nil || state.cs.st.qc == nil {
-		return subscriptionSQL
-	}
-	if dbctx := state.getTargetDBCtx(); dbctx != nil && dbctx.nano != nil {
-		return subscriptionSystem
-	}
-	dbName := state.database
-	if dbName == "" {
-		dbName = gj.defaultDB
-	}
-	handler := gj.managedQueryHandlers[dbName]
-	if handler == nil {
-		return subscriptionSQL
-	}
-	tables := make(map[string]struct{})
-	for _, table := range handler.ManagedQueryTables() {
-		tables[strings.ToLower(table.Name)] = struct{}{}
-	}
-	for _, rootID := range state.cs.st.qc.Roots {
-		if _, ok := tables[strings.ToLower(state.cs.st.qc.Selects[rootID].Ti.Name)]; ok {
-			return subscriptionSystem
-		}
-	}
+	_ = state
 	return subscriptionSQL
 }
 
@@ -921,16 +899,7 @@ func (gj *graphjinEngine) subCheckUpdatesSystem(sub *sub, mv mval, start, end in
 }
 
 func (gj *graphjinEngine) executeSystemSubscription(sub *sub, member minfo) (json.RawMessage, error) {
-	state := sub.s.pollGState(member.vmap)
-	ctx := member.ident.context()
-	if handled, raw, err := state.executeManagedQueryRaw(ctx, true); handled {
-		return raw, err
-	}
-	dbctx := state.getTargetDBCtx()
-	if dbctx == nil || dbctx.nano == nil {
-		return nil, errors.New("system subscription has no managed or NanoDB executor")
-	}
-	return state.executeNanoDBRaw(ctx, dbctx, member.vmap)
+	return nil, errors.New("system subscriptions are not supported")
 }
 
 // subFirstQuery function is called on the graphjin struct to get the first query.

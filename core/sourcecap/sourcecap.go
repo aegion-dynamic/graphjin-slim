@@ -13,8 +13,6 @@ const (
 
 const (
 	KindDatabase = "database"
-	KindCode     = "code"
-	KindAPI      = "api"
 )
 
 const (
@@ -38,17 +36,10 @@ const (
 )
 
 const (
-	KeyDataRead        = "data.read"
-	KeyDataWrite       = "data.write"
-	KeySchemaRead      = "schema.read"
-	KeySchemaWrite     = "schema.write"
-	KeyCodeSearch      = "code.search"
-	KeyCodeRead        = "code.read"
-	KeyCodeWrite       = "code.write"
-	KeyCodeWatch       = "code.watch"
-	KeyCodeInferDBRefs = "code.infer_db_refs"
-	KeyAPIRead         = "api.read"
-	KeyAPIWrite        = "api.write"
+	KeyDataRead    = "data.read"
+	KeyDataWrite   = "data.write"
+	KeySchemaRead  = "schema.read"
+	KeySchemaWrite = "schema.write"
 )
 
 // Definition is the source of truth for a public sources[].capabilities key.
@@ -79,22 +70,13 @@ func (d Definition) Default(mode string) bool {
 	}
 }
 
-var kindOrder = []string{KindDatabase, KindCode, KindAPI}
+var kindOrder = []string{KindDatabase}
 
 var definitions = []Definition{
 	def(KindDatabase, KeyDataRead, ActionRead, true, true, true, "medium", EnforcementExistingPolicy, false, "Read application database data.", kindReason(KindDatabase), readRecommendation),
 	def(KindDatabase, KeyDataWrite, ActionWrite, true, true, true, "high", EnforcementExistingReadOnlyAndPolicy, true, "Write application database data.", kindReason(KindDatabase), mutateRecommendation),
 	def(KindDatabase, KeySchemaRead, ActionRead, true, true, true, "medium", EnforcementExistingPolicy, false, "Read application database schema metadata.", kindReason(KindDatabase), readRecommendation),
 	def(KindDatabase, KeySchemaWrite, ActionWrite, true, false, false, "critical", EnforcementExistingReadOnlyAndPolicy, true, "Write application database schema.", kindReason(KindDatabase), mutateRecommendation),
-
-	def(KindCode, KeyCodeSearch, ActionRead, true, true, true, "medium", EnforcementConfigAudit, false, "Search indexed code source metadata.", kindReason(KindCode), readRecommendation),
-	def(KindCode, KeyCodeRead, ActionRead, true, true, true, "medium", EnforcementConfigAudit, false, "Read indexed code source contents.", kindReason(KindCode), readRecommendation),
-	def(KindCode, KeyCodeWrite, ActionWrite, true, false, false, "high", EnforcementRuntime, true, "Write code source contents.", kindReason(KindCode), mutateRecommendation),
-	def(KindCode, KeyCodeWatch, ActionWatch, true, false, false, "medium", EnforcementRuntime, true, "Watch code source changes.", kindReason(KindCode), mutateRecommendation),
-	def(KindCode, KeyCodeInferDBRefs, ActionUse, true, true, true, "medium", EnforcementRuntime, false, "Infer database references from code sources.", kindReason(KindCode), readRecommendation),
-
-	def(KindAPI, KeyAPIRead, ActionRead, true, true, true, "medium", EnforcementConfigAudit, false, "Call read operations on remote API sources.", kindReason(KindAPI), readRecommendation),
-	def(KindAPI, KeyAPIWrite, ActionWrite, true, false, false, "high", EnforcementConfigAudit, true, "Call mutating operations on remote API sources.", kindReason(KindAPI), mutateRecommendation),
 }
 
 var byKind map[string][]Definition
@@ -128,9 +110,9 @@ func def(kind, key, action string, dev, prod, agentic bool, severity, enforcemen
 		opt(&d)
 	}
 	switch key {
-	case KeyCodeRead, KeyAPIRead, KeyDataRead, KeyDataWrite:
+	case KeyDataRead, KeyDataWrite:
 		d.ExampleValue = "true"
-	case KeyCodeWrite, KeyAPIWrite:
+	case "unused":
 		d.ExampleValue = "false"
 	}
 	return d
@@ -141,10 +123,6 @@ const mutateRecommendation = "Set this capability to false or mark the source re
 
 func kindReason(kind string) string {
 	switch kind {
-	case KindCode:
-		return "Code sources may expose repository contents or permit source mutation."
-	case KindAPI:
-		return "API sources may call remote API operations with GraphJin-held credentials."
 	default:
 		return "Source capabilities control authenticated user access to this source surface."
 	}
@@ -159,16 +137,16 @@ func Kinds() []string {
 func CanonicalKind(kind string) (string, error) {
 	k := strings.ToLower(strings.TrimSpace(kind))
 	switch k {
-	case KindDatabase, KindCode, KindAPI:
+	case KindDatabase:
 		return k, nil
 	case "sql":
 		return "", fmt.Errorf("unsupported kind %q; use kind: database", kind)
-	case "codesql":
-		return "", fmt.Errorf("unsupported kind %q; use kind: code", kind)
+	case "code", "codesql":
+		return "", fmt.Errorf("unsupported kind %q; CodeSQL is not supported", kind)
 	case "file", "filesystem", "files":
 		return "", fmt.Errorf("unsupported kind %q; filesystem virtual tables are not supported", kind)
-	case "openapi":
-		return "", fmt.Errorf("unsupported kind %q; use kind: api", kind)
+	case "api", "openapi":
+		return "", fmt.Errorf("unsupported kind %q; OpenAPI remote sources are not supported", kind)
 	case "graphjin":
 		return "", fmt.Errorf("unsupported kind %q; GraphJin system features moved to top-level system configuration", kind)
 	case "workflow", "workflows":

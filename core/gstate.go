@@ -375,17 +375,6 @@ func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, 
 		return
 	}
 
-	if dbCtx, ok := s.gj.GetDatabase(dbName); ok && dbCtx.nano != nil {
-		st.sql = ""
-		s.database = dbName
-		if s.cs == nil {
-			s.cs = &cstate{st: st}
-		} else {
-			s.cs.st = st
-		}
-		return nil
-	}
-
 	var w bytes.Buffer
 	if st.md, err = pc.Compile(&w, st.qc); err != nil {
 		return
@@ -552,9 +541,6 @@ func (s *gstate) readOnlyDatabaseMutationError(routed bool) error {
 	// its gj_* mutations have their own authority and their own errors. On
 	// the compile-failure path especially, "read-only" must not mask a more
 	// specific managed rejection (a workflow-shape error, a locked kind).
-	if !routed && s.gj.managedMutationHandlers[dbName] != nil {
-		return nil
-	}
 	if dbConf, ok := s.gj.conf.Databases[dbName]; ok && dbConf.ReadOnly {
 		return fmt.Errorf("mutations blocked: database %s is read-only", dbName)
 	}
@@ -562,20 +548,6 @@ func (s *gstate) readOnlyDatabaseMutationError(routed bool) error {
 }
 
 func (s *gstate) compileAndExecute(c context.Context) (err error) {
-	if s.gj.conf.MockDB {
-		// compile query for the role
-		if err = s.compile(); err != nil {
-			return
-		}
-
-		// set default variables
-		s.setDefaultVars()
-
-		// execute query
-		err = s.executeMock(c)
-		return
-	}
-
 	var defaultConn *sql.Conn
 
 	// For ABAC, we need to execute role query first using default database
@@ -636,21 +608,11 @@ func (s *gstate) compileAndExecute(c context.Context) (err error) {
 		}
 	}
 
-	if handled, err1 := s.executeManagedQuery(c); handled {
-		err = err1
-		return
-	}
-
 	if s.r.operation == qcode.QTMutation {
 		if table, ok := s.readOnlyMutationRoot(); ok {
 			err = fmt.Errorf("mutations blocked: table %s is read-only", table)
 			return
 		}
-	}
-
-	if handled, err1 := s.executeManagedMutation(c); handled {
-		err = err1
-		return
 	}
 
 	// Block mutations on read-only databases (absolute, independent of roles)
@@ -660,11 +622,6 @@ func (s *gstate) compileAndExecute(c context.Context) (err error) {
 
 	// set default variables
 	s.setDefaultVars()
-
-	if dbCtx := s.getTargetDBCtx(); dbCtx != nil && dbCtx.nano != nil {
-		err = s.executeNanoDB(c, dbCtx)
-		return
-	}
 
 	var conn *sql.Conn
 

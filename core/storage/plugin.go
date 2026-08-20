@@ -1,4 +1,4 @@
-package core
+package storage
 
 type FS interface {
 	Get(path string) (data []byte, err error)

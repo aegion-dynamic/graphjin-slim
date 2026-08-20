@@ -1,4 +1,4 @@
-package core
+package storage
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ type osFS struct {
 }
 
 // NewOsFS creates a new OSFS instance
-func NewOsFS(basePath string) *osFS { return &osFS{basePath: basePath} }
+func NewOsFS(basePath string) FS { return &osFS{basePath: basePath} }
 
 // Get returns the file content
 func (f *osFS) Get(path string) ([]byte, error) {

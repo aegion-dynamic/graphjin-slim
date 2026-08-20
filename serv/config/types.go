@@ -1,9 +1,10 @@
 package config
 
 import (
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 )
+
+type CachingConfig struct{}
 
 // Service contains HTTP service settings layered onto core.Config.
 type Service struct {
@@ -30,7 +31,7 @@ type Service struct {
 	DB                         database.Config `mapstructure:"database" jsonschema:"title=Database"`
 	Secrets                    SecretsConfig   `mapstructure:"secrets" jsonschema:"title=Secrets"`
 	Redis                      RedisConfig     `mapstructure:"redis" jsonschema:"title=Redis Configuration"`
-	Caching                    cache.Config    `mapstructure:"caching" jsonschema:"title=Caching Configuration"`
+	Caching                    CachingConfig   `mapstructure:"caching" jsonschema:"title=Caching Configuration"`
 }
 
 type SecretsConfig struct {

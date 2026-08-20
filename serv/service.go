@@ -46,7 +46,6 @@ import (
 	"sync/atomic"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/internal/logging"
@@ -87,18 +86,8 @@ const (
 
 func redactRuntimeStringValue(value string) string { return value }
 
-type ResponseCache = cache.ResponseCache
+type ResponseCache interface{ Close() error }
 type Mux = httpapi.Mux
-
-const defaultMemoryCacheSize = cache.DefaultMemoryCacheSize
-
-func NewMemoryCache(conf CachingConfig, maxEntries int) (*cache.MemoryCache, error) {
-	return cache.NewMemoryCache(conf, maxEntries)
-}
-
-func NewRedisCache(redisURL string, conf CachingConfig) (*cache.RedisCache, error) {
-	return cache.NewRedisCache(redisURL, conf)
-}
 
 func NewDB(conf *Config, openDB bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {
 	return database.Open(database.Options{Config: conf.DB, AppName: conf.AppName, OpenDBName: openDB, Filesystem: fs, Logger: log, Retry: true})

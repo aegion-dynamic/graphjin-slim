@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	configmodule "github.com/aegion-dynamic/graphjin-slim/serv/v3/config"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	"github.com/go-viper/mapstructure/v2"
@@ -20,13 +19,15 @@ import (
 type (
 	Core           = core.Config
 	Database       = database.Config
-	CachingConfig  = cache.Config
 	Serv           = configmodule.Service
 	SecretsConfig  = configmodule.SecretsConfig
 	KeystoreConfig = configmodule.KeystoreConfig
 	RateLimiter    = configmodule.RateLimiter
 	RedisConfig    = configmodule.RedisConfig
 )
+
+// CachingConfig is a placeholder; response caching is not part of slim.
+type CachingConfig struct{}
 
 //go:generate go run ./internal/tools -o config.schema.json
 

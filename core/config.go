@@ -11,7 +11,11 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sourcecap"
+)
+
+const (
+	ModeDev  = "dev"
+	ModeProd = "prod"
 )
 
 // DefaultDBName is the canonical name used for the primary/default database
@@ -30,9 +34,9 @@ func CanonicalMode(mode string) (string, error) {
 	case "":
 		return "", nil
 	case "dev", "development":
-		return sourcecap.ModeDev, nil
+		return ModeDev, nil
 	case "prod", "production":
-		return sourcecap.ModeProd, nil
+		return ModeProd, nil
 	default:
 		return "", fmt.Errorf("unsupported mode %q: supported modes are dev, prod", mode)
 	}
@@ -53,7 +57,7 @@ func (c *Config) NormalizeMode() error {
 	if mode == "" {
 		switch {
 		case c.Production:
-			mode = sourcecap.ModeProd
+			mode = ModeProd
 		case c.IsSourcesUsed():
 			// Fail closed (security, audit F1): in source mode an unspecified
 			// deployment mode must NOT silently fall back to dev. Dev makes every
@@ -61,11 +65,11 @@ func (c *Config) NormalizeMode() error {
 			// to it on a missing `mode` is fail-open. Require an explicit
 			// dev/dev selection (GO_ENV, dev.yml/dev.yml, or `mode:`);
 			// anything ambiguous resolves to the locked-down prod posture.
-			mode = sourcecap.ModeProd
+			mode = ModeProd
 		default:
 			// Legacy (non-source) configs keep the long-standing dev default so
 			// existing local development without `sources:` is unaffected.
-			mode = sourcecap.ModeDev
+			mode = ModeDev
 		}
 	}
 	c.Mode = mode
@@ -211,14 +215,14 @@ func (c *Config) validateIsSourcesUsed() error {
 		}
 		seen[name] = struct{}{}
 		seenFolded[folded] = name
-		kind, err := sourcecap.CanonicalKind(source.Kind)
+		kind, err := CanonicalSourceKind(source.Kind)
 		if err != nil {
 			return fmt.Errorf("sources[%q]: %w", name, err)
 		}
 		for key := range source.Capabilities {
-			if _, ok := sourcecap.Lookup(kind, key); !ok {
+			if _, ok := sourcecapLookup(kind, key); !ok {
 				return fmt.Errorf("sources[%q].capabilities.%s: unsupported capability for kind %q (supported: %s)",
-					name, key, kind, sourcecap.ValidKeyList(kind))
+					name, key, kind, sourcecapValidKeyList(kind))
 			}
 		}
 		if err := validateSourceAccessConfig(name, kind, source.Access); err != nil {
@@ -250,7 +254,19 @@ func (c *Config) validateIsSourcesUsed() error {
 }
 
 func CanonicalSourceKind(kind string) (string, error) {
-	return sourcecap.CanonicalKind(kind)
+	k := strings.ToLower(strings.TrimSpace(kind))
+	switch k {
+	case "database", "sql", "":
+		return "database", nil
+	case "code", "codesql":
+		return "", fmt.Errorf("unsupported kind %q; CodeSQL is not supported", kind)
+	case "api", "openapi":
+		return "", fmt.Errorf("unsupported kind %q; OpenAPI remote sources are not supported", kind)
+	case "file", "filesystem", "files":
+		return "", fmt.Errorf("unsupported kind %q; filesystem virtual tables are not supported", kind)
+	default:
+		return "", fmt.Errorf("unsupported kind %q (supported: database)", kind)
+	}
 }
 
 func (c *Config) metadataConfigured() bool {
@@ -415,7 +431,7 @@ func (c *Config) validateArtifactsConfig() error {
 	sourceName := strings.TrimSpace(c.Artifacts.Source)
 	if sourceName == "" {
 		for _, source := range c.Sources {
-			if source.CanonicalKind() == sourcecap.KindDatabase {
+			if source.CanonicalKind() == "database" {
 				sourceName = source.Name
 				break
 			}
@@ -428,7 +444,7 @@ func (c *Config) validateArtifactsConfig() error {
 	var sourceType string
 	var readOnly bool
 	if ok {
-		if source.CanonicalKind() != sourcecap.KindDatabase {
+		if source.CanonicalKind() != "database" {
 			return fmt.Errorf("artifacts.source %q must be a writable SQL database source", sourceName)
 		}
 		sourceType = source.Type
@@ -540,7 +556,7 @@ func (c *Config) normalizeArtifactsDefaults() {
 	}
 	if strings.TrimSpace(c.Artifacts.Source) == "" {
 		for _, source := range c.Sources {
-			if source.CanonicalKind() == sourcecap.KindDatabase {
+			if source.CanonicalKind() == "database" {
 				c.Artifacts.Source = source.Name
 				break
 			}
@@ -623,7 +639,7 @@ func (c *Config) normalizeSourceAccessDefaults() {
 	for i := range c.Sources {
 		kind := c.Sources[i].CanonicalKind()
 		switch kind {
-		case sourcecap.KindDatabase:
+		case "database":
 			c.Sources[i].Access = effectiveDatabaseAccess(c.Sources[i].Access)
 		}
 	}
@@ -661,16 +677,16 @@ func effectiveDatabaseAccess(access SourceAccessConfig) SourceAccessConfig {
 
 func (c *Config) modeForSourceDefaults() string {
 	if c == nil {
-		return sourcecap.ModeDev
+		return ModeDev
 	}
 	mode, err := CanonicalMode(c.Mode)
 	if err == nil && mode != "" {
 		return mode
 	}
 	if c.Production {
-		return sourcecap.ModeProd
+		return ModeProd
 	}
-	return sourcecap.ModeDev
+	return ModeDev
 }
 
 // EffectiveSystemRootAccess sets the per-mode default access for the gj_* system
@@ -689,7 +705,7 @@ func (c *Config) EffectiveSystemRootAccess() map[string]string {
 	}
 	var defaults map[string]string
 	switch strings.ToLower(strings.TrimSpace(c.modeForSourceDefaults())) {
-	case sourcecap.ModeDev:
+	case ModeDev:
 		// Local development of the new stack: the whole surface is open.
 		defaults = map[string]string{
 			"gj_catalog":            AccessModePublic,
@@ -863,7 +879,7 @@ func (c *Config) EffectiveTasksConfig() TasksConfig {
 // EffectiveSourceAccess returns a source's access config with source-kind defaults.
 func (c *Config) EffectiveSourceAccess(source SourceConfig) SourceAccessConfig {
 	switch source.CanonicalKind() {
-	case sourcecap.KindDatabase:
+	case "database":
 		return effectiveDatabaseAccess(source.Access.clone())
 	default:
 		return source.Access.clone()
@@ -977,7 +993,7 @@ func (c *Config) defaultDatabaseName() string {
 	var sourceNames []string
 	for _, source := range c.Sources {
 		kind := source.CanonicalKind()
-		if kind != sourcecap.KindDatabase && kind != "code" {
+		if kind != "database" && kind != "code" {
 			continue
 		}
 		if _, ok := c.Databases[source.Name]; !ok {
@@ -1286,7 +1302,7 @@ type Config struct {
 	RolesQuery string `mapstructure:"roles_query" json:"roles_query" yaml:"roles_query" jsonschema:"title=Roles Query"`
 
 	// Roles contains the configuration for all the roles you want to support 'user' and
-	// 'anon' are two default roles. The 'user' role is used when a user ID is available
+	// 'anon' are two default  The 'user' role is used when a user ID is available
 	// and 'anon' when it's not. Use the 'Roles Query' config to add more custom roles
 	Roles []Role
 
@@ -1573,7 +1589,7 @@ func (c *Config) CatalogEnabled() bool {
 	if c == nil {
 		return false
 	}
-	if c.modeForSourceDefaults() == sourcecap.ModeProd {
+	if c.modeForSourceDefaults() == ModeProd {
 		return false
 	}
 	return c.FeatureCapability("system", "catalog.read")
@@ -1752,7 +1768,7 @@ type CassandraConfig struct {
 	// AllowFiltering is the only ALLOW FILTERING escape hatch — enable only for
 	// known-small tables. It never relaxes OR/NOT/LIKE/IS NULL rejections.
 	AllowFiltering bool `mapstructure:"allow_filtering" json:"allow_filtering,omitempty" yaml:"allow_filtering,omitempty" jsonschema:"title=Allow Filtering"`
-	// PartitionKeys / ClusteringKeys optionally override the introspected key roles.
+	// PartitionKeys / ClusteringKeys optionally override the introspected key
 	PartitionKeys  []string `mapstructure:"partition_keys" json:"partition_keys,omitempty" yaml:"partition_keys,omitempty" jsonschema:"title=Partition Keys"`
 	ClusteringKeys []string `mapstructure:"clustering_keys" json:"clustering_keys,omitempty" yaml:"clustering_keys,omitempty" jsonschema:"title=Clustering Keys"`
 }
@@ -2037,3 +2053,6 @@ func (c *Config) RemoveRoleTable(role, table string) error {
 	}
 	return nil
 }
+
+func sourcecapLookup(kind, key string) (struct{}, bool) { return struct{}{}, false }
+func sourcecapValidKeyList(kind string) string          { return "" }

@@ -55,7 +55,7 @@ func (gj *graphjinEngine) prepareGraphQLRoleStmt() error {
 		return fmt.Errorf("roles_query: graphql SQL compile: %w", err)
 	}
 
-	matches, err := compileRoleMatches(gj.conf.Roles)
+	matches, err := compileRoleMatchesFromConfig(gj.conf.Roles)
 	if err != nil {
 		return err
 	}

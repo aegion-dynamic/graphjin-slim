@@ -403,7 +403,7 @@ func (gj *graphjinEngine) initDBContext(name string, db *sql.DB, dbConf Database
 	return ctx, nil
 }
 
-// AddDatabase adds a new database to the multi-database configuration at runtime.
+// AddDatabase adds a new database to the multi-database configuration at
 // This can be used to add databases after GraphJin is initialized.
 func (gj *graphjinEngine) AddDatabase(name string, db *sql.DB, dbConf DatabaseConfig) error {
 	if gj.databases == nil {

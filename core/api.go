@@ -20,58 +20,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
-	corequery "github.com/aegion-dynamic/graphjin-slim/core/v3/query"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 )
 
-// Tracing types live in core/runtime; re-export for the public API.
-type Tracer = runtime.Tracer
-type Spaner = runtime.Spaner
-type StringAttr = runtime.StringAttr
-
-// Context keys live in core/runtime; re-export for the public API.
-type contextkey = runtime.ContextKey
-
-const (
-	// Name of the authentication provider. Eg. google, github, etc
-	UserIDProviderKey = runtime.UserIDProviderKey
-
-	// The raw user id (jwt sub) value
-	UserIDRawKey = runtime.UserIDRawKey
-
-	// User ID value for authenticated users
-	UserIDKey = runtime.UserIDKey
-
-	// User role if pre-defined
-	UserRoleKey = runtime.UserRoleKey
-
-	// IdentityVarsKey carries trusted request-wide identity variables such as
-	// account_id that may be referenced by generated source-mode filters.
-	IdentityVarsKey = runtime.IdentityVarsKey
-
-	// IdentityRolesKey carries candidate roles extracted from the verified
-	// request identity before roles_query / match fallback.
-	IdentityRolesKey = runtime.IdentityRolesKey
-)
+type contextkey = ContextKey
 
 const (
 	APQ_PX = "_apq"
 )
-
-// Engine facade: core types now alias engine types.
-// The canonical definitions live in core/engine; this file remains a thin
-// facade for backwards compatibility.
-type DBContext = engine.DBContext
-type Engine = engine.Engine
-
-// Original structs retained for incremental cut-over; new code should use engine directly.
-// TODO: remove original dbContext/graphjinEngine/GraphJin/Option structs once all call sites migrated to engine.
 
 // dbContext holds per-database state for multi-database support.
 // Each database gets its own connection pool, schema discovery, and SQL compiler.
@@ -133,7 +93,7 @@ type graphjinEngine struct {
 	cacheKeyBuilder *CacheKeyBuilder
 
 	// reservedRoleAuthorizer can allow package-internal service contexts to use
-	// reserved roles. Request-derived roles are denied by default.
+	// reserved  Request-derived roles are denied by default.
 	reservedRoleAuthorizer ReservedRoleAuthorizer
 }
 
@@ -157,11 +117,11 @@ func (gj *graphjinEngine) anyDatabaseReady() bool {
 
 type GraphJin struct {
 	atomic.Value
-	lifecycle *engine.Lifecycle
+	lifecycle *Lifecycle
 	reloadMu  sync.Mutex // serializes reload operations
 
 	// Schema change callbacks
-	schemaCallbacks engine.SchemaCallbacks
+	schemaCallbacks SchemaCallbacks
 }
 
 type Option func(*graphjinEngine) error
@@ -244,7 +204,7 @@ func NewGraphJin(conf *Config, db *sql.DB, options ...Option) (g *GraphJin, err 
 		return
 	}
 
-	g = &GraphJin{lifecycle: engine.NewLifecycle()}
+	g = &GraphJin{lifecycle: NewLifecycle()}
 	if err = g.newGraphJin(conf, db, nil, fs, options...); err != nil {
 		g = nil
 		return
@@ -261,7 +221,7 @@ func NewGraphJin(conf *Config, db *sql.DB, options ...Option) (g *GraphJin, err 
 
 // NewGraphJinWithFS creates the GraphJin struct, this involves querying the database to learn its
 func NewGraphJinWithFS(conf *Config, db *sql.DB, fs FS, options ...Option) (g *GraphJin, err error) {
-	g = &GraphJin{lifecycle: engine.NewLifecycle()}
+	g = &GraphJin{lifecycle: NewLifecycle()}
 	if err = g.newGraphJin(conf, db, nil, fs, options...); err != nil {
 		g = nil
 		return
@@ -343,7 +303,7 @@ func (g *GraphJin) newGraphJin(conf *Config,
 		printFormat: []byte(fmt.Sprintf("gj-%x:", t.UnixNano())),
 		opts:        options,
 		fs:          fs,
-		trace:       runtime.NewTracer(),
+		trace:       NewTracer(),
 		done:        g.lifecycle.Done(),
 	}
 
@@ -1061,7 +1021,7 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 	}
 	trace := base.trace
 	if trace == nil {
-		trace = runtime.NewTracer()
+		trace = NewTracer()
 	}
 	printFormat := append([]byte(nil), base.printFormat...)
 	if len(printFormat) == 0 {
@@ -1199,7 +1159,7 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 	}
 	trace := base.trace
 	if trace == nil {
-		trace = runtime.NewTracer()
+		trace = NewTracer()
 	}
 	printFormat := append([]byte(nil), base.printFormat...)
 	if len(printFormat) == 0 {
@@ -1356,7 +1316,7 @@ func getFS(conf *Config) (fs FS, err error) {
 // newError creates a new error list
 func newError(query string, err error) (errList []Error) {
 	e := Error{Message: err.Error()}
-	if repair := corequery.BuildGraphJinErrorRepair(query, err.Error()); repair.Known() {
+	if repair := BuildGraphJinErrorRepair(query, err.Error()); repair.Known() {
 		e.Extensions = map[string]any{"graphjin_repair": repair}
 	}
 	errList = []Error{e}
@@ -2028,7 +1988,7 @@ func (g *GraphJin) AuditRolePermissions(role string) (*RoleAudit, error) {
 	return gj.auditRolePermissions(role)
 }
 
-// AuditAllRoles returns permission matrices for all configured roles.
+// AuditAllRoles returns permission matrices for all configured
 func (g *GraphJin) AuditAllRoles() ([]RoleAudit, error) {
 	gj, err := g.getEngine()
 	if err != nil {

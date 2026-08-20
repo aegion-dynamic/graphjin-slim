@@ -1,4 +1,4 @@
-package query
+package core
 
 import (
 	"strings"
@@ -66,43 +66,43 @@ func TestPrettify(t *testing.T) {
 			},
 		},
 		{
-			name: "Nested String Escaping Standard",
-			query: "SELECT 'It''s me' FROM users",
+			name:   "Nested String Escaping Standard",
+			query:  "SELECT 'It''s me' FROM users",
 			dbType: "postgres",
 			contains: []string{
 				"SELECT 'It''s me' ",
 				"\nFROM users",
 			},
 		},
-        {
-            name: "MySQL Escaped Backslash",
-            query: "SELECT 'foo\\'bar' FROM users",
-            dbType: "mysql",
-            contains: []string{
-                "SELECT 'foo\\'bar' ",
-                "\nFROM users",
-            },
-        },
+		{
+			name:   "MySQL Escaped Backslash",
+			query:  "SELECT 'foo\\'bar' FROM users",
+			dbType: "mysql",
+			contains: []string{
+				"SELECT 'foo\\'bar' ",
+				"\nFROM users",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := prettify(tt.query, tt.dbType)
 			for _, c := range tt.contains {
-                // We use strings.Contains, but we need to match carefully because we insert newlines
-                // The expected strings in `contains` assume \n is present.
-                // Replace \n with actual newline for check if needed, or just check exact string
-                expected := strings.ReplaceAll(c, "\\n", "\n")
+				// We use strings.Contains, but we need to match carefully because we insert newlines
+				// The expected strings in `contains` assume \n is present.
+				// Replace \n with actual newline for check if needed, or just check exact string
+				expected := strings.ReplaceAll(c, "\\n", "\n")
 				if !strings.Contains(got, expected) {
 					t.Errorf("prettify() expected to contain %q, but it didn't.\nResult:\n%q", expected, got)
 				}
 			}
-            
-            // Safety check: Is the semantic content (ignoring whitespace) the same?
-            // This is hard to check perfectly because we added newlines. 
-            // But if we strip all whitespace from both, they should match?
-            // No, because we might have added space between keywords.
-            // Let's just trust our contains checks + manual inspection for now.
+
+			// Safety check: Is the semantic content (ignoring whitespace) the same?
+			// This is hard to check perfectly because we added newlines.
+			// But if we strip all whitespace from both, they should match?
+			// No, because we might have added space between keywords.
+			// Let's just trust our contains checks + manual inspection for now.
 		})
 	}
 }

@@ -1,5 +1,5 @@
 // Package engine contains core runtime orchestration modules.
-package engine
+package core
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package roles
+package core
 
 import (
 	"fmt"
@@ -579,4 +579,13 @@ func isRoleIdentStart(b byte) bool {
 
 func isRoleIdentPart(b byte) bool {
 	return isRoleIdentStart(b) || (b >= '0' && b <= '9') || b == '.'
+}
+
+// compileRoleMatches adapts config roles into match expressions.
+func compileRoleMatchesFromConfig(roleList []Role) ([]compiledRoleMatch, error) {
+	in := make([]MatchRole, 0, len(roleList))
+	for _, role := range roleList {
+		in = append(in, MatchRole{Name: role.Name, Match: role.Match})
+	}
+	return compileRoleMatches(in)
 }

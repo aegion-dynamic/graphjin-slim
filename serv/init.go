@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
-	"github.com/aegion-dynamic/graphjin-slim/serv/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 )
 
@@ -280,24 +279,13 @@ func (s *graphjinService) basePath() (string, error) {
 
 // initResponseCache initializes the response cache (Redis or in-memory)
 func (s *graphjinService) initResponseCache() error {
-	// Caching is enabled by default unless explicitly disabled
-	if s.conf.Caching.Disable {
-		s.log.Info("Response cache disabled")
-		return nil
-	}
-
-	var err error
-	s.cache, err = cache.New(s.conf.Caching, s.conf.Redis.URL, defaultMemoryCacheSize, s.log)
-	if err != nil {
-		s.log.Warnf("Failed to initialize response cache: %s", err)
-		return nil
-	}
-
-	// Enable cache tracking in qcode compiler (injects __gj_id fields)
-	s.conf.CacheTrackingEnabled = true
-
+	s.cache = noopCache{}
 	return nil
 }
+
+type noopCache struct{}
+
+func (noopCache) Close() error { return nil }
 
 // cloneCoreConfig creates a copy of a core.Config.
 func cloneCoreConfig(c core.Config) core.Config {

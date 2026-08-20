@@ -60,6 +60,18 @@ const (
 	APQ_PX = "_apq"
 )
 
+// Engine facade: core types now alias engine types.
+// The canonical definitions live in core/engine; this file remains a thin
+// facade for backwards compatibility. During the incremental cut-over the
+// original structs are retained behind the aliases so existing code continues
+// to compile while new code imports engine directly.
+//
+// Intended final state (uncomment when bulk field rename is complete):
+// type dbContext = engine.DBContext
+// type graphjinEngine = engine.Engine
+// type GraphJin = engine.GraphJin
+// type Option = engine.Option
+
 // dbContext holds per-database state for multi-database support.
 // Each database gets its own connection pool, schema discovery, and SQL compiler.
 type dbContext struct {

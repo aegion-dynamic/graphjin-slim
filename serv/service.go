@@ -430,14 +430,13 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 	prod := conf.Serv.Production
 
 	s := &graphjinService{
-		conf:           conf,
-		zlog:           zlog,
-		log:            zlog.Sugar(),
-		dbs:            dbs,
-		configPreviews: newConfigPreviewStore(),
-		chash:          conf.hash,
-		prod:           prod,
-		tracer:         otel.Tracer("graphjin.com/serv"),
+		conf:   conf,
+		zlog:   zlog,
+		log:    zlog.Sugar(),
+		dbs:    dbs,
+		chash:  conf.hash,
+		prod:   prod,
+		tracer: otel.Tracer("graphjin.com/serv"),
 	}
 	if s.dbs == nil {
 		s.dbs = make(map[string]*sql.DB)
@@ -468,11 +467,6 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 		return nil, err
 	}
 
-	if err := s.initManagedArtifactStore(); err != nil {
-		s.log.Warnf("artifact store init error: %s", err)
-	}
-
-	// Initialize Redis cache (non-fatal if unavailable)
 	if err := s.initResponseCache(); err != nil {
 		s.log.Warnf("response cache init error: %s", err)
 	}

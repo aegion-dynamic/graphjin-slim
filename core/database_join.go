@@ -157,7 +157,6 @@ func (s *gstate) executeDatabaseJoinQuery(
 		return nil, fmt.Errorf("qcode compile failed: %w", err)
 	}
 
-
 	// Compile to SQL using the target database's SQL compiler
 	var sqlBuf bytes.Buffer
 	md, err := dbCtx.psqlCompiler.Compile(&sqlBuf, qc)
@@ -790,7 +789,6 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 	if err != nil {
 		return nil, fmt.Errorf("qcode compile failed for %s: %w", dbName, err)
 	}
-
 
 	// Compile SQL
 	var sqlBuf bytes.Buffer

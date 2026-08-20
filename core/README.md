@@ -40,7 +40,7 @@ defer engine.Close()
 result, err := engine.GraphQL(ctx, query, variables, requestConfig)
 ```
 
-Use `core.NewTestGraphJin` from `testing.go` for schema-backed tests that do
+Use `core.NewTestGraphJin` from `testkit.go` for schema-backed tests that do
 not need a live database.
 
 ## Responsibilities

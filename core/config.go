@@ -124,18 +124,6 @@ func (c *Config) NormalizeSources() error {
 }
 func (c *Config) IsSourcesUsed() bool { return false }
 
-func (c *Config) EffectiveIdentityConfig() IdentityConfig { return IdentityConfig{} }
-
-func CanonicalSourceKind(kind string) (string, error) {
-	k := strings.ToLower(strings.TrimSpace(kind))
-	switch k {
-	case "database", "sql", "":
-		return "database", nil
-	default:
-		return "", fmt.Errorf("unsupported kind %q (supported: database)", kind)
-	}
-}
-
 func (c *Config) defaultDatabaseName() string {
 	if c == nil {
 		return ""
@@ -292,8 +280,7 @@ type Config struct {
 	Databases            map[string]DatabaseConfig `mapstructure:"databases" json:"databases" yaml:"databases"`
 
 	// Internal
-	CacheTrackingEnabled bool        `mapstructure:"-" json:"-" yaml:"-" jsonschema:"-"`
-	FS                   interface{} `mapstructure:"-" json:"-" yaml:"-" jsonschema:"-"`
+	FS interface{} `mapstructure:"-" json:"-" yaml:"-" jsonschema:"-"`
 }
 
 type DatabaseConfig struct {
@@ -407,25 +394,6 @@ type RelationshipConfig struct {
 	From string `mapstructure:"from" json:"from" yaml:"from" jsonschema:"title=From"`
 	To   string `mapstructure:"to" json:"to" yaml:"to" jsonschema:"title=To"`
 	As   string `mapstructure:"as" json:"as,omitempty" yaml:"as,omitempty" jsonschema:"title=Alias"`
-}
-
-type IdentityConfig struct {
-	UserIDClaim    string   `mapstructure:"user_id_claim" json:"user_id_claim" yaml:"user_id_claim"`
-	RoleClaims     []string `mapstructure:"role_claims" json:"role_claims" yaml:"role_claims"`
-	NamespaceClaim string   `mapstructure:"namespace_claim" json:"namespace_claim" yaml:"namespace_claim"`
-	AdminRoles     []string `mapstructure:"admin_roles" json:"admin_roles" yaml:"admin_roles"`
-	Query          string   `mapstructure:"query" json:"query" yaml:"query"`
-}
-
-func (c IdentityConfig) clone() IdentityConfig {
-	out := c
-	if c.RoleClaims != nil {
-		out.RoleClaims = append([]string(nil), c.RoleClaims...)
-	}
-	if c.AdminRoles != nil {
-		out.AdminRoles = append([]string(nil), c.AdminRoles...)
-	}
-	return out
 }
 
 type Resolver interface {

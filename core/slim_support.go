@@ -8,27 +8,13 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 )
 
-// defaultCompileRole is the only compile profile. RBAC is host-owned.
+// defaultCompileRole is the only compile profile. Access control is host-owned.
 const defaultCompileRole = "user"
-
-// Context keys retained for binary compatibility; GraphJin does not use them for RBAC.
-type ContextKey int
-
-const (
-	UserIDProviderKey ContextKey = iota
-	UserIDRawKey
-	UserIDKey
-	UserRoleKey
-	IdentityVarsKey
-	IdentityRolesKey
-)
 
 type roleQueryMode int
 
 const (
 	roleQueryNone roleQueryMode = iota
-	roleQuerySQL
-	roleQueryGraphQL
 )
 
 type compiledRoleMatch struct{}

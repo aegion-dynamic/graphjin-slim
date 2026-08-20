@@ -4,15 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"time"
-)
-
-const (
-	fragmentKindDBRoot = "db-root"
-	fragmentKindDBJoin = "db-join"
-	fragmentKindRemote = "remote"
-
-	swrRefreshTimeout = 30 * time.Second
 )
 
 func scanJSONRow(ctx context.Context, dbType string, conn *sql.Conn, tx *sql.Tx, query string, args []interface{}) ([]byte, error) {

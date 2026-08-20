@@ -193,48 +193,10 @@ func (gj *graphjinEngine) argList(c context.Context,
 	return ar, nil
 }
 
-func (gj *graphjinEngine) sourceModeTrustedIdentityParam(name string) bool {
-	name = strings.ToLower(strings.TrimSpace(name))
-	if name == "" || gj == nil || gj.conf == nil || !gj.conf.IsSourcesUsed() {
-		return false
-	}
-	id := gj.conf.EffectiveIdentityConfig()
-	trusted := []string{
-		"account_id",
-		"account_ref",
-		"user_id",
-		"user_ref",
-		strings.ToLower(strings.TrimSpace(id.NamespaceClaim)),
-		strings.ToLower(strings.TrimSpace(id.UserIDClaim)),
-	}
-	for _, item := range trusted {
-		if item != "" && name == item {
-			return true
-		}
-	}
-	return false
-}
-
-func identityValuePresent(v interface{}) bool {
-	if v == nil {
-		return false
-	}
-	if s, ok := v.(string); ok {
-		return strings.TrimSpace(s) != ""
-	}
-	return true
-}
+func (gj *graphjinEngine) sourceModeTrustedIdentityParam(name string) bool { return false }
 
 func identityContextVar(ctx context.Context, name string) (interface{}, bool) {
-	if ctx == nil || strings.TrimSpace(name) == "" {
-		return nil, false
-	}
-	vars, ok := (interface{})(nil).(map[string]interface{})
-	if !ok || vars == nil {
-		return nil, false
-	}
-	v, ok := vars[name]
-	return v, ok
+	return nil, false
 }
 
 func parseVarVal(v json.RawMessage) interface{} {
@@ -286,3 +248,5 @@ func convertBoolIfNeeded(pc *psql.Compiler, v interface{}) interface{} {
 	}
 	return v
 }
+
+func identityValuePresent(v interface{}) bool { return false }

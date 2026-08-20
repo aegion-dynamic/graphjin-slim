@@ -86,7 +86,6 @@ const (
 
 func redactRuntimeStringValue(value string) string { return value }
 
-type ResponseCache interface{ Close() error }
 type Mux = httpapi.Mux
 
 func NewDB(conf *Config, openDB bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {
@@ -102,12 +101,11 @@ func newDBOnce(conf *Config, openDB, _ bool, log *zap.SugaredLogger, fs core.FS)
 }
 
 func routesHandler(s1 *HttpService, mux Mux, ns *string) (Mux, error) {
-	gs := s1.Load().(*graphjinService)
 	return httpapi.Register(mux, httpapi.Handlers{
 		GraphQL: s1.apiV1GraphQL(ns, nil),
 		REST:    s1.apiV1Rest(ns, nil),
-		WebUI:   s1.WebUI("/", httpapi.GraphQLPath),
-		WebUIOn: gs.conf.Serv.WebUI,
+		WebUI:   nil,
+		WebUIOn: false,
 	}), nil
 }
 
@@ -123,9 +121,6 @@ type graphjinService struct {
 	columnValuesSampled bool               // true once an attempt actually ran
 	columnValues        map[string][]string
 	runtimeCore         *core.Config
-	secretStore         *localKeystore
-	metadataDB          string
-	managedArtifactDB   string
 	gj                  *core.GraphJin
 	srv                 *http.Server
 	srvMu               sync.Mutex // guards srv: written by startHTTP, read by Shutdown
@@ -138,8 +133,6 @@ type graphjinService struct {
 	prod                bool
 	namespace           *string
 	tracer              trace.Tracer
-	cache               ResponseCache // Response cache (Redis or in-memory)
-	configPreviews      *configPreviewStore
 	configMu            sync.Mutex
 }
 
@@ -148,7 +141,7 @@ type graphjinService struct {
 func (s *graphjinService) anyDB() *sql.DB {
 	names := make([]string, 0, len(s.dbs))
 	for name := range s.dbs {
-		if name != s.managedArtifactDB {
+		if true {
 			names = append(names, name)
 		}
 	}
@@ -241,9 +234,6 @@ func (s *HttpService) Close() error {
 	if gs.closeFn != nil {
 		gs.closeFn()
 	}
-	if gs.cache != nil {
-		gs.cache.Close() //nolint:errcheck
-	}
 	for _, db := range gs.dbs {
 		if db != nil {
 			db.Close() //nolint:errcheck
@@ -289,9 +279,6 @@ func (s *graphjinService) closeServResources() {
 	}
 	if s.gj != nil {
 		s.gj.Close()
-	}
-	if s.cache != nil {
-		s.cache.Close() //nolint:errcheck
 	}
 	for _, db := range s.dbs {
 		if db != nil {
@@ -456,10 +443,6 @@ func newGraphJinService(conf *Config, dbs map[string]*sql.DB, options ...Option)
 		return nil, err
 	}
 
-	if err := s.initResponseCache(); err != nil {
-		s.log.Warnf("response cache init error: %s", err)
-	}
-
 	err = s.normalStart()
 	if err != nil {
 		if !s.conf.Serv.Production {
@@ -548,25 +531,7 @@ func (s *graphjinService) normalStart() error {
 
 // Deploy a new configuration
 func (s *HttpService) Deploy(conf *Config, options ...Option) error {
-	var err error
-	os := s.Load().(*graphjinService)
-
-	if conf == nil {
-		return nil
-	}
-
-	s1, err := newGraphJinService(conf, os.dbs, options...)
-	if err != nil {
-		return err
-	}
-	s1.srv = os.srv
-	s1.namespace = os.namespace
-	if os.closeFn != nil {
-		os.closeFn()
-	}
-
-	s.Store(s1)
-	return nil
+	return fmt.Errorf("deploy is not supported in slim build")
 }
 
 // Start the service listening on the configured port

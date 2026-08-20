@@ -83,14 +83,6 @@ type graphjinEngine struct {
 	databases map[string]*dbContext
 	// Name of the default database (used as the map key for the primary DB)
 	defaultDB string
-
-	// Response cache provider (optional, set via OptionSetResponseCache)
-	responseCache ResponseCacheProvider
-	// Cache key builder
-	cacheKeyBuilder *CacheKeyBuilder
-
-	// reservedRoleAuthorizer can allow package-internal service contexts to use
-	// reserved  Request-derived roles are denied by default.
 }
 
 // primaryDB returns the default database context.
@@ -245,14 +237,7 @@ func (g *GraphJin) getEngine() (*graphjinEngine, error) {
 // InvalidateCacheRefs invalidates response-cache entries associated with the
 // supplied dependency refs. It is a no-op when response caching is disabled.
 func (g *GraphJin) InvalidateCacheRefs(ctx context.Context, refs []RowRef) error {
-	gj, err := g.getEngine()
-	if err != nil {
-		return err
-	}
-	if gj.responseCache == nil || len(refs) == 0 {
-		return nil
-	}
-	return gj.responseCache.InvalidateRows(ctx, refs)
+	return nil
 }
 
 // Close stops GraphJin background tasks. It is safe to call multiple times.
@@ -460,16 +445,6 @@ func OptionSetTrace(trace Tracer) Option {
 // OptionSetResolver sets the resolver function to be used by GraphJin
 func OptionSetResolver(name string, fn ResolverFn) Option {
 	return func(s *graphjinEngine) error { return errResolversDisabled }
-}
-
-// OptionSetResponseCache sets the response cache provider for caching query results.
-// The cache provider is typically the Redis cache from the serv package.
-func OptionSetResponseCache(cache ResponseCacheProvider) Option {
-	return func(s *graphjinEngine) error {
-		s.responseCache = cache
-		s.cacheKeyBuilder = NewCacheKeyBuilder()
-		return nil
-	}
 }
 
 type Error struct {
@@ -811,7 +786,7 @@ func (gj *graphjinEngine) query(c context.Context, r GraphqlReq) (
 	resp.res.Vars = r.vars
 	// Strip internal __gj_id fields unconditionally when cache tracking is enabled.
 	// This handles all code paths: cache hits, multi-DB queries, and regular queries.
-	if gj.conf.CacheTrackingEnabled {
+	if false {
 		s.data = stripGjIdFields(s.data)
 	}
 	resp.res.Data = json.RawMessage(s.data)

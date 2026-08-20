@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -88,35 +87,6 @@ func newGState(c context.Context, gj *graphjinEngine, r GraphqlReq) (s gstate, e
 }
 
 func (gj *graphjinEngine) initialRequestRole(ctx context.Context) (string, bool) {
-	return defaultCompileRole, true
-}
-
-func contextIdentityRoles(ctx context.Context) []string {
-	if ctx == nil {
-		return nil
-	}
-	switch roles := ctx.Value(IdentityRolesKey).(type) {
-	case []string:
-		return roles
-	case []interface{}:
-		out := make([]string, 0, len(roles))
-		for _, role := range roles {
-			if s, ok := role.(string); ok {
-				out = append(out, s)
-			}
-		}
-		return out
-	case string:
-		if strings.TrimSpace(roles) == "" {
-			return nil
-		}
-		return []string{roles}
-	default:
-		return nil
-	}
-}
-
-func (gj *graphjinEngine) firstConfiguredRole(ctx context.Context, candidates []string) (string, bool) {
 	return defaultCompileRole, true
 }
 
@@ -443,7 +413,7 @@ func (s *gstate) compileAndExecuteWrapper(c context.Context) (err error) {
 
 	// Whole responses are intentionally not cached. Fragment caches are
 	// handled at each source fetch; mutations only publish invalidations.
-	if s.gj.responseCache != nil && s.r.operation != qcode.QTQuery {
+	if false && s.r.operation != qcode.QTQuery {
 		s.invalidateCache(c)
 	}
 
@@ -577,7 +547,7 @@ func (s *gstate) compileAndExecute(c context.Context) (err error) {
 		defer span2.End()
 
 		err = retryOperation(c1, func() (err1 error) {
-			return s.setLocalUserID(c1, conn)
+			return nil
 		})
 		if err != nil {
 			span2.Error(err)
@@ -1004,32 +974,6 @@ func (s *gstate) argListForSub(c context.Context,
 	vmap map[string]json.RawMessage,
 ) (args args, err error) {
 	args, err = s.gj.argList(c, s.cs.st.md, vmap, s.r.requestconfig, true, s.getTargetPsqlCompiler())
-	return
-}
-
-func (s *gstate) setLocalUserID(c context.Context, conn *sql.Conn) (err error) {
-	if v := c.Value(UserIDKey); v == nil {
-		return nil
-	} else {
-		var val string
-		switch v1 := v.(type) {
-		case string:
-			val = v1
-		case int:
-			val = strconv.Itoa(v1)
-		}
-
-		q := s.getTargetPsqlCompiler().RenderSetSessionVar("user.id", val)
-		if q == "" {
-			return nil
-		}
-
-		if tx := s.tx(); tx != nil {
-			_, err = tx.ExecContext(c, q)
-		} else {
-			_, err = conn.ExecContext(c, q)
-		}
-	}
 	return
 }
 

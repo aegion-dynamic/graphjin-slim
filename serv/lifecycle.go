@@ -20,19 +20,7 @@ const (
 )
 
 // Initialize the watcher for the graphjin config file
-func initConfigWatcher(s1 *HttpService) {
-	s := s1.Load().(*graphjinService)
-	if s.conf.Serv.Production {
-		return
-	}
-
-	go func() {
-		err := startConfigWatcher(s1)
-		if err != nil {
-			s.log.Fatalf("error in config file watcher: %s", err)
-		}
-	}()
-}
+func initConfigWatcher(s1 *HttpService) {}
 
 // Initialize the hot deploy watcher
 // func initHotDeployWatcher(s1 *HttpService) {

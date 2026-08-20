@@ -121,12 +121,6 @@ func (s *graphjinService) isDatabaseConfigured() bool {
 // initDB initializes database connections for all entries in conf.Core.Databases.
 func (s *graphjinService) initDB() error {
 	runtimeCore := cloneCoreConfig(s.conf.Core)
-	if err := s.hydrateCoreConfigSecrets(&runtimeCore); err != nil {
-		return err
-	}
-	if err := s.hydrateLegacyDatabaseSecrets(&s.conf.DB); err != nil {
-		return err
-	}
 	s.runtimeCore = &runtimeCore
 
 	if len(s.dbs) > 0 && !s.hasDatabaseConfigs() {
@@ -264,16 +258,6 @@ func (s *graphjinService) basePath() (string, error) {
 	}
 	return s.conf.ConfigPath, nil
 }
-
-// initResponseCache initializes the response cache (Redis or in-memory)
-func (s *graphjinService) initResponseCache() error {
-	s.cache = noopCache{}
-	return nil
-}
-
-type noopCache struct{}
-
-func (noopCache) Close() error { return nil }
 
 // cloneCoreConfig creates a copy of a core.Config.
 func cloneCoreConfig(c core.Config) core.Config {

@@ -62,15 +62,11 @@ const (
 
 // Engine facade: core types now alias engine types.
 // The canonical definitions live in core/engine; this file remains a thin
-// facade for backwards compatibility. During the incremental cut-over the
-// original structs are retained behind the aliases so existing code continues
-// to compile while new code imports engine directly.
-//
-// Intended final state (uncomment when bulk field rename is complete):
-// type dbContext = engine.DBContext
-// type graphjinEngine = engine.Engine
-// type GraphJin = engine.GraphJin
-// type Option = engine.Option
+// facade for backwards compatibility.
+type DBContext = engine.DBContext
+type Engine = engine.Engine
+// Original structs retained for incremental cut-over; new code should use engine directly.
+// TODO: remove original dbContext/graphjinEngine/GraphJin/Option structs once all call sites migrated to engine.
 
 // dbContext holds per-database state for multi-database support.
 // Each database gets its own connection pool, schema discovery, and SQL compiler.

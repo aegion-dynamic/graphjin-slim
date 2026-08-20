@@ -35,24 +35,36 @@ package serv
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os"
-
-	// "path/filepath"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/etags"
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
+	"github.com/aegion-dynamic/graphjin-slim/serv/v3/lifecycle"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/logging"
+	"github.com/klauspost/compress/gzhttp"
+	"github.com/rs/cors"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -658,3 +670,785 @@ func spanError(span trace.Span, err error) {
 
 // applySourceCapabilityMCPDefaults is a no-op in slim build.
 func applySourceCapabilityMCPDefaults(c *Config) {}
+
+// initLogLevel initializes the log level
+func initLogLevel(s *graphjinService) {
+	switch s.conf.LogLevel {
+	case "debug":
+		s.logLevel = logLevelDebug
+	case "error":
+		s.logLevel = logLevelError
+	case "warn":
+		s.logLevel = logLevelWarn
+	case "info":
+		s.logLevel = logLevelInfo
+	default:
+		s.logLevel = logLevelNone
+	}
+}
+
+// validateConf validates the configuration
+func validateConf(s *graphjinService) error {
+
+	return nil
+}
+
+// initFS initializes the file system
+func (s *graphjinService) initFS() error {
+	basePath, err := s.basePath()
+	if err != nil {
+		return err
+	}
+
+	err = OptionSetFS(core.NewOsFS(basePath))(s)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// initConfig initializes the configuration
+func (s *graphjinService) initConfig() error {
+	c := s.conf
+	c.dirty = true
+	if err := normalizeConfigMode(c); err != nil {
+		return err
+	}
+
+	// copy over db_type from database.type
+	if c.DBType == "" {
+		c.DBType = c.DB.Type
+	}
+
+	hp := strings.SplitN(s.conf.HostPort, ":", 2)
+
+	if len(hp) == 2 {
+		if s.conf.Host != "" {
+			hp[0] = s.conf.Host
+		}
+
+		if s.conf.Port != "" {
+			hp[1] = s.conf.Port
+		}
+
+		s.conf.hostPort = fmt.Sprintf("%s:%s", hp[0], hp[1])
+	}
+
+	if s.conf.hostPort == "" {
+		s.conf.hostPort = defaultHP
+	}
+
+	return nil
+}
+
+// ErrGraphJinNotInitialized is returned when GraphJin core is not initialized
+var ErrGraphJinNotInitialized = errors.New("GraphJin not initialized - no database configured")
+
+// checkGraphJinInitialized returns an error if GraphJin core is not initialized
+func (s *graphjinService) checkGraphJinInitialized() error {
+	if s.gj == nil {
+		return ErrGraphJinNotInitialized
+	}
+	return nil
+}
+
+// isDatabaseConfigured checks if a database connection is configured
+func (s *graphjinService) isDatabaseConfigured() bool {
+	// Check if connection string is provided
+	if s.conf.DB.ConnString != "" {
+		return true
+	}
+	if s.conf.DB.Path != "" {
+		return true
+	}
+	// Check if host and dbname are provided (minimal required fields for auto-connect)
+	if s.conf.DB.Host != "" && s.conf.DB.DBName != "" {
+		return true
+	}
+	// Check if multi-database configs exist with actual connection info
+	for _, dbConf := range s.conf.Core.Databases {
+		if dbConf.ConnString != "" || dbConf.Host != "" || dbConf.Path != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// initDB initializes database connections for all entries in conf.Core.Databases.
+func (s *graphjinService) initDB() error {
+	runtimeCore := cloneCoreConfig(s.conf.Core)
+	s.runtimeCore = &runtimeCore
+
+	if len(s.dbs) > 0 && !s.hasDatabaseConfigs() {
+		return nil
+	}
+
+	// In dev mode, allow starting without a database configured
+	if !s.conf.Serv.Production && !s.isDatabaseConfigured() {
+		s.log.Warn("No databases configured. Use MCP to add a database configuration.")
+		return nil
+	}
+
+	// In sources used, absence of SQL/CodeSQL connection details means there is
+	// no legacy database to fall back to. Virtual/system sources get a small
+	// host database in normalStart when needed.
+	if s.conf.Core.IsSourcesUsed() && !s.hasDatabaseConfigs() {
+		return nil
+	}
+
+	// If there are entries in conf.Core.Databases with connection info, use them.
+	// Otherwise fall back to the legacy single-DB path via conf.DB.
+	if s.hasDatabaseConfigs() {
+		return s.initAllDBs()
+	}
+
+	// Legacy single-DB path: create one connection from conf.DB
+	return s.initLegacyDB()
+}
+
+// hasDatabaseConfigs returns true if any entry in conf.Core.Databases
+// has enough info to create a connection.
+func (s *graphjinService) hasDatabaseConfigs() bool {
+	for _, dbConf := range s.conf.Core.Databases {
+		if dbConf.ConnString != "" || dbConf.Host != "" || dbConf.Path != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// initAllDBs creates connections for every entry in conf.Core.Databases.
+func (s *graphjinService) initAllDBs() error {
+	dbNames := make([]string, 0, len(s.conf.Core.Databases))
+	for name := range s.conf.Core.Databases {
+		dbNames = append(dbNames, name)
+	}
+	sort.Strings(dbNames)
+	for _, name := range dbNames {
+		dbConf := s.conf.Core.Databases[name]
+		runtimeDBConf := dbConf
+		if s.runtimeCore != nil && s.runtimeCore.Databases != nil {
+			if hydrated, ok := s.runtimeCore.Databases[name]; ok {
+				runtimeDBConf = hydrated
+			}
+		}
+		if _, ok := s.dbs[name]; ok {
+			// runtime event removed
+			continue
+		}
+		db, err := s.newDBFromDatabaseConfigInto(name, runtimeDBConf, s.runtimeCore)
+		if err != nil {
+			// runtime event removed
+			if s.conf.Serv.Production {
+				return fmt.Errorf("database %s: %s", name, redactRuntimeStringValue(err.Error()))
+			}
+			s.log.Warnf("Database '%s' connection failed: %s. Skipping.", name, redactRuntimeStringValue(err.Error()))
+			continue
+		}
+		s.dbs[name] = db
+		// runtime event removed
+	}
+	// Sync legacy conf.DB from first database for code that still reads it
+	if len(s.dbs) > 0 {
+		syncRuntimeDBFromDatabases(s.conf, s.runtimeCore)
+	}
+	return nil
+}
+
+// initLegacyDB creates a single connection from the legacy conf.DB fields.
+func (s *graphjinService) initLegacyDB() error {
+	if isCodeSQLType(s.conf.DB.Type) || isCodeSQLType(s.conf.DBType) {
+		return fmt.Errorf("codesql databases are not supported in slim build")
+	}
+
+	var db *sql.DB
+	var err error
+
+	if s.conf.Serv.Production {
+		db, err = newDB(s.conf, true, true, s.log, s.fs)
+		if err != nil {
+			// runtime event removed
+			return fmt.Errorf("%s", redactRuntimeStringValue(err.Error()))
+		}
+	} else {
+		db, err = newDBOnce(s.conf, true, true, s.log, s.fs)
+		if err != nil {
+			// runtime event removed
+			s.log.Warnf("Database connection failed: %s. Server starting without database — use MCP to configure.", redactRuntimeStringValue(err.Error()))
+			return nil
+		}
+	}
+
+	// Store under the first Databases key (sorted for determinism)
+	name := core.DefaultDBName
+	if len(s.conf.Core.Databases) > 0 {
+		names := make([]string, 0, len(s.conf.Core.Databases))
+		for n := range s.conf.Core.Databases {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		name = names[0]
+	}
+	s.dbs[name] = db
+	// runtime event removed
+	return nil
+}
+
+// newDBFromDatabaseConfig creates a *sql.DB from a core.DatabaseConfig.
+func (s *graphjinService) newDBFromDatabaseConfig(name string, dbConf core.DatabaseConfig) (*sql.DB, error) {
+	return s.newDBFromDatabaseConfigInto(name, dbConf, &s.conf.Core)
+}
+
+func (s *graphjinService) newDBFromDatabaseConfigInto(name string, dbConf core.DatabaseConfig, runtimeCore *core.Config) (*sql.DB, error) {
+	return database.OpenCore(context.Background(), name, dbConf)
+}
+
+// basePath returns the base path
+func (s *graphjinService) basePath() (string, error) {
+	if s.conf.ConfigPath == "" {
+		if cp, err := os.Getwd(); err == nil {
+			return filepath.Join(cp, "config"), nil
+		} else {
+			return "", err
+		}
+	}
+	return s.conf.ConfigPath, nil
+}
+
+// cloneCoreConfig creates a copy of a core.Config.
+func cloneCoreConfig(c core.Config) core.Config {
+	return c
+}
+
+// syncRuntimeDBFromDatabases syncs the legacy conf.DB from the first database.
+func syncRuntimeDBFromDatabases(conf *Config, runtimeCore *core.Config) {}
+
+// isCodeSQLType checks if the database type is codesql.
+func isCodeSQLType(t string) bool {
+	return false
+}
+
+const dbTypeCodeSQL = "codesql"
+
+// normalizeServiceSources is a no-op in slim build.
+func normalizeServiceSources(c *Config) error { return nil }
+
+var version string
+
+const (
+	defaultHP = httpapi.DefaultHostPort
+)
+
+// Initialize the watcher for the graphjin config file
+func initConfigWatcher(s1 *HttpService) {}
+
+// Initialize the hot deploy watcher
+// func initHotDeployWatcher(s1 *HttpService) {
+// 	s := s1.Load().(*graphjinService)
+// 	go func() {
+// 		err := startHotDeployWatcher(s1)
+// 		if err != nil {
+// 			s.log.Fatalf("error in hot deploy watcher: %s", err)
+// 		}
+// 	}()
+// }
+
+// Start the HTTP server
+func startHTTP(s1 *HttpService) {
+	s := s1.Load().(*graphjinService)
+
+	r := http.NewServeMux()
+	routes, err := routesHandler(s1, r, s.namespace)
+	if err != nil {
+		s.log.Fatalf("error setting up routes: %s", err)
+	}
+
+	srv := lifecycle.NewServer(s.conf.hostPort, routes)
+	// Publish srv under srvMu so a concurrent Shutdown (signal handler or an
+	// external caller, e.g. demo mode) observes it safely.
+	s.srvMu.Lock()
+	s.srv = srv
+	s.srvMu.Unlock()
+
+	// Standalone graceful shutdown: catch SIGINT/SIGTERM and stop the server
+	// so Serve (below) returns. Callers that manage their own lifecycle
+	// (e.g. demo mode) drive this via HttpService.Shutdown instead; running
+	// both paths together is safe since Shutdown is idempotent.
+	lifecycle.WatchSignals(s.log, s1.Shutdown)
+
+	ver := version
+	// dep := s.conf.name
+
+	if ver == "" {
+		ver = "not-set"
+	}
+
+	fields := []zapcore.Field{
+		zap.String("version", ver),
+		zap.String("host-port", s.conf.hostPort),
+		zap.String("app-name", s.conf.AppName),
+		zap.String("env", os.Getenv("GO_ENV")),
+		// zap.Bool("hot-deploy", s.conf.HotDeploy),
+		zap.Bool("production", s.conf.Core.Production),
+		zap.String("server", "graphjin-slim"),
+	}
+
+	if s.namespace != nil {
+		fields = append(fields, zap.String("namespace", *s.namespace))
+	}
+
+	// if s.conf.HotDeploy {
+	// 	fields = append(fields, zap.String("deployment-name", dep))
+	// }
+
+	s.zlog.Info("GraphJin started", fields...)
+	printDevModeInfo(s)
+
+	l, err := net.Listen("tcp", s.conf.hostPort)
+	if err != nil {
+		s.log.Fatalf("failed to init port: %s", err)
+	}
+
+	// signal we are open for business.
+	s.state = servListening
+
+	if err := srv.Serve(l); err != http.ErrServerClosed {
+		s.log.Fatalf("failed to start: %s", err)
+	}
+
+	// Serve returned because Shutdown (signal handler above or an external
+	// HttpService.Shutdown) was requested. Release the service resources.
+	s.closeServResources()
+	s.log.Info("shutdown complete")
+}
+
+// printDevModeInfo prints useful development information on startup
+func printDevModeInfo(s *graphjinService) {
+	if s.conf.Serv.Production {
+		return
+	}
+
+	hostPort := s.conf.hostPort
+	displayHost := hostPort
+	if strings.HasPrefix(hostPort, "0.0.0.0:") {
+		displayHost = "localhost" + hostPort[7:]
+	}
+
+	fmt.Println()
+	fmt.Println("Development Server URLs")
+	fmt.Println("───────────────────────")
+
+	if s.conf.WebUI {
+		fmt.Printf("  Web UI:      http://%s/\n", displayHost)
+	}
+	fmt.Printf("  GraphQL:     http://%s/api/v1/graphql\n", displayHost)
+	fmt.Printf("  REST API:    http://%s/api/v1/rest/<name>\n", displayHost)
+	fmt.Println()
+}
+
+const (
+	maxReadBytes = 100000 // 100Kb
+)
+
+var errUnauthorized = errors.New("not authorized")
+
+type extensions struct {
+	Persisted apqExt `json:"persistedQuery"`
+}
+
+type apqExt struct {
+	Version    int    `json:"version"`
+	Sha256Hash string `json:"sha256Hash"`
+}
+
+type gqlReq struct {
+	OpName string          `json:"operationName"`
+	Query  string          `json:"query"`
+	Vars   json.RawMessage `json:"variables"`
+	Ext    extensions      `json:"extensions"`
+}
+
+type errorResp struct {
+	Errors []string `json:"errors"`
+}
+
+// apiV1Handler is the main handler for all API requests
+func apiV1Handler(s1 *HttpService, ns *string, h http.Handler, ah HandlerFunc) http.Handler {
+	s := s1.Load().(*graphjinService)
+
+	if len(s.conf.AllowedOrigins) != 0 {
+		allowedHeaders := []string{
+			"Origin", "Accept", "Content-Type", "X-Requested-With", "Authorization",
+		}
+
+		if len(s.conf.AllowedHeaders) != 0 {
+			allowedHeaders = s.conf.AllowedHeaders
+		}
+
+		c := cors.New(cors.Options{
+			AllowedOrigins:   s.conf.AllowedOrigins,
+			AllowedHeaders:   allowedHeaders,
+			AllowCredentials: true,
+			Debug:            s.conf.DebugCORS,
+		})
+		h = c.Handler(h)
+	}
+
+	h = etags.Handler(h, false)
+
+	if s.conf.HTTPGZip {
+		gz, err := gzhttp.NewWrapper(
+			gzhttp.CompressionLevel(6),
+			gzhttp.ExceptContentTypes([]string{"text/event-stream"}),
+		)
+		if err != nil {
+			s.log.Fatalf("api: error with compression: %s", err)
+		}
+		h = gz(h)
+	}
+
+	return h
+}
+
+// apiV1GraphQLHandler handles the GraphQL API requests
+func (s1 *HttpService) apiV1GraphQL(ns *string, ah HandlerFunc) http.Handler {
+	dtrace := otel.GetTextMapPropagator()
+
+	h := func(w http.ResponseWriter, r *http.Request) {
+		var err error
+
+		start := time.Now()
+		s := s1.Load().(*graphjinService)
+
+		w.Header().Set("Content-Type", "application/json")
+
+		var req gqlReq
+
+		ctx, opts := newDTrace(dtrace, r)
+		ctx, span := s.spanStart(ctx, "GraphQL Request", opts...)
+		defer span.End()
+
+		switch r.Method {
+		case "POST":
+			var b []byte
+			b, err = io.ReadAll(io.LimitReader(r.Body, maxReadBytes))
+			if err == nil {
+				defer r.Body.Close() //nolint:errcheck
+				err = json.Unmarshal(b, &req)
+			}
+
+		case "GET":
+			q := r.URL.Query()
+			req.Query = q.Get("query")
+			req.OpName = q.Get("operationName")
+			req.Vars = json.RawMessage(q.Get("variables"))
+
+			if ext := q.Get("extensions"); ext != "" {
+				err = json.Unmarshal([]byte(ext), &req.Ext)
+			}
+		}
+
+		if err != nil {
+			spanError(span, err)
+			renderErr(w, err)
+			return
+		}
+
+		var rc core.RequestConfig
+
+		if req.apqEnabled() {
+			rc.APQKey = (req.OpName + req.Ext.Persisted.Sha256Hash)
+		}
+
+		if rc.Vars == nil && len(s.conf.HeaderVars) != 0 {
+			rc.Vars = s.setHeaderVars(r)
+		}
+
+		if ns != nil {
+			rc.SetNamespace(*ns)
+		}
+		if req.OpName == "subscription" {
+			err := errors.New("subscriptions not supported in slim build")
+			spanError(span, err)
+			return
+		}
+
+		if err := s.checkGraphJinInitialized(); err != nil {
+			renderErr(w, err)
+			return
+		}
+
+		res, err := s.gj.GraphQL(ctx, req.Query, req.Vars, &rc)
+		if res == nil && err != nil {
+			renderErr(w, err)
+			return
+		}
+
+		s.responseHandler(
+			ctx,
+			w,
+			r,
+			start,
+			rc,
+			res,
+			err)
+
+		if span.IsRecording() {
+			span.SetAttributes(
+				attribute.String("http.path", r.RequestURI),
+				attribute.String("http.method", r.Method),
+				attribute.Bool("query.apq", req.apqEnabled()))
+		}
+
+		if err != nil {
+			spanError(span, err)
+		}
+	}
+	return http.HandlerFunc(h)
+}
+
+// apiV1Rest returns a handler that handles the REST API requests
+func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
+	rLen := len(httpapi.RESTPath)
+	dtrace := otel.GetTextMapPropagator()
+
+	h := func(w http.ResponseWriter, r *http.Request) {
+		var err error
+
+		start := time.Now()
+		s := s1.Load().(*graphjinService)
+
+		w.Header().Set("Content-Type", "application/json")
+
+		var vars json.RawMessage
+		var span trace.Span
+
+		ctx, opts := newDTrace(dtrace, r)
+		ctx, span = s.spanStart(ctx, "REST Request", opts...)
+		defer span.End()
+
+		if len(r.RequestURI) <= rLen {
+			err := errors.New("no query name defined")
+			spanError(span, err)
+			renderErr(w, err)
+			return
+		}
+
+		queryName := r.RequestURI[rLen:]
+		if n := strings.IndexRune(queryName, '?'); n != -1 {
+			queryName = queryName[:n]
+		}
+
+		switch r.Method {
+		case "POST":
+			vars, err = parseBody(r)
+
+		case "GET":
+			vars = json.RawMessage(r.URL.Query().Get("variables"))
+		}
+
+		if err != nil {
+			spanError(span, err)
+			renderErr(w, err)
+			return
+		}
+
+		var rc core.RequestConfig
+
+		if rc.Vars == nil && len(s.conf.HeaderVars) != 0 {
+			rc.Vars = s.setHeaderVars(r)
+		}
+
+		if ns != nil {
+			rc.SetNamespace(*ns)
+		}
+
+		if err := s.checkGraphJinInitialized(); err != nil {
+			renderErr(w, err)
+			return
+		}
+
+		res, err := s.gj.GraphQLByName(ctx, queryName, vars, &rc)
+		s.responseHandler(
+			ctx,
+			w,
+			r,
+			start,
+			rc,
+			res,
+			err)
+
+		if span.IsRecording() {
+			span.SetAttributes(
+				attribute.String("http.path", r.RequestURI),
+				attribute.String("http.method", r.Method))
+		}
+
+		if err != nil {
+			spanError(span, err)
+		}
+	}
+	return http.HandlerFunc(h)
+}
+
+// responseHandler handles the response from the GraphQL API
+func (s *graphjinService) responseHandler(ct context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+	start time.Time,
+	rc core.RequestConfig,
+	res *core.Result,
+	err error,
+) {
+	if s.hook != nil {
+		s.hook(res)
+	}
+
+	if err == nil && r.Method == "GET" && res.Operation() == core.OpQuery {
+		switch {
+		case res.CacheControl() != "":
+			w.Header().Set("Cache-Control", res.CacheControl())
+
+		case s.conf.CacheControl != "":
+			w.Header().Set("Cache-Control", s.conf.CacheControl)
+		}
+
+		w.Header().Set("ETag", hex.EncodeToString(res.Hash[:]))
+	}
+
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		renderErr(w, err)
+		return
+	}
+
+	rt := time.Since(start).Milliseconds()
+
+	if s.logLevel >= logLevelInfo {
+		s.reqLog(res, rc, rt, err)
+	}
+
+	if s.conf.ServerTiming {
+		b := []byte("DB;dur=")
+		b = strconv.AppendInt(b, rt, 10)
+		w.Header().Set("Server-Timing", string(b))
+	}
+}
+
+// reqLog logs the request details
+func (s *graphjinService) reqLog(res *core.Result, rc core.RequestConfig, resTimeMs int64, err error) {
+	var fields []zapcore.Field
+	var sql string
+
+	if res != nil {
+		sql = res.SQL()
+		fields = []zapcore.Field{
+			zap.String("op", res.OperationName()),
+			zap.String("name", res.QueryName()),
+			zap.Int64("responseTimeMs", resTimeMs),
+			zap.Bool("cacheHit", res.CacheHit()),
+		}
+	}
+
+	if ns, ok := rc.GetNamespace(); ok {
+		fields = append(fields, zap.String("namespace", ns))
+	}
+
+	if res != nil && res.Vars != nil && s.conf.LogVars {
+		var vars map[string]interface{}
+		err := json.Unmarshal(res.Vars, &vars)
+		if err != nil {
+			s.log.Error("failed to unmarshal sql vars", zap.Error(err))
+		}
+		fields = append(fields, zap.Any("vars", vars))
+	}
+
+	if sql != "" && s.logLevel >= logLevelDebug {
+		fields = append(fields, zap.String("sql", sql))
+	}
+
+	if err != nil {
+		fields = append(fields, zap.Error(err))
+		s.zlog.Error("query failed", fields...)
+	} else {
+		s.zlog.Info("query", fields...)
+	}
+}
+
+// setHeaderVars sets the header variables
+func (s *graphjinService) setHeaderVars(r *http.Request) map[string]interface{} {
+	vars := make(map[string]interface{})
+	for k, v := range s.conf.HeaderVars {
+		vars[k] = func() string {
+			if v1, ok := r.Header[v]; ok {
+				return v1[0]
+			}
+			return ""
+		}
+	}
+	return vars
+}
+
+// apqEnabled checks if the APQ is enabled
+func (r gqlReq) apqEnabled() bool {
+	return r.Ext.Persisted.Sha256Hash != ""
+}
+
+// renderErr renders the error response
+func renderErr(w http.ResponseWriter, err error) {
+	if err == errUnauthorized {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+
+	err1 := json.NewEncoder(w).Encode(errorResp{[]string{err.Error()}})
+	if err1 != nil {
+		panic(fmt.Errorf("%s: %w", err, err1))
+	}
+}
+
+// parseBody parses the request body
+func parseBody(r *http.Request) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r.Body, maxReadBytes))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close() //nolint:errcheck
+	return b, nil
+}
+
+// newDTrace creates a new DTrace
+func newDTrace(dtrace propagation.TextMapPropagator, r *http.Request) (context.Context, []trace.SpanStartOption) {
+	ctx := dtrace.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+	atrr := []attribute.KeyValue{
+		semconv.ServiceName("Graphjin"),
+	}
+
+	if v := r.Header.Get("User-Agent"); v != "" {
+		atrr = append(atrr, semconv.HTTPUserAgent(v))
+	}
+	if v := r.Method; v != "" {
+		atrr = append(atrr, semconv.HTTPMethod(v))
+	}
+	if v := r.URL.Path; v != "" {
+		atrr = append(atrr, semconv.HTTPURL(v))
+	}
+	if v := r.URL.Scheme; v != "" {
+		atrr = append(atrr, semconv.HTTPScheme(v))
+	}
+
+	opts := []trace.SpanStartOption{
+		trace.WithAttributes(atrr...),
+		trace.WithSpanKind(trace.SpanKindServer),
+	}
+
+	return ctx, opts
+}
+
+// openAPIHandler is removed in slim (no OpenAPI export).
+func (s1 *HttpService) openAPIHandler(ns *string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = s1
+		_ = ns
+		http.Error(w, "openapi export not available in slim build", http.StatusNotFound)
+	})
+}

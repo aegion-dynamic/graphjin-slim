@@ -41,9 +41,14 @@ generation. Callers embedding the library should normally interact with
 
 ### `core`
 
-The public compiler and runtime package. It owns configuration, schema
-discovery, query execution, caching hooks, filesystem tables, and the stable
-`GraphJin` interface.
+The public compiler and runtime facade. It exposes the stable `GraphJin` interface,
+public configuration, and execution results.
+
+### `core/engine`
+
+The internal engine implementation. It owns request state lifecycle (`gstate`),
+multi-database execution coordination, runtime encryption, retry logic, and schema
+change callbacks.
 
 ### `core/graph`
 

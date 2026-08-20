@@ -71,6 +71,7 @@ The compiler sub-packages provide modular stages in the compilation pipeline:
 
 | Package | Responsibility |
 | --- | --- |
+| `core/engine` | Engine execution, request state lifecycle, multi-DB coordination, and watchers |
 | `core/graph` | GraphQL lexer, parser, and syntax schema |
 | `core/qcode` | Normalized GraphQL query compiler and intermediate representation (IR) |
 | `core/psql` | SQL query and mutation compilation |

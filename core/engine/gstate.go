@@ -1,0 +1,948 @@
+package engine
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+)
+
+type gstate struct {
+	gj    *graphjinEngine
+	r     GraphqlReq
+	cs    *cstate
+	vmap  map[string]json.RawMessage
+	data  []byte
+	dhash [sha256.Size]byte
+	verrs []qcode.ValidErr
+	// database is the target database name for multi-database support.
+	// Empty string means default database (backward compatible single-DB mode).
+	database string
+	// multiDB is true when the query spans multiple databases and requires
+	// parallel execution with result merging.
+	multiDB bool
+	// dbGroups maps database names to their root field names for multi-DB queries.
+	// Only populated when multiDB is true.
+	dbGroups map[string][]string
+
+	// Cache-related fields
+	cacheKey       string    // Cache key for this query
+	queryStarted   time.Time // When query started (for race condition detection)
+	cacheHit       bool      // True if response was served from cache
+	skipCache      bool      // True if caching should be skipped for this query
+	fragmentHits   atomic.Int64
+	fragmentMisses atomic.Int64
+}
+
+type cstate struct {
+	sync.Once
+	st  stmt
+	err error
+}
+
+type stmt struct {
+	qc  *qcode.QCode
+	md  psql.Metadata
+	sql string
+}
+
+func newGState(c context.Context, gj *graphjinEngine, r GraphqlReq) (s gstate, err error) {
+	s.gj = gj
+	s.r = r
+
+	// convert variable json to a go map also decrypted encrypted values
+	if len(r.vars) != 0 {
+		var vars json.RawMessage
+		vars, err = decryptValues(r.vars, decPrefix, s.gj.encryptionKey)
+		if err != nil {
+			return
+		}
+
+		s.vmap = make(map[string]json.RawMessage, 5)
+		if err = json.Unmarshal(vars, &s.vmap); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (s *gstate) cloneForDatabaseRoot(dbName string) gstate {
+	return gstate{
+		gj:        s.gj,
+		r:         cloneGraphqlReq(s.r),
+		vmap:      cloneRawMessageMap(s.vmap),
+		database:  dbName,
+		skipCache: s.skipCache,
+	}
+}
+
+func (s *gstate) pollGState(vmap map[string]json.RawMessage) gstate {
+	return gstate{
+		gj:        s.gj,
+		r:         cloneGraphqlReq(s.r),
+		cs:        s.cs,
+		vmap:      cloneRawMessageMap(vmap),
+		database:  s.database,
+		skipCache: true,
+	}
+}
+
+func cloneGraphqlReq(r GraphqlReq) GraphqlReq {
+	out := r
+	out.query = cloneBytes(r.query)
+	out.vars = json.RawMessage(cloneBytes(r.vars))
+	out.aschema = cloneRawMessageMap(r.aschema)
+	out.requestconfig = cloneRequestConfig(r.requestconfig)
+	return out
+}
+
+func cloneRequestConfig(rc *RequestConfig) *RequestConfig {
+	if rc == nil {
+		return nil
+	}
+	out := *rc
+	if rc.ns != nil {
+		ns := *rc.ns
+		out.ns = &ns
+	}
+	if rc.Vars != nil {
+		out.Vars = make(map[string]interface{}, len(rc.Vars))
+		for k, v := range rc.Vars {
+			out.Vars[k] = v
+		}
+	}
+	return &out
+}
+
+func cloneRawMessageMap(in map[string]json.RawMessage) map[string]json.RawMessage {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]json.RawMessage, len(in))
+	for k, v := range in {
+		out[k] = json.RawMessage(cloneBytes(v))
+	}
+	return out
+}
+
+func cloneBytes(in []byte) []byte {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]byte, len(in))
+	copy(out, in)
+	return out
+}
+
+func (s *gstate) compile() (err error) {
+	if !s.gj.prodSec {
+		err = s.compileQuery()
+		return
+	}
+
+	// In production mode compile and cache the result
+	// In production mode the query is derived from the allow list
+	err = s.compileQueryOnce()
+	return
+}
+
+func (s *gstate) compileQueryOnce() (err error) {
+	val, loaded := s.gj.queries.LoadOrStore(s.key(), &cstate{})
+	s.cs = val.(*cstate)
+
+	if !loaded {
+		s.cs.Do(func() {
+			s.cs.err = s.compileQuery()
+		})
+	}
+
+	err = s.cs.err
+	return
+}
+
+func (s *gstate) compileQuery() (err error) {
+	st := stmt{}
+
+	var vars map[string]json.RawMessage
+	if len(s.r.aschema) != 0 { // compile in prod (once)
+		vars = s.r.aschema
+	} else { // compiling in dev
+		vars = s.vmap
+	}
+
+	// Multi-DB mode: check if query spans multiple databases
+	if s.gj.isMultiDB() {
+		roots := s.extractAllRootFields()
+		if len(roots) > 0 {
+			byDB := s.groupRootsByDatabase(roots)
+
+			// Multiple databases - mark for parallel execution
+			if len(byDB) > 1 {
+				s.multiDB = true
+				s.dbGroups = byDB
+				if s.cs == nil {
+					s.cs = &cstate{st: st}
+				} else {
+					s.cs.st = st
+				}
+				// Compilation will be done per-database in executeParallelRoots
+				return nil
+			}
+
+			// Single database - use that database's compilers
+			for db := range byDB {
+				if db != s.gj.defaultDB {
+					dbCtx, found := s.gj.GetDatabase(db)
+					if !found {
+						err = fmt.Errorf("database not found: %s", db)
+						return
+					}
+					return s.compileForDatabase(st, vars, dbCtx)
+				}
+			}
+		}
+	}
+
+	// Default path: compile with default (primary) database's compilers
+	pdb := s.gj.primaryDB()
+	return s.compileWithCompilers(st, vars, pdb.qcodeCompiler, pdb.psqlCompiler, "")
+}
+
+// compileForDatabase compiles the query using a specific database's compilers.
+func (s *gstate) compileForDatabase(st stmt, vars map[string]json.RawMessage, dbCtx *dbContext) (err error) {
+	s.database = dbCtx.name
+	return s.compileWithCompilers(st, vars, dbCtx.qcodeCompiler, dbCtx.psqlCompiler, dbCtx.name)
+}
+
+// compileWithCompilers performs the actual compilation with the given compilers.
+func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, qcc *qcode.Compiler, pc *psql.Compiler, dbName string) (err error) {
+	if st.qc, err = qcc.Compile(
+		s.r.query,
+		vars,
+		s.r.namespace); err != nil {
+		return
+	}
+
+	var w bytes.Buffer
+	if st.md, err = pc.Compile(&w, st.qc); err != nil {
+		return
+	}
+
+	st.sql = w.String()
+	s.database = dbName
+
+	if s.cs == nil {
+		s.cs = &cstate{st: st}
+	} else {
+		s.cs.st = st
+	}
+
+	return
+}
+
+// extractAllRootFields parses the GraphQL query to extract all root field names
+// without performing schema validation. Uses the graph parser for robust parsing.
+func (s *gstate) extractAllRootFields() []string {
+	op, err := graph.Parse(s.r.query)
+	if err != nil {
+		return nil
+	}
+
+	var roots []string
+	for _, f := range op.Fields {
+		// Root fields have ParentID == -1
+		if f.ParentID == -1 && f.Type != graph.FieldKeyword {
+			roots = append(roots, f.Name)
+		}
+	}
+	return roots
+}
+
+// groupRootsByDatabase maps root field names to their target databases.
+// Returns a map of database name to list of root field names.
+// After normalization, gj.defaultDB is always set and all tables have Database set.
+func (s *gstate) groupRootsByDatabase(roots []string) map[string][]string {
+	byDB := make(map[string][]string)
+
+	for _, root := range roots {
+		db := s.gj.defaultDB
+
+		// Look up the table's database from config
+		for _, t := range s.gj.conf.Tables {
+			if t.Name == root && t.Database != "" {
+				db = t.Database
+				break
+			}
+		}
+		byDB[db] = append(byDB[db], root)
+	}
+	return byDB
+}
+
+// getTargetDBCtx returns the dbContext for the target database.
+// If s.database is set, returns that database's context.
+// Otherwise returns the default database context.
+func (s *gstate) getTargetDBCtx() *dbContext {
+	name := s.database
+	if name == "" {
+		name = s.gj.defaultDB
+	}
+	ctx, _ := s.gj.GetDatabase(name)
+	return ctx
+}
+
+// getTargetPsqlCompiler returns the psql compiler for the target database.
+func (s *gstate) getTargetPsqlCompiler() *psql.Compiler {
+	return s.getTargetDBCtx().psqlCompiler
+}
+
+// getTargetDB returns the *sql.DB for the target database.
+// If s.database is set (non-default database), returns that database's connection.
+// Otherwise returns the default database connection.
+func (s *gstate) getTargetDB() *sql.DB {
+	return s.getTargetDBCtx().db
+}
+
+func (s *gstate) compileAndExecuteWrapper(c context.Context) (err error) {
+	// Record query start time for cache race condition detection
+	s.queryStarted = time.Now()
+
+	// Check for multi-database queries BEFORE compilation
+	// This is done by parsing root fields without schema validation
+	if s.gj.isMultiDB() {
+		roots := s.extractAllRootFields()
+		if len(roots) > 0 {
+			byDB := s.groupRootsByDatabase(roots)
+			if len(byDB) > 1 {
+				// Multi-database parallel execution path
+				s.multiDB = true
+				s.dbGroups = byDB
+				if err = s.executeParallelRoots(c); err != nil {
+					return
+				}
+				return
+			}
+		}
+	}
+
+	// Single database execution path (handles compilation internally)
+	if err = s.compileAndExecute(c); err != nil {
+		return
+	}
+
+	if s.gj.conf.Debug {
+		s.debugLogStmt()
+	}
+
+	if len(s.data) == 0 {
+		return
+	}
+
+	cs := s.cs
+
+	// Handle remote joins (HTTP calls to external APIs)
+	if cs.st.qc.Remotes != 0 {
+		if err = s.execRemoteJoin(c); err != nil {
+			return
+		}
+	}
+
+	// Handle cross-database joins (in-process calls to other databases)
+	if s.gj.isMultiDB() && countDatabaseJoins(cs.st.qc) > 0 {
+		if err = s.execDatabaseJoins(c); err != nil {
+			return
+		}
+	}
+
+	// Whole responses are intentionally not cached. Fragment caches are
+	// handled at each source fetch; mutations only publish invalidations.
+	if false && s.r.operation != qcode.QTQuery {
+		s.invalidateCache(c)
+	}
+
+	return
+}
+
+// readOnlyDatabaseMutationError returns the blocking error when a mutation
+// targets a database configured read-only. routed reports whether the target
+// database is settled: compile resolves multi-database routing, so before it
+// runs the target is only known when the request names one or a single
+// database is configured — otherwise this defers to the post-compile call.
+func (s *gstate) readOnlyDatabaseMutationError(routed bool) error {
+	if s.r.operation != qcode.QTMutation {
+		return nil
+	}
+	dbName := s.database
+	if dbName == "" {
+		if !routed && len(s.gj.databases) > 1 {
+			return nil
+		}
+		dbName = s.gj.defaultDB
+	}
+	// A database with a managed-mutation handler is read-only only to SQL;
+	// its gj_* mutations have their own authority and their own errors. On
+	// the compile-failure path especially, "read-only" must not mask a more
+	// specific managed rejection (a workflow-shape error, a locked kind).
+	if dbConf, ok := s.gj.conf.Databases[dbName]; ok && dbConf.ReadOnly {
+		return fmt.Errorf("mutations blocked: database %s is read-only", dbName)
+	}
+	return nil
+}
+
+func (s *gstate) compileAndExecute(c context.Context) (err error) {
+	// Compile query (this also determines target database for multi-DB)
+	if err = s.compile(); err != nil {
+		// A mutation that cannot compile against a read-only database is
+		// refused for being read-only, not for whatever the compiler happened
+		// to notice first — an unknown column says more about the schema than
+		// a refused caller needs and less about why the write was impossible.
+		// Only failed compiles are reconsidered here: managed-root mutations
+		// compile cleanly and are dispatched further down, which is why the
+		// authoritative check stays after them rather than moving up here.
+		if roErr := s.readOnlyDatabaseMutationError(false); roErr != nil {
+			err = roErr
+			return
+		}
+		err = s.sourceModeAuthorizeCompileError(err)
+		return
+	}
+	if err = s.sourceModeBlockedRootError(); err != nil {
+		return
+	}
+
+	// All-remote shortcut: skip SQL when every root is a remote select.
+	// qc.Remotes counts every remote in the tree (incl. row-join children),
+	// so we check root selects specifically.
+	if qc := s.cs.st.qc; qc != nil && len(qc.Roots) > 0 {
+		allRemote := true
+		for _, rid := range qc.Roots {
+			if qc.Selects[rid].SkipRender != qcode.SkipTypeRemote {
+				allRemote = false
+				break
+			}
+		}
+		if allRemote {
+			s.setDefaultVars()
+			s.data = seedRemotePlaceholders(qc)
+			return
+		}
+	}
+
+	if s.r.operation == qcode.QTMutation {
+		if table, ok := s.readOnlyMutationRoot(); ok {
+			err = fmt.Errorf("mutations blocked: table %s is read-only", table)
+			return
+		}
+	}
+
+	// Block mutations on read-only databases (absolute, independent of roles)
+	if err = s.readOnlyDatabaseMutationError(true); err != nil {
+		return
+	}
+
+	// set default variables
+	s.setDefaultVars()
+
+	var conn *sql.Conn
+
+	if s.tx() == nil {
+		// get a database connection from the target database
+		c1, span1 := s.gj.spanStart(c, "Get Connection")
+		defer span1.End()
+
+		db := s.getTargetDB()
+		err = retryOperation(c1, func() (err1 error) {
+			conn, err1 = db.Conn(c1)
+			return
+		})
+		if err != nil {
+			span1.Error(err)
+			return
+		}
+		defer conn.Close() //nolint:errcheck
+	}
+
+	// set the local user id on the connection if needed
+	if false {
+		c1, span2 := s.gj.spanStart(c, "Set Local User ID")
+		defer span2.End()
+
+		err = retryOperation(c1, func() (err1 error) {
+			return nil
+		})
+		if err != nil {
+			span2.Error(err)
+			return
+		}
+	}
+
+	// execute query
+	if err = s.execute(c, conn); err != nil {
+		return
+	}
+
+	// Mixed-roots: SQL output has only the real-table roots; inject
+	// markers for the top-level remote roots so execRemoteJoin can
+	// resolve them.
+	if qc := s.cs.st.qc; qc != nil && qc.Remotes > 0 {
+		s.data = injectRemoteMarkers(s.data, qc)
+	}
+	return
+}
+
+func (s *gstate) sourceModeAuthorizeCompileError(err error) error {
+	if err == nil || s == nil || s.gj == nil || s.gj.conf == nil || !s.gj.conf.IsSourcesUsed() {
+		return err
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, " blocked") || strings.Contains(msg, "blocked:") {
+		return fmt.Errorf("unauthorized: %w", err)
+	}
+	return err
+}
+
+func (s *gstate) sourceModeBlockedRootError() error {
+	return nil
+}
+
+func (s *gstate) setDefaultVars() {
+	if vlen := len(s.cs.st.qc.Vars); vlen != 0 && s.vmap == nil {
+		s.vmap = make(map[string]json.RawMessage, vlen)
+	}
+
+	for _, v := range s.cs.st.qc.Vars {
+		s.vmap[v.Name] = v.Val
+	}
+}
+
+func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
+
+	if err = s.validateAndUpdateVars(c); err != nil {
+		return
+	}
+
+	if s.cs.st.qc != nil {
+		for i := range s.cs.st.qc.Selects {
+			if msg := s.cs.st.qc.Selects[i].PartitionFilterRequired; msg != "" {
+				return errors.New(msg)
+			}
+		}
+	}
+
+	var args args
+	if args, err = s.argList(c); err != nil {
+		return
+	}
+
+	cs := s.cs
+	dbType := s.getTargetDBCtx().dbtype
+	if dbType == "sqlite" && cs.st.qc.InsertConflictFallback {
+		s.gj.sqliteConflictGetMu.Lock()
+		defer s.gj.sqliteConflictGetMu.Unlock()
+	}
+
+	// Use Dialect to check for multi-statement scripts (e.g., SQLite)
+	dialect := s.getTargetPsqlCompiler().GetDialect()
+	parts := dialect.SplitQuery(cs.st.sql)
+
+	if len(parts) > 1 {
+		// Multi-statement script execution
+		c1, span := s.gj.spanStart(c, "Execute Script")
+		defer span.End()
+
+		attempts := 1
+		if cs.st.qc.InsertConflictFallback {
+			attempts = 2
+		}
+		for attempt := 0; attempt < attempts; attempt++ {
+			s.data = nil
+			argIdx := 0
+			for i, stmt := range parts {
+				// Count parameters (?) in this statement to slice arguments
+				nParams := strings.Count(stmt, "?")
+				var stmtArgs []interface{}
+
+				if nParams > 0 {
+					if argIdx+nParams > len(args.values) {
+						span.Error(fmt.Errorf("script: not enough arguments for statement %d", i))
+						return fmt.Errorf("script: not enough arguments")
+					}
+					stmtArgs = args.values[argIdx : argIdx+nParams]
+					argIdx += nParams
+				}
+
+				stmt, stmtArgs, err = prepareQueryArgsForDB(s.getTargetDBCtx().dbtype, stmt, stmtArgs)
+				if err != nil {
+					span.Error(err)
+					return err
+				}
+
+				upperStmt := strings.ToUpper(strings.TrimSpace(stmt))
+
+				isReturning := strings.Contains(upperStmt, "RETURNING")
+				isSelect := (strings.HasPrefix(upperStmt, "SELECT") && !strings.Contains(upperStmt, " INTO ")) || strings.HasPrefix(upperStmt, "WITH")
+
+				// Check for @gj_ids hint
+				gjIdsHint := strings.Index(stmt, "-- @gj_ids=")
+				var gjIdsKey string
+				if gjIdsHint != -1 {
+					// Parse key: -- @gj_ids=users_0;
+					remainder := stmt[gjIdsHint+11:]
+					if idx := strings.Index(remainder, ";"); idx != -1 {
+						gjIdsKey = strings.TrimSpace(remainder[:idx])
+					} else {
+						gjIdsKey = strings.TrimSpace(remainder)
+					}
+				}
+
+				if gjIdsKey != "" {
+					// Bulk Capture Path for SQLite (handles RETURNING and SELECT)
+					var rows *sql.Rows
+					var err1 error
+					if tx := s.tx(); tx != nil {
+						rows, err1 = tx.QueryContext(c1, stmt, stmtArgs...)
+					} else {
+						err1 = RetryOperationForDB(c1, dbType, func() (err2 error) {
+							rows, err2 = conn.QueryContext(c1, stmt, stmtArgs...)
+							return
+						})
+					}
+					if err1 != nil {
+						err = err1 // Propagate error
+					} else {
+						defer rows.Close() //nolint:errcheck
+
+						var ids []string
+
+						for rows.Next() {
+							var b []byte
+							if err = rows.Scan(&b); err != nil {
+								return err
+							}
+							// b is JSON object from RETURNING json_object(...)
+
+							// Parse ID from JSON
+							var rowMap map[string]interface{}
+							if err = json.Unmarshal(b, &rowMap); err != nil {
+								return err
+							}
+
+							if idVal, ok := rowMap["id"]; ok {
+								ids = append(ids, fmt.Sprintf("%v", idVal))
+							}
+						}
+
+						if err = rows.Err(); err != nil {
+							return err
+						}
+
+						// Note: We do NOT set s.data here - the final SELECT will set the response
+						// We only capture IDs into _gj_ids for the scoping CTE
+
+						// Insert captured IDs into _gj_ids
+						if len(ids) > 0 {
+							var ib strings.Builder
+							ib.WriteString(`INSERT OR IGNORE INTO _gj_ids (k, id) VALUES `)
+							for k, id := range ids {
+								if k > 0 {
+									ib.WriteString(", ")
+								}
+								ib.WriteString(fmt.Sprintf("('%s', '%s')",
+									strings.ReplaceAll(gjIdsKey, "'", "''"),
+									strings.ReplaceAll(id, "'", "''")))
+							}
+							insertSQL := ib.String()
+
+							if tx := s.tx(); tx != nil {
+								_, err = tx.ExecContext(c1, insertSQL)
+							} else {
+								_, err = conn.ExecContext(c1, insertSQL)
+							}
+						}
+					}
+				} else if isReturning || isSelect {
+					// Statement returns data (e.g. INSERT ... RETURNING or SELECT ...)
+					var row *sql.Row
+					if tx := s.tx(); tx != nil {
+						row = tx.QueryRowContext(c1, stmt, stmtArgs...)
+						err = row.Scan(&s.data)
+					} else {
+						err = RetryOperationForDB(c1, dbType, func() (err1 error) {
+							row = conn.QueryRowContext(c1, stmt, stmtArgs...)
+							return row.Scan(&s.data)
+						})
+					}
+
+				} else {
+					// Intermediate statement: Use Exec
+					if tx := s.tx(); tx != nil {
+						_, err = tx.ExecContext(c1, stmt, stmtArgs...)
+					} else {
+						err = RetryOperationForDB(c1, dbType, func() (err1 error) {
+							_, err1 = conn.ExecContext(c1, stmt, stmtArgs...)
+							return
+						})
+					}
+				}
+
+				if err != nil {
+					if cs.st.qc.InsertConflictFallback && dbType == "sqlite" && attempt+1 < attempts && isSQLiteLockError(err) {
+						err = nil
+						break
+					}
+					if dbType == "snowflake" {
+						err = wrapScriptError(i, stmt, isReturning || isSelect || gjIdsKey != "", err)
+					}
+					if err != sql.ErrNoRows {
+						span.Error(err)
+					}
+					return
+				}
+			}
+
+			if cs.st.qc.InsertConflictFallback && insertConflictGetResultEmpty(s.data, cs.st.qc) {
+				if attempt+1 < attempts {
+					continue
+				}
+				return insertConflictGetUnavailableError(cs.st.qc)
+			}
+
+			if err == nil {
+				s.dhash = sha256.Sum256(s.data)
+				s.data, err = encryptValues(s.data,
+					s.gj.printFormat, decPrefix, s.dhash[:], s.gj.encryptionKey)
+			}
+			return
+		}
+		return
+	}
+
+	// Standard Single-Statement Execution
+	c1, span := s.gj.spanStart(c, "Execute Query")
+	defer span.End()
+
+	querySQL, queryArgs, err := prepareQueryArgsForDB(s.getTargetDBCtx().dbtype, cs.st.sql, args.values)
+	if err != nil {
+		span.Error(err)
+		return err
+	}
+
+	dbCtx := s.getTargetDBCtx()
+	dbName := dbCtx.name
+	cacheKey := s.dbFragmentKey(c1, fragmentKindDBRoot, dbName, querySQL, queryArgs, cs.st.qc)
+	produce := func(ctx context.Context, useConn *sql.Conn) ([]byte, [sha256.Size]byte, error) {
+		raw, err := scanJSONRow(ctx, dbType, useConn, s.tx(), querySQL, queryArgs)
+		if err == sql.ErrNoRows {
+			return nil, [sha256.Size]byte{}, nil
+		}
+		if err != nil {
+			return nil, [sha256.Size]byte{}, err
+		}
+		if cs.st.qc.InsertConflictAction == qcode.ConflictGet && insertConflictGetResultEmpty(raw, cs.st.qc) {
+			if cs.st.qc.InsertConflictFallback {
+				raw, err = scanJSONRow(ctx, dbType, useConn, s.tx(), querySQL, queryArgs)
+				if err != nil {
+					return nil, [sha256.Size]byte{}, err
+				}
+			}
+			if insertConflictGetResultEmpty(raw, cs.st.qc) {
+				return nil, [sha256.Size]byte{}, insertConflictGetUnavailableError(cs.st.qc)
+			}
+		}
+		encrypted, dhash, err := encryptResultFragment(raw, s.gj.printFormat, s.gj.encryptionKey)
+		return encrypted, dhash, err
+	}
+
+	if cached, ok := s.fragmentCacheGet(c1, cacheKey, func() ([]byte, []RowRef, CacheEntryOptions, error) {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(c), swrRefreshTimeout)
+		defer cancel()
+		refreshConn, err := dbCtx.db.Conn(ctx)
+		if err != nil {
+			return nil, nil, CacheEntryOptions{}, err
+		}
+		defer refreshConn.Close() //nolint:errcheck
+		data, _, err := produce(ctx, refreshConn)
+		if err != nil {
+			return nil, nil, CacheEntryOptions{}, err
+		}
+		cachedData, refs, err := s.processDBFragmentForCache(dbName, cs.st.qc, data)
+		return cachedData, refs, CacheEntryOptions{}, err
+	}); ok {
+		s.data = cached
+		s.dhash = sha256.Sum256(cached)
+		err = nil
+	} else {
+		start := time.Now()
+		s.data, s.dhash, err = produce(c1, conn)
+		if err == nil {
+			cachedData, refs, perr := s.processDBFragmentForCache(dbName, cs.st.qc, s.data)
+			if perr == nil {
+				s.fragmentCacheSet(c1, cacheKey, cachedData, refs, start, CacheEntryOptions{})
+			}
+		}
+	}
+
+	if err != nil && err != sql.ErrNoRows {
+		span.Error(err)
+	}
+
+	if span.IsRecording() {
+		attrs := []StringAttr{
+			{"query.namespace", s.r.namespace},
+			{"query.operation", cs.st.qc.Type.String()},
+			{"query.name", cs.st.qc.Name},
+		}
+		// Add database attribute for multi-database observability
+		if s.database != "" {
+			attrs = append(attrs, StringAttr{"query.database", s.database})
+		}
+		span.SetAttributesString(attrs...)
+	}
+
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func insertConflictGetResultEmpty(data []byte, qc *qcode.QCode) bool {
+	if qc == nil || len(qc.Roots) != 1 {
+		return false
+	}
+	var root map[string]json.RawMessage
+	if len(data) == 0 || json.Unmarshal(data, &root) != nil {
+		return len(data) == 0
+	}
+	selID := qc.Roots[0]
+	if selID < 0 || int(selID) >= len(qc.Selects) {
+		return false
+	}
+	v, ok := root[qc.Selects[selID].FieldName]
+	if !ok {
+		return true
+	}
+	v = bytes.TrimSpace(v)
+	return bytes.Equal(v, []byte("null")) || bytes.Equal(v, []byte("[]")) || bytes.Equal(v, []byte("{}"))
+}
+
+func insertConflictGetUnavailableError(qc *qcode.QCode) error {
+	return errors.New("retryable concurrency error: on_conflict: get could not return the row after one complete-statement retry")
+}
+
+func isSQLiteLockError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "database is locked") || strings.Contains(msg, "database table is locked")
+}
+
+func wrapScriptError(stmtIdx int, stmt string, usesQueryPath bool, err error) error {
+	kind := "exec"
+	if usesQueryPath {
+		kind = "query"
+	}
+
+	preview := strings.Join(strings.Fields(strings.TrimSpace(stmt)), " ")
+	const maxPreview = 180
+	if len(preview) > maxPreview {
+		preview = preview[:maxPreview-3] + "..."
+	}
+
+	msg := fmt.Sprintf("database script statement %d (%s) failed", stmtIdx+1, kind)
+	if preview != "" {
+		msg += fmt.Sprintf(": %s", preview)
+	}
+
+	return fmt.Errorf("%s: %w", msg, err)
+}
+
+func (s *gstate) argList(c context.Context) (args args, err error) {
+	args, err = s.gj.argList(c, s.cs.st.md, s.vmap, s.r.requestconfig, false, s.getTargetPsqlCompiler())
+	return
+}
+
+func (s *gstate) argListForSub(c context.Context,
+	vmap map[string]json.RawMessage,
+) (args args, err error) {
+	args, err = s.gj.argList(c, s.cs.st.md, vmap, s.r.requestconfig, true, s.getTargetPsqlCompiler())
+	return
+}
+
+var errValidationFailed = errors.New("validation failed")
+
+func (s *gstate) validateAndUpdateVars(c context.Context) (err error) {
+	cs := s.cs
+	qc := cs.st.qc
+
+	if qc == nil {
+		return nil
+	}
+
+	if len(qc.Consts) != 0 {
+		s.verrs = qc.ProcessConstraints(s.vmap)
+		if len(s.verrs) != 0 {
+			err = errValidationFailed
+			return
+		}
+	}
+	return
+}
+
+func (s *gstate) sql() (sql string) {
+	if s.cs != nil && s.cs.st.qc != nil {
+		sql = s.cs.st.sql
+	}
+	return
+}
+
+func (s *gstate) cacheHeader() (ch string) {
+	if s.cs != nil && s.cs.st.qc != nil {
+		ch = s.cs.st.qc.Cache.Header
+	}
+	return
+}
+
+func (s *gstate) qcode() (qc *qcode.QCode) {
+	if s.cs != nil {
+		qc = s.cs.st.qc
+	}
+	return
+}
+
+func (s *gstate) tx() (tx *sql.Tx) {
+	if s.r.requestconfig != nil {
+		tx = s.r.requestconfig.Tx
+	}
+	return
+}
+
+func (s *gstate) key() (key string) {
+	// CRITICAL: Include database in cache key to prevent cross-database cache collisions.
+	// Same query name with different databases must have different cache entries.
+	if s.multiDB && len(s.dbGroups) > 0 {
+		// For multi-DB queries, include sorted list of ALL databases
+		dbs := make([]string, 0, len(s.dbGroups))
+		for db := range s.dbGroups {
+			dbs = append(dbs, db)
+		}
+		sort.Strings(dbs)
+		key = s.r.namespace + s.r.name + strings.Join(dbs, ",")
+	} else {
+		key = s.r.namespace + s.r.name + s.database
+	}
+	return
+}

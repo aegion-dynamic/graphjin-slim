@@ -346,7 +346,7 @@ func GetConfigName() string {
 // newViper creates a new viper instance for the given config path and name.
 func newViper(configPath string, configName string) *viper.Viper {
 	vi := viper.New()
-	vi.SetConfigName(configName)
+	vi.SetConfigName(strings.TrimSuffix(configName, filepath.Ext(configName)))
 	vi.AddConfigPath(configPath)
 	vi.AutomaticEnv()
 	return vi

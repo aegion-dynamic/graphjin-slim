@@ -50,57 +50,12 @@ func (gj *graphjinEngine) initConfig() error {
 		}
 		if n, ok := isASCII(v); !ok {
 			return fmt.Errorf("variables: %s: invalid character '%s' at %d",
-				k, c.RolesQuery[:n+1], n+1)
+				k, v[:n+1], n+1)
 		}
 	}
 
-	gj.roles = make(map[string]*Role)
-
-	for i, role := range c.Roles {
-		k := role.Name
-		if _, ok := gj.roles[(role.Name)]; ok {
-			return fmt.Errorf("duplicate role found: %s", role.Name)
-		}
-
-		role.Match = sanitize(role.Match)
-		role.tm = make(map[string]*RoleTable)
-
-		for n, t := range role.Tables {
-			role.tm[t.Schema+t.Name] = &role.Tables[n]
-		}
-
-		gj.roles[k] = &c.Roles[i]
-	}
-
-	// If user role not defined then create it
-	if _, ok := gj.roles["user"]; !ok {
-		ur := Role{
-			Name: "user",
-			tm:   make(map[string]*RoleTable),
-		}
-		gj.roles["user"] = &ur
-	}
-
-	// If anon role is not defined then create it
-	if _, ok := gj.roles["anon"]; !ok {
-		ur := Role{
-			Name: "anon",
-			tm:   make(map[string]*RoleTable),
-		}
-		gj.roles["anon"] = &ur
-	}
-
-	if c.RolesQuery != "" {
-		if n, ok := isASCII(c.RolesQuery); !ok {
-			return fmt.Errorf("roles_query: invalid character (%s) at %d",
-				c.RolesQuery[:n+1], n+1)
-		}
-
-		// More than 2 roles tell us that custom roles have been added
-		// hence ABAC is handled
-		gj.abacEnabled = (len(gj.roles) > 2)
-	}
-
+	gj.roles = map[string]*Role{defaultCompileRole: {Name: defaultCompileRole}}
+	gj.abacEnabled = false
 	return nil
 }
 
@@ -204,25 +159,6 @@ func updateTable(conf *Config, dbInfo *sdata.DBInfo, table Table) error {
 
 	if len(t1.PrimaryCols) > 0 {
 		t1.PrimaryCol = t1.PrimaryCols[0]
-	}
-
-	if table.Partition != nil {
-		if table.Partition.None {
-			t1.PartitionNone = true
-		} else if table.Partition.Column != "" {
-			t1.PartitionKey = table.Partition.Column
-			t1.PartitionRangeDays = table.Partition.DefaultRangeDays
-		}
-	}
-
-	if table.Cassandra != nil {
-		t1.AllowFiltering = table.Cassandra.AllowFiltering
-		if len(table.Cassandra.PartitionKeys) > 0 {
-			t1.PartitionKeys = table.Cassandra.PartitionKeys
-		}
-		if len(table.Cassandra.ClusteringKeys) > 0 {
-			t1.ClusteringKeys = table.Cassandra.ClusteringKeys
-		}
 	}
 
 	return nil
@@ -469,20 +405,6 @@ func addFunctions(conf *Config, di *sdata.DBInfo) error {
 }
 
 // addRoles adds roles to the compiler
-func addRoles(c *Config, qc *qcode.Compiler, database string) error {
-	for _, r := range c.Roles {
-		for _, t := range r.Tables {
-			if t.Database != "" && database != "" && t.Database != database {
-				continue
-			}
-			if err := addRole(qc, r, t, c.DefaultBlock); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
 
 // addRole adds a role to the compiler
 func addRole(qc *qcode.Compiler, r Role, t RoleTable, defaultBlock bool) error {

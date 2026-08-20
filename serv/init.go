@@ -33,18 +33,6 @@ func initLogLevel(s *graphjinService) {
 
 // validateConf validates the configuration
 func validateConf(s *graphjinService) error {
-	var anonFound bool
-
-	for _, r := range s.conf.Roles {
-		if r.Name == "anon" {
-			anonFound = true
-		}
-	}
-
-	if !anonFound && s.conf.DefaultBlock {
-		s.log.Warn("unauthenticated requests will be blocked. no role 'anon' defined")
-		s.conf.AuthFailBlock = false
-	}
 
 	return nil
 }

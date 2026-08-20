@@ -6,7 +6,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 )
 
-// Slim build stubs for removed product surfaces.
+// Placeholders for removed serv product surfaces.
 
 type localKeystore struct{}
 

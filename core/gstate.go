@@ -69,7 +69,7 @@ func newGState(c context.Context, gj *graphjinEngine, r GraphqlReq) (s gstate, e
 	s.gj = gj
 	s.r = r
 
-	s.role, s.trustedReservedRole = gj.initialRequestRole(c)
+	s.role, s.trustedReservedRole = defaultCompileRole, true
 
 	// convert variable json to a go map also decrypted encrypted values
 	if len(r.vars) != 0 {
@@ -88,28 +88,7 @@ func newGState(c context.Context, gj *graphjinEngine, r GraphqlReq) (s gstate, e
 }
 
 func (gj *graphjinEngine) initialRequestRole(ctx context.Context) (string, bool) {
-	if ctx == nil {
-		return "anon", false
-	}
-	if gj != nil && gj.conf != nil {
-		candidates := contextIdentityRoles(ctx)
-		if len(candidates) != 0 {
-			if role, trusted := gj.firstConfiguredRole(ctx, candidates); role != "" {
-				return role, trusted
-			}
-		}
-	}
-	if v, ok := ctx.Value(UserRoleKey).(string); ok && strings.TrimSpace(v) != "" {
-		if role, trusted := gj.requestRole(ctx, v); role != "" {
-			return role, trusted
-		}
-	}
-	switch ctx.Value(UserIDKey).(type) {
-	case string, int:
-		return "user", false
-	default:
-		return "anon", false
-	}
+	return defaultCompileRole, true
 }
 
 func contextIdentityRoles(ctx context.Context) []string {
@@ -138,31 +117,7 @@ func contextIdentityRoles(ctx context.Context) []string {
 }
 
 func (gj *graphjinEngine) firstConfiguredRole(ctx context.Context, candidates []string) (string, bool) {
-	if gj == nil || gj.conf == nil || len(candidates) == 0 {
-		return "", false
-	}
-	trusted := make(map[string]bool, len(candidates))
-	cset := make(map[string]struct{}, len(candidates))
-	for _, role := range candidates {
-		role, ok := gj.requestRole(ctx, role)
-		if role != "" {
-			key := strings.ToLower(role)
-			cset[key] = struct{}{}
-			trusted[key] = ok
-		}
-	}
-	for _, role := range gj.conf.Roles {
-		name := strings.ToLower(strings.TrimSpace(role.Name))
-		if _, ok := cset[name]; ok {
-			return role.Name, trusted[name]
-		}
-	}
-	for _, name := range []string{"user", "anon"} {
-		if _, ok := cset[name]; ok {
-			return name, false
-		}
-	}
-	return "", false
+	return defaultCompileRole, true
 }
 
 // IsReservedRoleName reports whether a role name is reserved for GraphJin
@@ -176,28 +131,11 @@ func isReservedRoleName(role string) bool {
 }
 
 func (gj *graphjinEngine) requestRole(ctx context.Context, role string) (string, bool) {
-	role = strings.TrimSpace(role)
-	if role == "" {
-		return "", false
-	}
-	if !isReservedRoleName(role) {
-		return role, false
-	}
-	if gj != nil && gj.reservedRoleAuthorizer != nil && gj.reservedRoleAuthorizer(ctx, role) {
-		return role, true
-	}
-	return "", false
+	return defaultCompileRole, true
 }
 
 func (gj *graphjinEngine) requestRoleOrDefault(ctx context.Context, role, fallback string) (string, bool) {
-	if role, trusted := gj.requestRole(ctx, role); role != "" {
-		return role, trusted
-	}
-	fallback = strings.TrimSpace(fallback)
-	if fallback == "" || isReservedRoleName(fallback) {
-		fallback = "user"
-	}
-	return fallback, false
+	return defaultCompileRole, true
 }
 
 func (s *gstate) cloneForDatabaseRoot(dbName string) gstate {
@@ -299,16 +237,15 @@ func (s *gstate) compileQueryForRoleOnce() (err error) {
 }
 
 func (s *gstate) compileQueryForRole() (err error) {
-	if isReservedRoleName(s.role) && !s.trustedReservedRole {
+	if false {
 		return fmt.Errorf(`role '%s' is reserved`, s.role)
 	}
 
 	st := stmt{role: s.role}
 
-	var ok bool
-	if st.roc, ok = s.gj.roles[s.role]; !ok {
-		err = fmt.Errorf(`roles '%s' not defined in c.gj.config`, s.role)
-		return
+	st.roc = s.gj.roles[s.role]
+	if st.roc == nil {
+		st.roc = &Role{Name: defaultCompileRole}
 	}
 
 	var vars map[string]json.RawMessage
@@ -543,7 +480,7 @@ func (s *gstate) compileAndExecute(c context.Context) (err error) {
 	var defaultConn *sql.Conn
 
 	// For ABAC, we need to execute role query first using default database
-	if s.role == "user" && s.gj.abacEnabled && s.tx() == nil {
+	if false {
 		c1, span1 := s.gj.spanStart(c, "Get Default Connection for ABAC")
 		defer span1.End()
 
@@ -635,7 +572,7 @@ func (s *gstate) compileAndExecute(c context.Context) (err error) {
 	}
 
 	// set the local user id on the connection if needed
-	if s.gj.conf.SetUserID {
+	if false {
 		c1, span2 := s.gj.spanStart(c, "Set Local User ID")
 		defer span2.End()
 

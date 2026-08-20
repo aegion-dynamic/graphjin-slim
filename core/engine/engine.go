@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/nanodb"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
@@ -63,8 +62,6 @@ type CacheKeyBuilder struct{}
 
 func NewCacheKeyBuilder() *CacheKeyBuilder { return &CacheKeyBuilder{} }
 
-// FilesystemBackendFactory stub
-type FilesystemBackendFactory func(c FilesystemConfig) (fstable.Backend, error)
 type ManagedMutationHandler interface {
 	ManagedMutationTables() []string
 	ExecuteManagedMutation(context.Context, ManagedMutationRequest) ([]byte, error)
@@ -141,9 +138,6 @@ type Engine struct {
 
 	ResponseCache   ResponseCacheProvider
 	CacheKeyBuilder *CacheKeyBuilder
-
-	FsFactories map[string]FilesystemBackendFactory
-	FsBackends  map[string]fstable.Backend
 
 	ManagedMutationHandlers map[string]ManagedMutationHandler
 	ManagedQueryHandlers    map[string]ManagedQueryHandler

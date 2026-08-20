@@ -299,37 +299,6 @@ func TestIntrospectionIncludesSyntheticCursorFields(t *testing.T) {
 	requireIntroField(t, users, "comments_cursor")
 }
 
-func TestIntrospectionIncludesFilesystemRemoteCursorField(t *testing.T) {
-	in := Introspection{
-		types: map[string]FullType{},
-	}
-	in.addType(FullType{Kind: KIND_OBJECT, Name: "Query"})
-
-	err := in.addRemoteTable(sdata.DBTable{
-		Schema: "public",
-		Name:   "avatars",
-		Type:   "remote",
-		Columns: []sdata.DBColumn{
-			{Schema: "public", Table: "avatars", Name: "key", Type: "text"},
-			{Schema: "public", Table: "avatars", Name: "url", Type: "text"},
-		},
-		Args: []sdata.DBColumn{
-			{Schema: "public", Table: "avatars", Name: "prefix", Type: "text"},
-			{Schema: "public", Table: "avatars", Name: "inline_data", Type: "boolean"},
-		},
-	}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	query := in.types["Query"]
-	requireIntroField(t, &query, "avatars")
-	cursor := requireIntroField(t, &query, "avatars_cursor")
-	if got := introFieldTypeName(cursor.Type); got != "Cursor" {
-		t.Fatalf("avatars_cursor type = %q, want Cursor", got)
-	}
-}
-
 func TestIntrospectionSyntheticFieldsRespectCamelcase(t *testing.T) {
 	introResult := introspectTestDB(t, IntroOptions{CamelCase: true})
 

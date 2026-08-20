@@ -72,9 +72,7 @@ snapshots.
 
 OpenAPI loading and runtime calling for configured API sources.
 
-### `core/fstable`
 
-Filesystem and object-storage adapters exposed as virtual tables.
 
 ### `serv/database`
 

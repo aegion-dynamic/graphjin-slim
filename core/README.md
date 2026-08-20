@@ -55,7 +55,6 @@ Core owns:
 - Result encoding and pagination
 - Runtime schema reloads
 - Response-cache integration hooks
-- Filesystem virtual tables
 - Configured OpenAPI source integration
 
 Core does not own:
@@ -85,7 +84,6 @@ import them directly.
 | `internal/valid` | Shared validation helpers |
 | `internal/util` | Small compiler data structures and graph utilities |
 | `openapi` | OpenAPI source loading and calling |
-| `fstable` | Local and object-storage virtual-table adapters |
 
 ## Request Pipeline
 

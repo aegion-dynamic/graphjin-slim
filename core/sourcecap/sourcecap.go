@@ -14,7 +14,6 @@ const (
 const (
 	KindDatabase = "database"
 	KindCode     = "code"
-	KindFile     = "file"
 	KindAPI      = "api"
 )
 
@@ -48,11 +47,6 @@ const (
 	KeyCodeWrite       = "code.write"
 	KeyCodeWatch       = "code.watch"
 	KeyCodeInferDBRefs = "code.infer_db_refs"
-	KeyFilesList       = "files.list"
-	KeyFilesRead       = "files.read"
-	KeyFilesWrite      = "files.write"
-	KeyFilesDelete     = "files.delete"
-	KeyFilesWatch      = "files.watch"
 	KeyAPIRead         = "api.read"
 	KeyAPIWrite        = "api.write"
 )
@@ -85,7 +79,7 @@ func (d Definition) Default(mode string) bool {
 	}
 }
 
-var kindOrder = []string{KindDatabase, KindCode, KindFile, KindAPI}
+var kindOrder = []string{KindDatabase, KindCode, KindAPI}
 
 var definitions = []Definition{
 	def(KindDatabase, KeyDataRead, ActionRead, true, true, true, "medium", EnforcementExistingPolicy, false, "Read application database data.", kindReason(KindDatabase), readRecommendation),
@@ -98,12 +92,6 @@ var definitions = []Definition{
 	def(KindCode, KeyCodeWrite, ActionWrite, true, false, false, "high", EnforcementRuntime, true, "Write code source contents.", kindReason(KindCode), mutateRecommendation),
 	def(KindCode, KeyCodeWatch, ActionWatch, true, false, false, "medium", EnforcementRuntime, true, "Watch code source changes.", kindReason(KindCode), mutateRecommendation),
 	def(KindCode, KeyCodeInferDBRefs, ActionUse, true, true, true, "medium", EnforcementRuntime, false, "Infer database references from code sources.", kindReason(KindCode), readRecommendation),
-
-	def(KindFile, KeyFilesList, ActionRead, true, true, true, "medium", EnforcementConfigAudit, false, "List file source objects.", kindReason(KindFile), readRecommendation),
-	def(KindFile, KeyFilesRead, ActionRead, true, true, true, "medium", EnforcementConfigAudit, false, "Read file source objects.", kindReason(KindFile), readRecommendation),
-	def(KindFile, KeyFilesWrite, ActionWrite, true, false, false, "high", EnforcementRuntimeCoarseReadOnly, true, "Write file source objects.", kindReason(KindFile), mutateRecommendation),
-	def(KindFile, KeyFilesDelete, ActionDelete, true, false, false, "critical", EnforcementRuntimeCoarseReadOnly, true, "Delete file source objects.", kindReason(KindFile), mutateRecommendation),
-	def(KindFile, KeyFilesWatch, ActionWatch, true, false, false, "medium", EnforcementRuntimeCoarseReadOnly, true, "Watch file source changes.", kindReason(KindFile), mutateRecommendation),
 
 	def(KindAPI, KeyAPIRead, ActionRead, true, true, true, "medium", EnforcementConfigAudit, false, "Call read operations on remote API sources.", kindReason(KindAPI), readRecommendation),
 	def(KindAPI, KeyAPIWrite, ActionWrite, true, false, false, "high", EnforcementConfigAudit, true, "Call mutating operations on remote API sources.", kindReason(KindAPI), mutateRecommendation),
@@ -140,9 +128,9 @@ func def(kind, key, action string, dev, prod, agentic bool, severity, enforcemen
 		opt(&d)
 	}
 	switch key {
-	case KeyCodeRead, KeyFilesRead, KeyAPIRead, KeyDataRead, KeyDataWrite:
+	case KeyCodeRead, KeyAPIRead, KeyDataRead, KeyDataWrite:
 		d.ExampleValue = "true"
-	case KeyCodeWrite, KeyFilesWrite, KeyAPIWrite:
+	case KeyCodeWrite, KeyAPIWrite:
 		d.ExampleValue = "false"
 	}
 	return d
@@ -155,8 +143,6 @@ func kindReason(kind string) string {
 	switch kind {
 	case KindCode:
 		return "Code sources may expose repository contents or permit source mutation."
-	case KindFile:
-		return "File sources may expose or mutate filesystem/object storage contents."
 	case KindAPI:
 		return "API sources may call remote API operations with GraphJin-held credentials."
 	default:
@@ -173,14 +159,14 @@ func Kinds() []string {
 func CanonicalKind(kind string) (string, error) {
 	k := strings.ToLower(strings.TrimSpace(kind))
 	switch k {
-	case KindDatabase, KindCode, KindFile, KindAPI:
+	case KindDatabase, KindCode, KindAPI:
 		return k, nil
 	case "sql":
 		return "", fmt.Errorf("unsupported kind %q; use kind: database", kind)
 	case "codesql":
 		return "", fmt.Errorf("unsupported kind %q; use kind: code", kind)
-	case "filesystem", "files":
-		return "", fmt.Errorf("unsupported kind %q; use kind: file", kind)
+	case "file", "filesystem", "files":
+		return "", fmt.Errorf("unsupported kind %q; filesystem virtual tables are not supported", kind)
 	case "openapi":
 		return "", fmt.Errorf("unsupported kind %q; use kind: api", kind)
 	case "graphjin":

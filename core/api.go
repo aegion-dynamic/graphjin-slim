@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
@@ -136,12 +135,6 @@ type graphjinEngine struct {
 	responseCache ResponseCacheProvider
 	// Cache key builder
 	cacheKeyBuilder *CacheKeyBuilder
-
-	// Filesystem virtual tables (local / S3 / GCS). Backend factories
-	// are registered by name via OptionSetFilesystemBackend; the engine
-	// instantiates one Backend per FilesystemConfig entry during init.
-	fsFactories map[string]FilesystemBackendFactory
-	fsBackends  map[string]fstable.Backend
 
 	// Managed mutation handlers intercept selected mutation tables before
 	// normal SQL execution. The runtime database can remain read-only while
@@ -308,19 +301,6 @@ func (g *GraphJin) getEngine() (*graphjinEngine, error) {
 		return nil, errEngineNotInitialized
 	}
 	return gj, nil
-}
-
-// FilesystemBackend returns the backend instance configured under the
-// given filesystems[].name, or false if no such filesystem exists.
-// Useful for callers that want to bypass the GraphQL surface — e.g.
-// the multipart upload parser streaming directly to object storage.
-func (g *GraphJin) FilesystemBackend(name string) (fstable.Backend, bool) {
-	gj, err := g.getEngine()
-	if err != nil {
-		return nil, false
-	}
-	b, ok := gj.fsBackends[name]
-	return b, ok
 }
 
 // InvalidateCacheRefs invalidates response-cache entries associated with the
@@ -562,36 +542,6 @@ func OptionSetResolver(name string, fn ResolverFn) Option {
 			return fmt.Errorf("duplicate resolver: %s", name)
 		}
 		s.rtmap[name] = fn
-		return nil
-	}
-}
-
-// OptionSetFilesystemBackend registers a filesystem backend factory by
-// name. The engine ships with the "local" factory built in; "s3" and
-// "gcs" are registered by the serv package (where their SDK
-// dependencies live). Custom backends can be plugged in here too —
-// e.g. an Azure Blob factory in user code:
-//
-//	gj, _ := core.NewGraphJin(conf, db,
-//	    core.OptionSetFilesystemBackend("azureblob", func(c core.FilesystemConfig) (fstable.Backend, error) {
-//	        return myazure.New(c.Bucket, c.Region)
-//	    }),
-//	)
-func OptionSetFilesystemBackend(name string, factory FilesystemBackendFactory) Option {
-	return func(s *graphjinEngine) error {
-		if name == "" {
-			return errors.New("filesystem backend: name is required")
-		}
-		if factory == nil {
-			return errors.New("filesystem backend: factory is nil")
-		}
-		if s.fsFactories == nil {
-			s.fsFactories = make(map[string]FilesystemBackendFactory)
-		}
-		if _, ok := s.fsFactories[name]; ok {
-			return fmt.Errorf("filesystem backend: duplicate name %q", name)
-		}
-		s.fsFactories[name] = factory
 		return nil
 	}
 }
@@ -1320,7 +1270,6 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 		gj.rtmap = base.rtmap
 		gj.rmap = base.rmap
 		gj.openapiRuntime = base.openapiRuntime
-		gj.fsBackends = base.fsBackends
 	}
 
 	reloadNames := make([]string, 0, len(reloadSet))
@@ -1478,7 +1427,6 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 		gj.rtmap = base.rtmap
 		gj.rmap = base.rmap
 		gj.openapiRuntime = base.openapiRuntime
-		gj.fsBackends = base.fsBackends
 	}
 	if handler := gj.managedQueryHandlers[database]; handler != nil {
 		if err := gj.initManagedQueryTablesForDatabase(database, handler); err != nil {

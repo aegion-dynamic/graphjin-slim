@@ -192,9 +192,6 @@ func (c *Config) validateLegacyMode() error {
 			return fmt.Errorf("database %q uses type codesql; move CodeSQL configuration to sources with kind: code", name)
 		}
 	}
-	if len(c.Filesystems) != 0 {
-		return fmt.Errorf("top-level filesystems is no longer supported; move file providers to sources with kind: file")
-	}
 	if strings.TrimSpace(c.OpenAPISpecsDir) != "" || len(c.OpenAPI) != 0 {
 		return fmt.Errorf("top-level openapi/openapi_specs_dir is no longer supported; move API providers to sources with kind: api")
 	}
@@ -215,9 +212,6 @@ func (c *Config) validateIsSourcesUsed() error {
 	}
 	if len(c.Databases) != 0 && !c.sourcesNormalized {
 		return fmt.Errorf("databases is legacy database-only config; move SQL/CodeSQL providers to sources")
-	}
-	if len(c.Filesystems) != 0 && !c.sourcesNormalized {
-		return fmt.Errorf("top-level filesystems is legacy config; move file providers to sources")
 	}
 	if (strings.TrimSpace(c.OpenAPISpecsDir) != "" || len(c.OpenAPI) != 0) && !c.sourcesNormalized {
 		return fmt.Errorf("top-level openapi/openapi_specs_dir is legacy config; move API providers to sources")
@@ -934,7 +928,6 @@ func (c *Config) NormalizeSources() error {
 
 	sqlSources := make([]string, 0, len(c.Sources))
 	c.Databases = make(map[string]DatabaseConfig)
-	c.Filesystems = nil
 	c.OpenAPISpecsDir = ""
 	c.OpenAPI = nil
 
@@ -961,7 +954,7 @@ func (c *Config) NormalizeSources() error {
 			c.Databases[name] = dbConf
 			sqlSources = append(sqlSources, name)
 		case "file":
-			c.Filesystems = append(c.Filesystems, source.filesystemConfig())
+			return fmt.Errorf("sources[%q]: kind file (filesystem virtual tables) is not supported", name)
 		case "api":
 			if source.SpecsDir != "" {
 				if c.OpenAPISpecsDir != "" && c.OpenAPISpecsDir != source.SpecsDir {
@@ -1013,7 +1006,6 @@ func (c *Config) RenormalizeSources() error {
 	c.sourcesNormalized = false
 	if c.IsSourcesUsed() {
 		c.Databases = nil
-		c.Filesystems = nil
 		c.OpenAPISpecsDir = ""
 		c.OpenAPI = nil
 		for i := range c.Tables {
@@ -1112,22 +1104,6 @@ func (s SourceConfig) databaseConfig() DatabaseConfig {
 		ReadOnly:               s.ReadOnly,
 		AnalyticsMode:          s.AnalyticsMode,
 		InferDBRefs:            s.InferDBRefs,
-	}
-}
-
-func (s SourceConfig) filesystemConfig() FilesystemConfig {
-	return FilesystemConfig{
-		Name:            s.Name,
-		Backend:         s.Backend,
-		Bucket:          s.Bucket,
-		Region:          s.Region,
-		Endpoint:        s.Endpoint,
-		Prefix:          s.Prefix,
-		Root:            s.Root,
-		PresignTTL:      s.PresignTTL,
-		PublicBaseURL:   s.PublicBaseURL,
-		ReadOnly:        s.ReadOnly,
-		MaxListPageSize: s.MaxListPageSize,
 	}
 }
 
@@ -1461,12 +1437,6 @@ type Config struct {
 	// This is set by the service layer when Redis caching is enabled.
 	CacheTrackingEnabled bool `mapstructure:"-" json:"-" yaml:"-" jsonschema:"-"`
 
-	// Filesystems exposes object stores (local directories, S3, GCS) as
-	// virtual tables in the GraphQL schema. Each entry materialises one
-	// table with a fixed shape — key/size/content_type/etag/modified_at/url/data —
-	// and routes queries through a pluggable Backend.
-	Filesystems []FilesystemConfig `mapstructure:"filesystems" json:"filesystems" yaml:"filesystems" jsonschema:"title=Filesystem Tables"`
-
 	// Metadata exposes GraphJin-discovered database metadata for legacy
 	// internal helpers. Public GraphQL discovery should use gj_catalog
 	// catalog items instead of separate table/column roots.
@@ -1584,7 +1554,7 @@ func (c WorkflowsConfig) clone() WorkflowsConfig {
 // SourceConfig declares one external provider in sources.
 type SourceConfig struct {
 	Name    string `mapstructure:"name" json:"name" yaml:"name" jsonschema:"title=Name"`
-	Kind    string `mapstructure:"kind" json:"kind" yaml:"kind" jsonschema:"title=Kind,enum=database,enum=code,enum=file,enum=api"`
+	Kind    string `mapstructure:"kind" json:"kind" yaml:"kind" jsonschema:"title=Kind,enum=database,enum=code,enum=api"`
 	Default bool   `mapstructure:"default" json:"default" yaml:"default" jsonschema:"title=Default Source"`
 
 	Type                   string                        `mapstructure:"type" json:"type" yaml:"type" jsonschema:"title=Database Type"`
@@ -1724,69 +1694,6 @@ func (c *Config) MetadataDatabaseName() string {
 
 func (c *Config) MetadataAutoCodeRelationsEnabled() bool {
 	return c.CatalogAutoCodeRelationsEnabled()
-}
-
-// FilesystemConfig declares one filesystem-backed virtual table.
-//
-//	filesystems:
-//	  - name: avatars
-//	    backend: s3
-//	    bucket: my-bucket
-//	    prefix: avatars/
-//	    region: us-east-1
-//	    presign_ttl: 15m
-//
-//	  - name: invoices
-//	    backend: gcs
-//	    bucket: invoices
-//	    prefix: 2026/
-//
-//	  - name: uploads_local
-//	    backend: local
-//	    root: /var/lib/graphjin/uploads
-//
-// Backend-specific options live alongside the common ones; unrecognised
-// fields per backend produce a clear error at startup rather than being
-// silently ignored.
-type FilesystemConfig struct {
-	// Name is the table name surfaced in GraphQL (e.g. "avatars").
-	Name string `mapstructure:"name" json:"name" yaml:"name" jsonschema:"title=Table Name"`
-
-	// Backend selects the implementation: "local" or "s3".
-	Backend string `mapstructure:"backend" json:"backend" yaml:"backend" jsonschema:"title=Backend,enum=local,enum=s3"`
-
-	// Bucket is the S3 bucket / GCS bucket name. Ignored for local.
-	Bucket string `mapstructure:"bucket" json:"bucket" yaml:"bucket" jsonschema:"title=Bucket"`
-
-	// Region is the S3 region (e.g. "us-east-1"). Ignored for local/gcs.
-	Region string `mapstructure:"region" json:"region" yaml:"region" jsonschema:"title=Region"`
-
-	// Endpoint, when non-empty, overrides the S3 endpoint URL — useful
-	// for MinIO, localstack, or non-AWS S3-compatible services.
-	Endpoint string `mapstructure:"endpoint" json:"endpoint" yaml:"endpoint" jsonschema:"title=Endpoint Override"`
-
-	// Prefix is prepended to every key. Effective root for the table.
-	Prefix string `mapstructure:"prefix" json:"prefix" yaml:"prefix" jsonschema:"title=Key Prefix"`
-
-	// Root is the local filesystem root directory. Required for the
-	// local backend; ignored otherwise.
-	Root string `mapstructure:"root" json:"root" yaml:"root" jsonschema:"title=Local Root Directory"`
-
-	// PresignTTL bounds how long generated presigned URLs are valid.
-	// Defaults to 15 minutes when zero. Local backend ignores this.
-	PresignTTL time.Duration `mapstructure:"presign_ttl" json:"presign_ttl" yaml:"presign_ttl" jsonschema:"title=Presigned URL TTL,default=15m"`
-
-	// PublicBaseURL, when set, replaces the presigned-URL host. Useful
-	// when objects are fronted by a CDN. The path is appended unchanged.
-	PublicBaseURL string `mapstructure:"public_base_url" json:"public_base_url" yaml:"public_base_url" jsonschema:"title=Public Base URL"`
-
-	// ReadOnly disables GraphJin-managed writes and local filesystem watch
-	// invalidation for this filesystem table.
-	ReadOnly bool `mapstructure:"read_only" json:"read_only" yaml:"read_only" jsonschema:"title=Read Only"`
-
-	// MaxListPageSize caps the number of entries returned per list call.
-	// Defaults to 1000 when zero.
-	MaxListPageSize int `mapstructure:"max_list_page_size" json:"max_list_page_size" yaml:"max_list_page_size" jsonschema:"title=Max List Page Size,default=1000"`
 }
 
 // DatabaseConfig defines configuration for a single database in multi-database mode

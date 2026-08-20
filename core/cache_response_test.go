@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
@@ -58,44 +57,6 @@ func TestFilesystemKeyRefs_NormalizesAndIndexesPrefixVariants(t *testing.T) {
 	}
 }
 
-func TestRemoteFragmentRefs_FilesystemListIncludesRootPrefix(t *testing.T) {
-	refs := remoteFragmentRefs("filesystem", "avatars", nil, &qcode.Select{
-		ExtraArgs: map[string]string{"prefix": "/users/1"},
-	})
-	got := make(map[string]bool, len(refs))
-	for _, ref := range refs {
-		got[ref.DependencyKey()] = true
-	}
-
-	for _, ref := range []RowRef{
-		filesystemPrefixRef("avatars", "users/1"),
-		filesystemPrefixRef("avatars", ""),
-	} {
-		if !got[ref.DependencyKey()] {
-			t.Fatalf("missing filesystem list ref %+v; got %+v", ref, refs)
-		}
-	}
-}
-
-func TestRemoteFragmentRefs_FilesystemKeyIncludesRootPrefix(t *testing.T) {
-	refs := remoteFragmentRefs("filesystem", "avatars", nil, &qcode.Select{
-		ExtraArgs: map[string]string{"key": "/users/1/avatar.png"},
-	})
-	got := make(map[string]bool, len(refs))
-	for _, ref := range refs {
-		got[ref.DependencyKey()] = true
-	}
-
-	for _, ref := range []RowRef{
-		filesystemKeyRef("avatars", "users/1/avatar.png"),
-		filesystemPrefixRef("avatars", ""),
-	} {
-		if !got[ref.DependencyKey()] {
-			t.Fatalf("missing filesystem key ref %+v; got %+v", ref, refs)
-		}
-	}
-}
-
 func TestExtractMutationRefs_AcceptsInnerAndEnvelopedData(t *testing.T) {
 	qc := mutationCacheTestQCode()
 	tests := []struct {
@@ -135,28 +96,6 @@ func TestScopeDBRefs_CodeSQLManagedDatabase(t *testing.T) {
 	}
 	if scoped[0].Source != CacheSourceCodeSQL || scoped[0].Scope != "repo" {
 		t.Fatalf("expected codesql/repo scoped ref, got %+v", scoped[0])
-	}
-}
-
-func TestFilesystemFragmentCacheOptions(t *testing.T) {
-	s := &gstate{gj: &graphjinEngine{conf: &Config{Filesystems: []FilesystemConfig{
-		{Name: "s3_default", Backend: "s3"},
-		{Name: "gcs_public", Backend: "gcs", PublicBaseURL: "https://cdn.example.com"},
-		{Name: "s3_short", Backend: "s3", PresignTTL: 20 * time.Second},
-		{Name: "local", Backend: "local"},
-	}}}}
-
-	if got := s.remoteFragmentCacheOptions("filesystem", "s3_default").HardTTL; got != 14*time.Minute+30*time.Second {
-		t.Fatalf("default s3 hard ttl = %s, want 14m30s", got)
-	}
-	if got := s.remoteFragmentCacheOptions("filesystem", "gcs_public"); got != (CacheEntryOptions{}) {
-		t.Fatalf("public base url should not cap cache ttl, got %+v", got)
-	}
-	if got := s.remoteFragmentCacheOptions("filesystem", "s3_short"); !got.NoStore {
-		t.Fatalf("short presign ttl should skip cache, got %+v", got)
-	}
-	if got := s.remoteFragmentCacheOptions("filesystem", "local"); got != (CacheEntryOptions{}) {
-		t.Fatalf("local filesystem should not cap cache ttl, got %+v", got)
 	}
 }
 

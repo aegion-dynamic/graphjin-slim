@@ -37,7 +37,7 @@ func TestCanonicalKindRejectsOldNames(t *testing.T) {
 	tests := map[string]string{
 		"sql":        "kind: database",
 		"codesql":    "kind: code",
-		"filesystem": "kind: file",
+		"filesystem": "filesystem virtual tables",
 		"openapi":    "kind: api",
 		"graphjin":   "top-level system",
 		"workflow":   "top-level workflows",

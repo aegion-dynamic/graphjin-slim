@@ -658,62 +658,6 @@
 			"type": "object",
 			"description": "DiscoveryCacheConfig configures service-owned schema discovery generations."
 		},
-		"FilesystemConfig": {
-			"properties": {
-				"name": {
-					"type": "string",
-					"title": "Table Name"
-				},
-				"backend": {
-					"type": "string",
-					"enum": [
-						"local",
-						"s3",
-						"gcs"
-					],
-					"title": "Backend"
-				},
-				"bucket": {
-					"type": "string",
-					"title": "Bucket"
-				},
-				"region": {
-					"type": "string",
-					"title": "Region"
-				},
-				"endpoint": {
-					"type": "string",
-					"title": "Endpoint Override"
-				},
-				"prefix": {
-					"type": "string",
-					"title": "Key Prefix"
-				},
-				"root": {
-					"type": "string",
-					"title": "Local Root Directory"
-				},
-				"presign_ttl": {
-					"type": "integer",
-					"title": "Presigned URL TTL"
-				},
-				"public_base_url": {
-					"type": "string",
-					"title": "Public Base URL"
-				},
-				"read_only": {
-					"type": "boolean",
-					"title": "Read Only"
-				},
-				"max_list_page_size": {
-					"type": "integer",
-					"title": "Max List Page Size",
-					"default": 1000
-				}
-			},
-			"additionalProperties": false,
-			"type": "object"
-		},
 		"Function": {
 			"properties": {
 				"name": {
@@ -1395,7 +1339,6 @@
 					"enum": [
 						"database",
 						"code",
-						"file",
 						"api"
 					],
 					"title": "Kind"
@@ -2100,13 +2043,6 @@
 			},
 			"type": "object",
 			"title": "Databases"
-		},
-		"filesystems": {
-			"items": {
-				"$ref": "#/$defs/FilesystemConfig"
-			},
-			"type": "array",
-			"title": "Filesystem Tables"
 		},
 		"metadata": {
 			"$ref": "#/$defs/MetadataConfig",

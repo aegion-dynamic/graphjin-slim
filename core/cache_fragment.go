@@ -18,9 +18,6 @@ const (
 	fragmentKindDBRoot = "db-root"
 	fragmentKindDBJoin = "db-join"
 	fragmentKindRemote = "remote"
-
-	defaultFilesystemPresignTTL  = 15 * time.Minute
-	filesystemPresignSafetySlack = 30 * time.Second
 )
 
 func (s *gstate) fragmentCacheEnabled(qc *qcode.QCode) bool {
@@ -253,45 +250,11 @@ func (s *gstate) remoteFragmentKey(
 }
 
 func (s *gstate) remoteFragmentCacheOptions(source, scope string) CacheEntryOptions {
-	if source != "filesystem" || s.gj == nil || s.gj.conf == nil {
-		return CacheEntryOptions{}
-	}
-	for i := range s.gj.conf.Filesystems {
-		fc := s.gj.conf.Filesystems[i]
-		if fc.Name != scope {
-			continue
-		}
-		if fc.PublicBaseURL != "" || (fc.Backend != "s3" && fc.Backend != "gcs") {
-			return CacheEntryOptions{}
-		}
-		ttl := fc.PresignTTL
-		if ttl == 0 {
-			ttl = defaultFilesystemPresignTTL
-		}
-		hardTTL := ttl - filesystemPresignSafetySlack
-		if hardTTL <= 0 {
-			return CacheEntryOptions{NoStore: true}
-		}
-		return CacheEntryOptions{HardTTL: hardTTL}
-	}
 	return CacheEntryOptions{}
 }
 
 func remoteFragmentRefs(source, scope string, id []byte, sel *qcode.Select) []RowRef {
-	switch source {
-	case "filesystem":
-		if sel == nil {
-			return nil
-		}
-		if key := sel.ExtraArgs["key"]; key != "" {
-			return []RowRef{filesystemKeyRef(scope, key), filesystemPrefixRef(scope, "")}
-		}
-		return FilesystemPrefixRefs(scope, sel.ExtraArgs["prefix"])
-	case "openapi", "remote_api":
-		return []RowRef{RemoteResolverRef(scope, string(id))}
-	default:
-		return []RowRef{RemoteResolverRef(scope, string(id))}
-	}
+	return []RowRef{RemoteResolverRef(scope, string(id))}
 }
 
 func selectSignature(sel *qcode.Select) string {

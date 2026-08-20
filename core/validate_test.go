@@ -211,9 +211,15 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{Sources: []SourceConfig{
 				{Name: "graphjin", Kind: "database", Type: "postgres"},
 				{Name: "workflows", Kind: "code", Path: "."},
-				{Name: "__graphjin_artifacts", Kind: "file", Path: "."},
+				{Name: "__graphjin_artifacts", Kind: "database", Type: "sqlite", Path: "."},
 			}},
 			wantErr: false,
+		},
+		{
+			name:    "sources rejects removed file kind",
+			config:  Config{Sources: []SourceConfig{{Name: "avatars", Kind: "file", Path: "."}}},
+			wantErr: true,
+			errMsg:  "filesystem virtual tables are not supported",
 		},
 		{
 			name: "source names are unique case insensitively",
@@ -458,14 +464,11 @@ func TestNormalizeSourcesMapsSourcesAndRelationships(t *testing.T) {
 		Sources: []SourceConfig{
 			{Name: "app", Kind: "database", Type: "postgres", Default: true},
 			{Name: "code", Kind: "code", Path: "/src", ReadOnly: true},
-			{Name: "avatars", Kind: "file", Backend: "local", Root: "/tmp/avatars"},
-			{Name: "graphjin", Kind: "file", Backend: "local", Root: "/tmp/graphjin"},
 			{Name: "workflows", Kind: "code", Path: "/workflows", ReadOnly: true},
 		},
 		Tables: []Table{
 			{Name: "users", Source: "app"},
 			{Name: "code_files", Source: "code"},
-			{Name: "avatars", Source: "avatars"},
 			{Name: "gj_workflow", Source: "workflows"},
 		},
 		Relationships: []RelationshipConfig{{From: "users.id", To: "code:code_db_refs.table_key"}},
@@ -476,13 +479,10 @@ func TestNormalizeSourcesMapsSourcesAndRelationships(t *testing.T) {
 	if conf.Databases["app"].Type != "postgres" || conf.Databases["code"].Type != "codesql" {
 		t.Fatalf("unexpected database normalization: %+v", conf.Databases)
 	}
-	if len(conf.Filesystems) != 2 || conf.Filesystems[0].Name != "avatars" || conf.Filesystems[1].Name != "graphjin" {
-		t.Fatalf("unexpected filesystem normalization: %+v", conf.Filesystems)
-	}
-	if conf.Tables[0].Database != "app" || conf.Tables[1].Database != "code" || conf.Tables[2].Database != "app" {
+	if conf.Tables[0].Database != "app" || conf.Tables[1].Database != "code" || conf.Tables[2].Database != "workflows" {
 		t.Fatalf("unexpected table database mapping: %+v", conf.Tables)
 	}
-	if !conf.Tables[1].ReadOnly || !conf.Tables[3].ReadOnly {
+	if !conf.Tables[1].ReadOnly || !conf.Tables[2].ReadOnly {
 		t.Fatalf("source read_only was not applied to tables: %+v", conf.Tables)
 	}
 	if len(conf.Tables[0].Columns) != 1 || conf.Tables[0].Columns[0].ForeignKey != "code:code_db_refs.table_key" {

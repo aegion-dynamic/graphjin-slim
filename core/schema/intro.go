@@ -12,26 +12,6 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/valid"
 )
 
-// IsFilesystemRemoteTable reports whether t is a synthetic filesystem remote table.
-func IsFilesystemRemoteTable(t sdata.DBTable) bool {
-	if t.Type != "remote" {
-		return false
-	}
-	cols := map[string]struct{}{}
-	for _, c := range t.Columns {
-		cols[c.Name] = struct{}{}
-	}
-	args := map[string]struct{}{}
-	for _, a := range t.Args {
-		args[a.Name] = struct{}{}
-	}
-	_, hasKey := cols["key"]
-	_, hasURL := cols["url"]
-	_, hasPrefix := args["prefix"]
-	_, hasInlineData := args["inline_data"]
-	return hasKey && hasURL && hasPrefix && hasInlineData
-}
-
 const (
 	KIND_SCALAR      = "SCALAR"
 	KIND_OBJECT      = "OBJECT"
@@ -405,24 +385,9 @@ func (in *Introspection) addRemoteTable(table sdata.DBTable, alias string) error
 		}
 		ft.addArg(a.Name, base)
 	}
-	filesystemRemote := IsFilesystemRemoteTable(table)
-	if filesystemRemote {
-		ft.addOrReplaceArg("id", newTypeRef("", "ID", nil))
-		ft.addOrReplaceArg("limit", newTypeRef("", "Int", nil))
-		ft.addOrReplaceArg("offset", newTypeRef("", "Int", nil))
-		ft.addOrReplaceArg("first", newTypeRef("", "Int", nil))
-		ft.addOrReplaceArg("last", newTypeRef("", "Int", nil))
-		ft.addOrReplaceArg("after", newTypeRef("", "Cursor", nil))
-		ft.addOrReplaceArg("before", newTypeRef("", "Cursor", nil))
-		in.addOrderByType(table, &ft)
-		in.addWhereType(table, &ft)
-	}
 
 	in.addType(ft)
 	in.addTypeTo("Query", ft)
-	if filesystemRemote {
-		in.addCursorFieldTo("Query", ft.Name)
-	}
 	return nil
 }
 

@@ -35,20 +35,12 @@ func CanonicalMode(mode string) (string, error) {
 		return sourcecap.ModeDev, nil
 	case "prod", "production":
 		return sourcecap.ModeProd, nil
-	case "agent", "agentic":
-		return sourcecap.ModeAgentic, nil
 	default:
-		return "", fmt.Errorf("unsupported mode %q: supported modes are dev, prod, agentic", mode)
+		return "", fmt.Errorf("unsupported mode %q: supported modes are dev, prod", mode)
 	}
 }
 
-func isAgenticMode(c *Config) bool {
-	if c == nil {
-		return false
-	}
-	mode, err := CanonicalMode(c.Mode)
-	return err == nil && mode == sourcecap.ModeAgentic
-}
+func isAgenticMode(c *Config) bool { return false }
 
 // NormalizeMode makes mode the single deployment-mode selector. When mode is
 // omitted, existing production:true configs continue to imply prod mode.
@@ -67,9 +59,9 @@ func (c *Config) NormalizeMode() error {
 		case c.IsSourcesUsed():
 			// Fail closed (security, audit F1): in source mode an unspecified
 			// deployment mode must NOT silently fall back to dev. Dev makes every
-			// gj_* system root public and mounts the agentic surface; defaulting
+			// gj_* system root public and mounts the dev surface; defaulting
 			// to it on a missing `mode` is fail-open. Require an explicit
-			// dev/agentic selection (GO_ENV, dev.yml/agentic.yml, or `mode:`);
+			// dev/dev selection (GO_ENV, dev.yml/dev.yml, or `mode:`);
 			// anything ambiguous resolves to the locked-down prod posture.
 			mode = sourcecap.ModeProd
 		default:
@@ -758,25 +750,9 @@ func (c *Config) EffectiveSystemRootAccess() map[string]string {
 			"gj_security":           AccessModePublic,
 			"gj_config":             AccessModePublic,
 		}
-	case sourcecap.ModeAgentic:
-		// Trusted-agent matrix: discovery open (read-only), personal
-		// artifacts/workflows owner-scoped, control plane admin-only.
-		defaults = map[string]string{
-			"gj_catalog":            AccessModePublic,
-			"gj_artifacts":          AccessModeOwner,
-			"gj_watch":              AccessModeOwner,
-			"gj_watch_event":        AccessModeOwner,
-			"gj_task":               AccessModeOwner,
-			"gj_task_entry":         AccessModeOwner,
-			"gj_workflow":           AccessModeOwner,
-			"gj_workflow_execution": AccessModeOwner,
-			"gj_runtime":            AccessModeAdmin,
-			"gj_security":           AccessModeAdmin,
-			"gj_config":             AccessModeAdmin,
-		}
 	default:
-		// prod is the only pre-agentic compatibility mode: the agentic surface is
-		// hard-gated off entirely (see serv agenticSurfaceEnabled). These admin
+		// prod is the only pre-dev compatibility mode: the dev surface is
+		// hard-gated off entirely (see serv devSurfaceEnabled). These admin
 		// defaults are defense-in-depth for any root that would otherwise be
 		// reachable.
 		defaults = map[string]string{
@@ -1465,7 +1441,7 @@ type Config struct {
 	Production bool `jsonschema:"title=Production Mode,default=false"`
 
 	// Mode selects the deployment-mode defaults. Empty derives from Production.
-	Mode string `mapstructure:"mode" json:"mode" yaml:"mode" jsonschema:"title=Mode,enum=dev,enum=prod,enum=agentic"`
+	Mode string `mapstructure:"mode" json:"mode" yaml:"mode" jsonschema:"title=Mode,enum=dev,enum=prod"`
 
 	// Duration for polling the database to detect schema changes
 	DBSchemaPollDuration time.Duration `mapstructure:"db_schema_poll_duration" json:"db_schema_poll_duration" yaml:"db_schema_poll_duration" jsonschema:"title=Schema Change Detection Polling Duration,default=10s"`
@@ -1520,8 +1496,8 @@ type IdentityConfig struct {
 
 // ArtifactsConfig declares the GraphJin-managed SQL artifact store.
 type ArtifactsConfig struct {
-	Enabled                   bool     `mapstructure:"enabled" json:"enabled" yaml:"enabled" jsonschema:"title=Enable Artifacts,description=Enable the GraphJin-managed SQL artifact store for saved queries/fragments/workflows and catalog annotations; parsed dev and agentic configs default to enabled"`
-	Source                    string   `mapstructure:"source" json:"source" yaml:"source" jsonschema:"title=Artifact Source,description=Database source name that hosts the artifact store; omitted dev and agentic configs use private managed SQLite while legacy explicit enablement uses the first writable SQL source"`
+	Enabled                   bool     `mapstructure:"enabled" json:"enabled" yaml:"enabled" jsonschema:"title=Enable Artifacts,description=Enable the GraphJin-managed SQL artifact store for saved queries/fragments/workflows and catalog annotations; parsed dev configs default to enabled"`
+	Source                    string   `mapstructure:"source" json:"source" yaml:"source" jsonschema:"title=Artifact Source,description=Database source name that hosts the artifact store; omitted dev and dev configs use private managed SQLite while legacy explicit enablement uses the first writable SQL source"`
 	Schema                    string   `mapstructure:"schema" json:"schema" yaml:"schema" jsonschema:"title=Artifact Schema,default=_graphjin,description=Schema for the artifact store tables"`
 	AutoInit                  *bool    `mapstructure:"auto_init" json:"auto_init" yaml:"auto_init" jsonschema:"title=Auto Initialize Artifact Tables,default=true,description=Create artifact store tables automatically at startup"`
 	GlobalsPath               string   `mapstructure:"globals_path" json:"globals_path" yaml:"globals_path" jsonschema:"title=Global Config Artifact Path,default=./config,description=Directory of read-only global artifacts loaded from config files"`
@@ -1533,12 +1509,12 @@ type ArtifactsConfig struct {
 
 // WatchesConfig declares the GraphJin-managed watch store and runner settings.
 type WatchesConfig struct {
-	Enabled             bool     `mapstructure:"enabled" json:"enabled" yaml:"enabled" jsonschema:"title=Enable Watches,description=Enable durable owner-scoped watches; parsed dev and agentic configs default to enabled when artifacts are enabled"`
+	Enabled             bool     `mapstructure:"enabled" json:"enabled" yaml:"enabled" jsonschema:"title=Enable Watches,description=Enable durable owner-scoped watches; parsed dev configs default to enabled when artifacts are enabled"`
 	MaxPerOwner         int      `mapstructure:"max_per_owner" json:"max_per_owner" yaml:"max_per_owner" jsonschema:"title=Max Watches Per Owner,default=20,description=Maximum active watches per owner"`
 	EventRetentionHours int      `mapstructure:"event_retention_hours" json:"event_retention_hours" yaml:"event_retention_hours" jsonschema:"title=Watch Event Retention Hours,default=168,description=Hours to keep fired watch events before pruning"`
 	MaxEventsPerWatch   int      `mapstructure:"max_events_per_watch" json:"max_events_per_watch" yaml:"max_events_per_watch" jsonschema:"title=Max Events Per Watch,default=500,description=Maximum stored events per watch; oldest are pruned first"`
 	SnapshotMaxBytes    int      `mapstructure:"snapshot_max_bytes" json:"snapshot_max_bytes" yaml:"snapshot_max_bytes" jsonschema:"title=Watch Snapshot Max Bytes,default=32768,description=Byte cap for stored event snapshots and user-supplied watch-definition JSON fields"`
-	Runner              string   `mapstructure:"runner" json:"runner" yaml:"runner" jsonschema:"title=Watch Runner,enum=all,enum=off,description=Which replicas evaluate watches; parsed dev and agentic configs default to all while literal and prod configs remain off"`
+	Runner              string   `mapstructure:"runner" json:"runner" yaml:"runner" jsonschema:"title=Watch Runner,enum=all,enum=off,description=Which replicas evaluate watches; parsed dev and dev configs default to all while literal and prod configs remain off"`
 	WebhookAllow        []string `mapstructure:"webhook_allow" json:"webhook_allow" yaml:"webhook_allow" jsonschema:"title=Watch Webhook Allowlist,description=Allowlist of webhook URL prefixes watch deliveries may call; empty denies all webhooks"`
 	EnrichmentDailyCap  int      `mapstructure:"enrichment_daily_cap" json:"enrichment_daily_cap" yaml:"enrichment_daily_cap" jsonschema:"title=Watch Enrichment Daily Cap,default=10,description=Maximum read-only agent enrichments per watch per day"`
 	EnrichmentWorkers   int      `mapstructure:"enrichment_workers" json:"enrichment_workers" yaml:"enrichment_workers" jsonschema:"title=Watch Enrichment Workers,default=1,description=Concurrent watch enrichment workers"`
@@ -1547,7 +1523,7 @@ type WatchesConfig struct {
 
 // TasksConfig declares the GraphJin-managed durable declared-intent task store.
 type TasksConfig struct {
-	Enabled             bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" jsonschema:"title=Enable Tasks,description=Enable durable owner-scoped declared-intent tasks; parsed dev and agentic configs default to enabled when artifacts are enabled"`
+	Enabled             bool `mapstructure:"enabled" json:"enabled" yaml:"enabled" jsonschema:"title=Enable Tasks,description=Enable durable owner-scoped declared-intent tasks; parsed dev configs default to enabled when artifacts are enabled"`
 	MaxPerOwner         int  `mapstructure:"max_per_owner" json:"max_per_owner" yaml:"max_per_owner" jsonschema:"title=Max Tasks Per Owner,default=20,description=Maximum open tasks per owner"`
 	MaxEntriesPerTask   int  `mapstructure:"max_entries_per_task" json:"max_entries_per_task" yaml:"max_entries_per_task" jsonschema:"title=Max Entries Per Task,default=500,description=Maximum stored trail entries per task; oldest are pruned first"`
 	EntryRetentionHours int  `mapstructure:"entry_retention_hours" json:"entry_retention_hours" yaml:"entry_retention_hours" jsonschema:"title=Task Entry Retention Hours,default=168,description=Hours to keep task trail entries before prune-on-write and projection trimming"`

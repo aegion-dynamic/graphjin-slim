@@ -17,11 +17,11 @@ func TestRegistry(t *testing.T) {
 
 func TestModeDefaults(t *testing.T) {
 	runtimeRead, _ := Lookup(KindSystem, KeyRuntimeRead)
-	if !runtimeRead.Default(ModeDev) || runtimeRead.Default(ModeProd) || !runtimeRead.Default(ModeAgentic) {
+	if !runtimeRead.Default(ModeDev) || runtimeRead.Default(ModeProd) {
 		t.Fatalf("unexpected runtime.read defaults: %+v", runtimeRead)
 	}
 	execute, _ := Lookup(KindWorkflows, KeyWorkflowExecute)
-	if !execute.Default(ModeDev) || execute.Default(ModeProd) || !execute.Default(ModeAgentic) {
+	if !execute.Default(ModeDev) || execute.Default(ModeProd) {
 		t.Fatalf("unexpected workflows.execute defaults: %+v", execute)
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 )
 
 const (
@@ -807,7 +808,7 @@ func (gj *graphjinEngine) subCheckUpdates(sub *sub, mv mval, start, chunk int) {
 		mdParams := sub.s.cs.st.md.Params()
 		for j := start; j < end; j++ {
 			jIdx := j // capture for closure
-			err = retryOperationForDB(c, subDBCtx.dbtype, func() error {
+			err = runtime.RetryOperationForDB(c, subDBCtx.dbtype, func() error {
 				// Parse JSON params to get individual values
 				var values []interface{}
 				if mv.mi[jIdx].values != nil {
@@ -854,7 +855,7 @@ func (gj *graphjinEngine) subCheckUpdates(sub *sub, mv mval, start, chunk int) {
 	}
 
 	t0 := time.Now()
-	err = retryOperationForDB(c, subDBCtx.dbtype, func() (err1 error) {
+	err = runtime.RetryOperationForDB(c, subDBCtx.dbtype, func() (err1 error) {
 		if hasParams {
 			q, qargs, err2 := prepareQueryArgsForDB(subDBCtx.dbtype, sub.s.cs.st.sql, []interface{}{string(params)})
 			if err2 != nil {
@@ -967,7 +968,7 @@ func (gj *graphjinEngine) subFirstQuery(sub *sub, m *Member) (mmsg, error) {
 	if sub.js != nil {
 		js = sub.js
 	} else {
-		err := retryOperationForDB(c, subDBCtx.dbtype, func() error {
+		err := runtime.RetryOperationForDB(c, subDBCtx.dbtype, func() error {
 			var row *sql.Row
 			q := sub.s.cs.st.sql
 

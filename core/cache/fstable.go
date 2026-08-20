@@ -1,4 +1,4 @@
-package core
+package cache
 
 import (
 	"context"
@@ -8,6 +8,24 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 )
+
+// NewCacheInvalidatingBackend wraps a filesystem backend so writes invalidate
+// response-cache entries that depend on the changed key.
+func NewCacheInvalidatingBackend(name string, backend fstable.Backend, provider ResponseCacheProvider) fstable.Backend {
+	return cacheInvalidatingFilesystemBackend{
+		name:    name,
+		backend: backend,
+		cache:   provider,
+	}
+}
+
+// NewReadOnlyBackend rejects Put/Delete while delegating reads.
+func NewReadOnlyBackend(name string, backend fstable.Backend) fstable.Backend {
+	return readOnlyFilesystemBackend{
+		name:    name,
+		backend: backend,
+	}
+}
 
 type cacheInvalidatingFilesystemBackend struct {
 	name    string

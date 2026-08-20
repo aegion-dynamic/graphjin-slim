@@ -19,6 +19,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/psql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/query"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 )
 
 type gstate struct {
@@ -843,7 +844,7 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 					if tx := s.tx(); tx != nil {
 						rows, err1 = tx.QueryContext(c1, stmt, stmtArgs...)
 					} else {
-						err1 = retryOperationForDB(c1, dbType, func() (err2 error) {
+						err1 = runtime.RetryOperationForDB(c1, dbType, func() (err2 error) {
 							rows, err2 = conn.QueryContext(c1, stmt, stmtArgs...)
 							return
 						})
@@ -908,7 +909,7 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 						row = tx.QueryRowContext(c1, stmt, stmtArgs...)
 						err = row.Scan(&s.data)
 					} else {
-						err = retryOperationForDB(c1, dbType, func() (err1 error) {
+						err = runtime.RetryOperationForDB(c1, dbType, func() (err1 error) {
 							row = conn.QueryRowContext(c1, stmt, stmtArgs...)
 							return row.Scan(&s.data)
 						})
@@ -919,7 +920,7 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 					if tx := s.tx(); tx != nil {
 						_, err = tx.ExecContext(c1, stmt, stmtArgs...)
 					} else {
-						err = retryOperationForDB(c1, dbType, func() (err1 error) {
+						err = runtime.RetryOperationForDB(c1, dbType, func() (err1 error) {
 							_, err1 = conn.ExecContext(c1, stmt, stmtArgs...)
 							return
 						})

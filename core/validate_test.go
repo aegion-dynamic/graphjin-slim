@@ -67,7 +67,7 @@ func TestNormalizeMode(t *testing.T) {
 		{name: "empty prod from production", production: true, wantMode: "prod", wantProduction: true},
 		{name: "dev", mode: "dev", production: true, wantMode: "dev", wantProduction: true},
 		{name: "prod", mode: "prod", wantMode: "prod"},
-		{name: "agentic", mode: "agentic", wantMode: "agentic"},
+		{name: "agentic rejected", mode: "agentic", wantErr: true},
 		{name: "invalid", mode: "secure-ish", wantErr: true},
 	}
 
@@ -331,33 +331,7 @@ func TestNormalizeSourcesAppliesIdentityAccessAndArtifactDefaults(t *testing.T) 
 		}
 	}
 
-	agentic := &Config{
-		Mode: "agentic",
-		Sources: []SourceConfig{
-			{Name: "app", Kind: "database", Type: "postgres", Default: true},
-		},
-		Artifacts: ArtifactsConfig{Enabled: true},
-	}
-	if err := agentic.NormalizeSources(); err != nil {
-		t.Fatalf("NormalizeSources agentic: %v", err)
-	}
-	agenticAccess := agentic.EffectiveSystemRootAccess()
-	if agenticAccess["gj_catalog"] != AccessModePublic ||
-		agenticAccess["gj_security"] != AccessModeAdmin || agenticAccess["gj_runtime"] != AccessModeAdmin ||
-		agenticAccess["gj_config"] != AccessModeAdmin ||
-		agenticAccess["gj_artifacts"] != AccessModeOwner ||
-		agenticAccess["gj_watch"] != AccessModeOwner ||
-		agenticAccess["gj_watch_event"] != AccessModeOwner ||
-		agenticAccess["gj_task"] != AccessModeOwner ||
-		agenticAccess["gj_task_entry"] != AccessModeOwner ||
-		agenticAccess["gj_workflow"] != AccessModeOwner ||
-		agenticAccess["gj_workflow_execution"] != AccessModeOwner {
-		t.Fatalf("agentic system root access defaults not applied: %+v", agenticAccess)
-	}
-
-	// prod is the only pre-agentic compatibility mode: the agentic surface is
-	// gated off at the serv layer, and the gj_* root defaults are admin as
-	// defense-in-depth (never public).
+	// prod keeps gj_* root defaults admin (never public).
 	prod := &Config{
 		Mode: "prod",
 		Sources: []SourceConfig{
@@ -378,7 +352,7 @@ func TestNormalizeSourcesAppliesIdentityAccessAndArtifactDefaults(t *testing.T) 
 func TestValidateNormalizedRuntimeArtifactSource(t *testing.T) {
 	base := func() *Config {
 		conf := &Config{
-			Mode: "agentic",
+			Mode: "dev",
 			Sources: []SourceConfig{
 				{Name: "app", Kind: "database", Type: "postgres", Default: true},
 			},
@@ -426,8 +400,6 @@ func TestNormalizeModeFailsClosedInSourceMode(t *testing.T) {
 			conf: &Config{}, want: "dev"},
 		{name: "explicit dev is preserved in source mode",
 			conf: &Config{Mode: "dev", Sources: []SourceConfig{{Name: "app", Kind: "database", Type: "postgres", Default: true}}}, want: "dev"},
-		{name: "explicit agentic is preserved in source mode",
-			conf: &Config{Mode: "agentic", Sources: []SourceConfig{{Name: "app", Kind: "database", Type: "postgres", Default: true}}}, want: "agentic"},
 		{name: "production flag still implies prod",
 			conf: &Config{Production: true}, want: "prod"},
 	} {
@@ -440,6 +412,13 @@ func TestNormalizeModeFailsClosedInSourceMode(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("explicit agentic is rejected", func(t *testing.T) {
+		conf := &Config{Mode: "agentic", Sources: []SourceConfig{{Name: "app", Kind: "database", Type: "postgres", Default: true}}}
+		if err := conf.NormalizeMode(); err == nil {
+			t.Fatal("NormalizeMode(agentic) expected error")
+		}
+	})
 }
 
 func TestNormalizeSourcesTreatsIdentityQueryAsV1LiteRolesQueryAlias(t *testing.T) {

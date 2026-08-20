@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/cache"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
@@ -144,17 +145,10 @@ func (gj *graphjinEngine) loadFilesystemIntegration() error {
 			return fmt.Errorf("filesystems[%q]: backend init: %w", fc.Name, err)
 		}
 		if fc.ReadOnly {
-			backend = readOnlyFilesystemBackend{
-				name:    fc.Name,
-				backend: backend,
-			}
+			backend = cache.NewReadOnlyBackend(fc.Name, backend)
 		}
 		if gj.responseCache != nil {
-			backend = cacheInvalidatingFilesystemBackend{
-				name:    fc.Name,
-				backend: backend,
-				cache:   gj.responseCache,
-			}
+			backend = cache.NewCacheInvalidatingBackend(fc.Name, backend, gj.responseCache)
 		}
 		gj.fsBackends[fc.Name] = backend
 

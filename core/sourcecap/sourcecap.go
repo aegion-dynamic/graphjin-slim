@@ -7,9 +7,8 @@ import (
 )
 
 const (
-	ModeDev     = "dev"
-	ModeProd    = "prod"
-	ModeAgentic = "agentic"
+	ModeDev  = "dev"
+	ModeProd = "prod"
 )
 
 const (
@@ -81,8 +80,6 @@ func (d Definition) Default(mode string) bool {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case ModeDev:
 		return d.DefaultDev
-	case ModeAgentic:
-		return d.DefaultAgentic
 	default:
 		return d.DefaultProd
 	}

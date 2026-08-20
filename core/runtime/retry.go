@@ -1,4 +1,4 @@
-package core
+package runtime
 
 import (
 	"context"
@@ -18,7 +18,9 @@ var defaultRetryPolicy = retryPolicy{
 	},
 }
 
-func retryOperationForDB(c context.Context, _ string, fn func() error) error {
+// RetryOperationForDB retries fn with a short backoff policy.
+// dbType is reserved for dialect-specific retry rules.
+func RetryOperationForDB(c context.Context, _ string, fn func() error) error {
 	return retryOperationWithPolicy(c, defaultRetryPolicy, fn)
 }
 

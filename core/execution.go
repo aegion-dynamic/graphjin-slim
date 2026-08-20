@@ -11,6 +11,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/jsn"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 )
 
 var (
@@ -121,7 +122,7 @@ func (gj *graphjinEngine) executeRoleQuery(c context.Context,
 		return
 	}
 
-	err = retryOperationForDB(c1, pdb.dbtype, func() error {
+	err = runtime.RetryOperationForDB(c1, pdb.dbtype, func() error {
 		var row *sql.Row
 		if rc != nil && rc.Tx != nil {
 			row = rc.Tx.QueryRowContext(c1, roleQuery, roleArgs...)
@@ -278,5 +279,5 @@ func (gj *graphjinEngine) spanStart(c context.Context, name string) (context.Con
 
 // Retry operation with the default policy.
 func retryOperation(c context.Context, fn func() error) (err error) {
-	return retryOperationWithPolicy(c, defaultRetryPolicy, fn)
+	return runtime.RetryOperationForDB(c, "", fn)
 }

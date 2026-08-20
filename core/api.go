@@ -29,31 +29,37 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/openapi"
 	corequery "github.com/aegion-dynamic/graphjin-slim/core/v3/query"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 )
 
-type contextkey int
+// Tracing types live in core/runtime; re-export for the public API.
+type Tracer = runtime.Tracer
+type Spaner = runtime.Spaner
+type StringAttr = runtime.StringAttr
 
-// Constants to set values on the context passed to the NewGraphJin function
+// Context keys live in core/runtime; re-export for the public API.
+type contextkey = runtime.ContextKey
+
 const (
 	// Name of the authentication provider. Eg. google, github, etc
-	UserIDProviderKey contextkey = iota
+	UserIDProviderKey = runtime.UserIDProviderKey
 
 	// The raw user id (jwt sub) value
-	UserIDRawKey
+	UserIDRawKey = runtime.UserIDRawKey
 
 	// User ID value for authenticated users
-	UserIDKey
+	UserIDKey = runtime.UserIDKey
 
 	// User role if pre-defined
-	UserRoleKey
+	UserRoleKey = runtime.UserRoleKey
 
 	// IdentityVarsKey carries trusted request-wide identity variables such as
 	// account_id that may be referenced by generated source-mode filters.
-	IdentityVarsKey
+	IdentityVarsKey = runtime.IdentityVarsKey
 
 	// IdentityRolesKey carries candidate roles extracted from the verified
 	// request identity before roles_query / match fallback.
-	IdentityRolesKey
+	IdentityRolesKey = runtime.IdentityRolesKey
 )
 
 const (
@@ -373,11 +379,11 @@ func (g *GraphJin) newGraphJin(conf *Config,
 		log:         _log.New(os.Stderr, "", 0),
 		prod:        conf.Production,
 		prodSec:     conf.Production,
-		learn:       !conf.Production && !isAgenticMode(conf),
+		learn:       !conf.Production,
 		printFormat: []byte(fmt.Sprintf("gj-%x:", t.UnixNano())),
 		opts:        options,
 		fs:          fs,
-		trace:       &tracer{},
+		trace:       runtime.NewTracer(),
 		done:        g.lifecycle.Done(),
 	}
 
@@ -1265,7 +1271,7 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 	}
 	trace := base.trace
 	if trace == nil {
-		trace = &tracer{}
+		trace = runtime.NewTracer()
 	}
 	printFormat := append([]byte(nil), base.printFormat...)
 	if len(printFormat) == 0 {
@@ -1277,7 +1283,7 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 		log:         log,
 		prod:        conf.Production,
 		prodSec:     conf.Production,
-		learn:       !conf.Production && !isAgenticMode(conf),
+		learn:       !conf.Production,
 		printFormat: printFormat,
 		opts:        opts,
 		fs:          base.fs,
@@ -1418,7 +1424,7 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 	}
 	trace := base.trace
 	if trace == nil {
-		trace = &tracer{}
+		trace = runtime.NewTracer()
 	}
 	printFormat := append([]byte(nil), base.printFormat...)
 	if len(printFormat) == 0 {
@@ -1430,7 +1436,7 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 		log:         log,
 		prod:        conf.Production,
 		prodSec:     conf.Production,
-		learn:       !conf.Production && !isAgenticMode(conf),
+		learn:       !conf.Production,
 		printFormat: printFormat,
 		opts:        base.opts,
 		fs:          base.fs,

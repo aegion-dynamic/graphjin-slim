@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 )
 
 const (
@@ -338,7 +339,7 @@ func scanJSONRow(ctx context.Context, dbType string, conn *sql.Conn, tx *sql.Tx,
 		row = tx.QueryRowContext(ctx, query, args...)
 		return data, row.Scan(&data)
 	}
-	err := retryOperationForDB(ctx, dbType, func() error {
+	err := runtime.RetryOperationForDB(ctx, dbType, func() error {
 		row = conn.QueryRowContext(ctx, query, args...)
 		return row.Scan(&data)
 	})

@@ -29,7 +29,6 @@ func TestRegistryCompleteness(t *testing.T) {
 			}
 			_ = def.Default(ModeDev)
 			_ = def.Default(ModeProd)
-			_ = def.Default(ModeAgentic)
 		}
 	}
 }

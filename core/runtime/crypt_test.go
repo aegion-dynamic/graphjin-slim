@@ -1,4 +1,4 @@
-package core
+package runtime
 
 import (
 	"crypto/rand"
@@ -26,11 +26,11 @@ func TestCryptEncryptDecrypt(t *testing.T) {
 
 	nonce := sha256.Sum256(js)
 
-	out1, err := encryptValues(
+	out1, err := EncryptValues(
 		js, []byte(encPrefix), []byte(decPrefix), nonce[:], key)
 	assert.NoErrorFatal(t, err)
 
-	out2, err := decryptValues(out1, []byte(decPrefix), key)
+	out2, err := DecryptValues(out1, []byte(decPrefix), key)
 	assert.NoErrorFatal(t, err)
 
 	assert.Equals(t, expjs, out2)
@@ -46,7 +46,7 @@ func TestCryptBadDecrypt(t *testing.T) {
 	_, err := io.ReadFull(rand.Reader, key[:])
 	assert.NoErrorFatal(t, err)
 
-	out, err := decryptValues(js, []byte(prefix), key)
+	out, err := DecryptValues(js, []byte(prefix), key)
 	assert.NoErrorFatal(t, err)
 
 	assert.Equals(t, js, out)
@@ -66,9 +66,9 @@ func TestCryptFirstEncyptedValue(t *testing.T) {
 	// It finds the first cursor in the data (a_cursor with value "1,ABCDEFG")
 	exp := []byte(`__gc:foobar:1,ABCDEFG`)
 
-	out := firstCursorValue(jsb, []byte(prefix))
+	out := FirstCursorValue(jsb, []byte(prefix))
 	assert.Equals(t, exp, out)
 
-	out1 := firstCursorValue(jsb, []byte("boo"))
+	out1 := FirstCursorValue(jsb, []byte("boo"))
 	assert.Empty(t, out1)
 }

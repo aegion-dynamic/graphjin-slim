@@ -137,7 +137,6 @@ type graphjinService struct {
 	secretStore         *localKeystore
 	metadataDB          string
 	managedArtifactDB   string
-	systemNanoDB        *core.NanoDB
 	gj                  *core.GraphJin
 	srv                 *http.Server
 	srvMu               sync.Mutex // guards srv: written by startHTTP, read by Shutdown

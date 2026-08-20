@@ -1,4 +1,4 @@
-package core
+package schema
 
 import (
 	"encoding/json"
@@ -15,22 +15,9 @@ func TestIntrospectionIncludesUnderscoreOperators(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a minimal config
-	conf := &Config{
-		DBType: "postgres",
-	}
-
-	// Create a GraphJin engine directly
-	gj := &graphjinEngine{
-		conf:      conf,
-		roles:     make(map[string]*Role),
-		defaultDB: "default",
-		databases: map[string]*dbContext{
-			"default": {name: "default", schema: schema},
-		},
-	}
-
-	result, err := gj.introQuery()
+	result, err := BuildIntrospection(IntroOptions{
+		Schemas: []*sdata.DBSchema{schema},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,22 +88,9 @@ func TestIntrospectionIncludesBothOperatorFormats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a minimal config
-	conf := &Config{
-		DBType: "postgres",
-	}
-
-	// Create a GraphJin engine directly
-	gj := &graphjinEngine{
-		conf:      conf,
-		roles:     make(map[string]*Role),
-		defaultDB: "default",
-		databases: map[string]*dbContext{
-			"default": {name: "default", schema: schema},
-		},
-	}
-
-	result, err := gj.introQuery()
+	result, err := BuildIntrospection(IntroOptions{
+		Schemas: []*sdata.DBSchema{schema},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +192,7 @@ func TestIntrospectionIncludesBothOperatorFormats(t *testing.T) {
 }
 
 func TestIntrospectionIncludesSyntheticAggregateFields(t *testing.T) {
-	introResult := introspectTestDB(t, &Config{DBType: "postgres"})
+	introResult := introspectTestDB(t, IntroOptions{})
 	products := requireIntroType(t, introResult, "products")
 
 	for _, name := range []string{"count_id", "count_name", "sum_price", "avg_price", "min_price", "max_price"} {
@@ -249,7 +223,7 @@ func TestIntrospectionSyntheticAggregateCollisionPreservesPhysicalField(t *testi
 		},
 	}, nil, nil)
 
-	introResult := introspectDBInfo(t, di, &Config{DBType: "postgres"})
+	introResult := introspectDBInfo(t, di, IntroOptions{})
 	things := requireIntroType(t, introResult, "things")
 	countLikes := requireIntroField(t, things, "count_likes")
 
@@ -269,7 +243,7 @@ func TestIntrospectionFKColumnRelationNameCollision(t *testing.T) {
 		{Name: "org_key", Type: "bigint", FKeySchema: "public", FKeyTable: "organization", FKeyCol: "org_key"},
 	}))
 
-	introResult := introspectDBInfo(t, di, &Config{DBType: "postgres"})
+	introResult := introspectDBInfo(t, di, IntroOptions{})
 	employees := requireIntroType(t, introResult, "employees")
 
 	orgKeyFields := introFieldsNamed(employees, "org_key")
@@ -297,7 +271,7 @@ func TestIntrospectionFKColumnRelationNameCollision(t *testing.T) {
 }
 
 func TestIntrospectionSkipsSyntheticAggregatesWhenDisabled(t *testing.T) {
-	introResult := introspectTestDB(t, &Config{DBType: "postgres", DisableAgg: true})
+	introResult := introspectTestDB(t, IntroOptions{DisableAgg: true})
 	products := requireIntroType(t, introResult, "products")
 
 	requireIntroField(t, products, "id")
@@ -306,7 +280,7 @@ func TestIntrospectionSkipsSyntheticAggregatesWhenDisabled(t *testing.T) {
 }
 
 func TestIntrospectionIncludesSyntheticCursorFields(t *testing.T) {
-	introResult := introspectTestDB(t, &Config{DBType: "postgres"})
+	introResult := introspectTestDB(t, IntroOptions{})
 
 	query := requireIntroType(t, introResult, "Query")
 	productsCursor := requireIntroField(t, query, "products_cursor")
@@ -357,7 +331,7 @@ func TestIntrospectionIncludesFilesystemRemoteCursorField(t *testing.T) {
 }
 
 func TestIntrospectionSyntheticFieldsRespectCamelcase(t *testing.T) {
-	introResult := introspectTestDB(t, &Config{DBType: "postgres", EnableCamelcase: true})
+	introResult := introspectTestDB(t, IntroOptions{CamelCase: true})
 
 	products := requireIntroType(t, introResult, "products")
 	requireIntroField(t, products, "countId")
@@ -369,32 +343,21 @@ func TestIntrospectionSyntheticFieldsRespectCamelcase(t *testing.T) {
 	requireIntroField(t, query, "products_cursor")
 }
 
-func introspectTestDB(t *testing.T, conf *Config) IntroResult {
+func introspectTestDB(t *testing.T, opts IntroOptions) IntroResult {
 	t.Helper()
-	return introspectDBInfo(t, sdata.GetTestDBInfo(), conf)
+	return introspectDBInfo(t, sdata.GetTestDBInfo(), opts)
 }
 
-func introspectDBInfo(t *testing.T, di *sdata.DBInfo, conf *Config) IntroResult {
+func introspectDBInfo(t *testing.T, di *sdata.DBInfo, opts IntroOptions) IntroResult {
 	t.Helper()
 
 	schema, err := sdata.NewDBSchema(di, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if conf == nil {
-		conf = &Config{DBType: "postgres"}
-	}
+	opts.Schemas = []*sdata.DBSchema{schema}
 
-	gj := &graphjinEngine{
-		conf:      conf,
-		roles:     make(map[string]*Role),
-		defaultDB: "default",
-		databases: map[string]*dbContext{
-			"default": {name: "default", schema: schema},
-		},
-	}
-
-	result, err := gj.introQuery()
+	result, err := BuildIntrospection(opts)
 	if err != nil {
 		t.Fatal(err)
 	}

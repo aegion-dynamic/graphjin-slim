@@ -20,6 +20,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/fstable"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 )
 
 // FilesystemBackendFactory builds a filesystem Backend from one of the
@@ -81,22 +82,7 @@ func fixedFilesystemArgs(schema, table string) []sdata.DBColumn {
 }
 
 func isFilesystemRemoteTable(t sdata.DBTable) bool {
-	if t.Type != "remote" {
-		return false
-	}
-	cols := map[string]struct{}{}
-	for _, c := range t.Columns {
-		cols[c.Name] = struct{}{}
-	}
-	args := map[string]struct{}{}
-	for _, a := range t.Args {
-		args[a.Name] = struct{}{}
-	}
-	_, hasKey := cols["key"]
-	_, hasURL := cols["url"]
-	_, hasPrefix := args["prefix"]
-	_, hasInlineData := args["inline_data"]
-	return hasKey && hasURL && hasPrefix && hasInlineData
+	return schemapkg.IsFilesystemRemoteTable(t)
 }
 
 // loadFilesystemIntegration mirrors loadOpenAPIIntegration: it builds

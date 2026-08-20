@@ -9,6 +9,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/internal/sdata"
+	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -312,7 +313,7 @@ func (g *GraphJin) extractParameters(varDefs []graph.VarDef) []Parameter {
 // Reuses GraphJin's type mapping from intro.go
 func (g *GraphJin) graphQLTypeToOpenAPISchema(graphQLType string) Schema {
 	// Parse the type using the same logic as GraphJin's getType function
-	gqlType, isList := getType(graphQLType)
+	gqlType, isList := schemapkg.ColumnGraphQLType(graphQLType)
 
 	baseType := "string"
 	format := ""
@@ -428,7 +429,7 @@ func (g *GraphJin) columnToOpenAPISchema(col sdata.DBColumn) Schema {
 		description = "Primary key"
 	} else {
 		// Use GraphJin's getType function for type mapping
-		gqlType, _ := getType(col.Type)
+		gqlType, _ := schemapkg.ColumnGraphQLType(col.Type)
 		sqlType := strings.ToLower(col.Type)
 
 		switch gqlType {

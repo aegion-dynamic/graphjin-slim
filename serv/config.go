@@ -49,10 +49,9 @@ type Config struct {
 	dirty    bool
 	viper    *viper.Viper
 
-	webUIExplicit        bool
-	parsedConfig         bool
-	managedArtifactStore bool
-	explicitSettings     map[string]bool
+	webUIExplicit    bool
+	parsedConfig     bool
+	explicitSettings map[string]bool
 }
 
 // ReadInConfig reads the config file for the environment.
@@ -353,6 +352,5 @@ func newViper(configPath string, configName string) *viper.Viper {
 	return vi
 }
 
-// managedArtifactStore is a flag for artifact management.
 // In the slim build, this is always false.
 var _ = (*Config)(nil)

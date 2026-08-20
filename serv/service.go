@@ -110,8 +110,6 @@ func routesHandler(s1 *HttpService, mux Mux, ns *string) (Mux, error) {
 }
 
 type graphjinService struct {
-	artifactProjectionRefreshes atomic.Int64
-
 	log                 *zap.SugaredLogger // logger
 	zlog                *zap.Logger        // faster logger
 	logLevel            int                // log level
@@ -522,7 +520,6 @@ func (s *graphjinService) normalStart() error {
 // 	}
 // 	// Add response cache if enabled
 // 	if s.cache != nil {
-// 		opts = append(opts, core.OptionSetResponseCache(s.cache))
 // 	}
 //
 // 	s.gj, err = core.NewGraphJin(&s.conf.Core, s.db, opts...)
@@ -604,16 +601,6 @@ func (s *HttpService) REST(ah HandlerFunc) http.Handler {
 // RESTWithNS is the http handler the namespaced REST endpoint
 func (s *HttpService) RESTWithNS(ah HandlerFunc, ns string) http.Handler {
 	return s.apiHandler(&ns, ah, true)
-}
-
-// OpenAPI is the http handler for the OpenAPI specification endpoint
-func (s *HttpService) OpenAPI() http.Handler {
-	return s.openAPIHandler(nil)
-}
-
-// OpenAPIWithNS is the http handler for the namespaced OpenAPI specification endpoint
-func (s *HttpService) OpenAPIWithNS(ns string) http.Handler {
-	return s.openAPIHandler(&ns)
 }
 
 func (s *HttpService) apiHandler(ns *string, ah HandlerFunc, rest bool) http.Handler {

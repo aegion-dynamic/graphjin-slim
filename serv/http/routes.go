@@ -27,7 +27,6 @@ type Handlers struct {
 const (
 	GraphQLPath = "/api/v1/graphql"
 	RESTPath    = "/api/v1/rest/"
-	OpenAPIPath = "/api/v1/openapi.json"
 )
 
 // Register installs the standard GraphJin endpoints.

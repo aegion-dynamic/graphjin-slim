@@ -43,7 +43,7 @@ func (s *gstate) generateMockValue(sel *qcode.Select, qc *qcode.QCode) (interfac
 	// For mutations, it might be singular even if not explicitly marked, but usually mutations return the modified object(s).
 	// Let's rely on sel.Singular.
 	if !sel.Singular {
-		list := make([]interface{}, 0, 3) 
+		list := make([]interface{}, 0, 3)
 		// Generate variable number of items for realism, say 1 to 3
 		count := 1 + rand.Intn(3)
 		for i := 0; i < count; i++ {
@@ -73,14 +73,14 @@ func (s *gstate) generateMockItem(sel *qcode.Select, qc *qcode.QCode, idx int) (
 			val := s.mockColumnValue(f.Col, f.FieldName, idx)
 			item[f.FieldName] = val
 		case qcode.FieldTypeFunc:
-			item[f.FieldName] = 42 
+			item[f.FieldName] = 42
 		}
 	}
 
 	// Also handle children (relationships)
 	for _, childID := range sel.Children {
 		childSel := qc.Selects[childID]
-		
+
 		// If SkipRender is set on the child select, skip it
 		if childSel.SkipRender != qcode.SkipTypeNone {
 			continue

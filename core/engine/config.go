@@ -2247,4 +2247,3 @@ func (c *Config) DefaultDatabaseName() string { return c.defaultDatabaseName() }
 
 // IsAgenticMode is exported version of isAgenticMode.
 func IsAgenticMode(c *Config) bool { return isAgenticMode(c) }
-

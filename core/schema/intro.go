@@ -271,6 +271,32 @@ func BuildIntrospection(opts IntroOptions) (result json.RawMessage, err error) {
 			}
 		}
 
+		// Pre-seed every table's type name so getTableField can resolve
+		// reverse-relation fields regardless of table processing order.
+		// The real definitions below overwrite these placeholders.
+		aliased := make(map[string]bool, len(aliases))
+		for _, t := range aliases {
+			aliased[t.Name] = true
+		}
+		for _, t := range sch.GetTables() {
+			if t.Blocked || t.Type == "remote" || aliased[t.Name] {
+				continue
+			}
+			if len(t.Columns) == 0 && len(t.Args) == 0 {
+				continue
+			}
+			name := in.getName(t.Name)
+			if _, ok := in.types[name]; !ok {
+				in.addType(FullType{
+					Kind:        KIND_OBJECT,
+					Name:        name,
+					Interfaces:  []TypeRef{},
+					Fields:      []FieldObject{},
+					InputFields: []InputValue{},
+				})
+			}
+		}
+
 		for _, t := range sch.GetTables() {
 			if err = in.addTable(t, ""); err != nil {
 				return

@@ -418,3 +418,15 @@ func introFieldsNamed(ft *FullType, name string) []FieldObject {
 	}
 	return fields
 }
+
+func TestIntrospectionReverseRelationsOrderIndependent(t *testing.T) {
+	introResult := introspectTestDB(t, IntroOptions{})
+
+	// Both directions of the products<->users relationship must appear
+	// no matter which table the builder processes first.
+	users := requireIntroType(t, introResult, "users")
+	requireIntroField(t, users, "products")
+
+	products := requireIntroType(t, introResult, "products")
+	requireIntroField(t, products, "user")
+}

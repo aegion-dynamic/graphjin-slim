@@ -3,7 +3,7 @@ module github.com/aegion-dynamic/graphjin-slim/serv/v3
 go 1.25.5
 
 require (
-	github.com/aegion-dynamic/graphjin-slim/core/v3 v4.0.0
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.0.3
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/klauspost/compress v1.18.3

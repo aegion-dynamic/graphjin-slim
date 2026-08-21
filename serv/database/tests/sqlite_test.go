@@ -160,29 +160,7 @@ func TestSQLiteWrongKeyFails(t *testing.T) {
 	}
 }
 
-func TestSQLiteEncryptionRequiresSQLCipherBuild(t *testing.T) {
-	if hasSQLCipherSupport(t) {
-		t.Skip("binary links SQLCipher; nothing to prove")
-	}
-	_, err := database.Open(database.Options{Config: database.Config{
-		Type: "sqlite", Path: filepath.Join(t.TempDir(), "x.db"), EncryptionKey: "k",
-	}})
-	if err == nil {
-		t.Fatal("expected loud error on plain-SQLite build with encryption_key set")
-	}
-	if !strings.Contains(err.Error(), "plain SQLite") {
-		t.Fatalf("error lacks guidance: %v", err)
-	}
-}
-
-// TestPoolRetentionGuard proves the adapter guard behaviorally: a zero-value
-// programmatic SQLite config must RETAIN its connection after a query
-// (Stats().Idle >= 1). Before the guard, MaxIdleConns(0) meant Idle stayed 0
-// forever and every request paid full re-initialization.
 func TestPoolRetentionGuard(t *testing.T) {
-	if hasSQLCipherSupport(t) {
-		t.Skip("covered by encrypted churn/retention tests; this asserts the plain-build default")
-	}
 	db := openPlain(t, filepath.Join(t.TempDir(), "guard.db"))
 	defer db.Close()
 	seedWarmTable(t, db)

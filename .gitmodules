@@ -1,0 +1,3 @@
+[submodule "native/sqlcipher"]
+	path = serv/database/sqlite/cipher
+	url = https://github.com/sqlcipher/sqlcipher.git

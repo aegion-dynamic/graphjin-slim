@@ -35,19 +35,21 @@ The driver registers under the name `"sqlite"`; Postgres uses pgx's `"pgx"`.
 
 ## Encryption build requirements
 
-The Go patch and encryption require linking your own SQLCipher library:
+SQLCipher is compiled directly into the application from the committed
+amalgamation (`sqlite3.c`), so no external SQLCipher library or patch step is
+needed. The only runtime dependency is the system OpenSSL 3
+(`libcrypto.so.3`) used by the cipher provider.
 
 ```bash
-./scripts/apply-sqlite3-patch.sh          # patches mattn in the module cache
-
-DIST=/path/to/sqlcipher-dist              # lib/libsqlcipher.so (+ libsqlite3.so symlink), include/sqlite3.h
-CGO_CFLAGS="-I$DIST/include" \
-CGO_LDFLAGS="-L$DIST/lib -Wl,-rpath,$DIST/lib" \
-go build -tags libsqlite3 ./...
+go build ./...      # requires a C toolchain (gcc/clang) — that's it
 ```
 
-Without that tag the binary links vanilla SQLite: plaintext mode works, and
-any config with `encryption_key` fails fast with rebuild guidance.
+To upgrade SQLCipher, move the `cipher/` submodule to a new release commit and
+regenerate the amalgamation:
+
+```bash
+./scripts/gen-sqlite3.sh
+```
 
 ## Key Functions
 

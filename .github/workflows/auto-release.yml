@@ -67,10 +67,12 @@ jobs:
 
           MSG="${COMMIT_MSG:-}"
           case "$MSG" in
-              *"[major]"*) MINOR=$((MINOR + 1)); PATCH=0;;
-              *"[minor]"*|*"feat:"*|*"feat("*|*"feature:"*)
+              *"[major]"*)
                   MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0;;
-              *) PATCH=$((PATCH + 1));;
+              *"[minor]"*|*"feat:"*|*"feat("*|*"feature:"*)
+                  MINOR=$((MINOR + 1)); PATCH=0;;
+              *)
+                  PATCH=$((PATCH + 1));;
           esac
 
           echo "version=$MAJOR.$MINOR.$PATCH" >> "$GITHUB_OUTPUT"

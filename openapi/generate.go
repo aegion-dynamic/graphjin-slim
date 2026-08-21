@@ -383,11 +383,8 @@ func generatePathItem(qcc *qcode.Compiler, item allow.Item) (PathItem, bool) {
 		}
 
 		if method == "GET" {
-			// Typed per-variable parameters only. The server additionally
-			// accepts a single JSON-encoded `variables` query parameter,
-			// but it is deliberately not advertised here — an untyped
-			// string blob would surface in generated SDKs and undermine
-			// the type safety of the parameters above.
+			// Typed per-variable parameters only — the same variables the
+			// server reads as individual query parameters on GET.
 			operation.Parameters = a.parameters
 		}
 

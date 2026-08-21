@@ -115,12 +115,19 @@ application
              +--> serv/cache
              +--> serv/database
              +--> core
+
+application (optional product surfaces)
+    |
+    +--> webui     embedded React console, stdlib only
+    +--> openapi   spec generator over core/v3/{qcode,sdata,schema,allow}
 ```
 
 Internal compiler packages should not import the service package. Transport
 packages should not own compiler behavior. The root service package is the
 composition point where configuration, database, cache, HTTP, and core are
-assembled.
+assembled. The webui and openapi modules are opt-in: the service only holds
+neutral hooks (`serv.OptionSetWebUI`, `serv.OptionSetOpenAPI`), so slim
+binaries are unchanged unless an application imports them.
 
 ## Refactoring Direction
 

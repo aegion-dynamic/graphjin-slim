@@ -18,6 +18,27 @@ Upstream remains the full project with its broader feature set. This repo tracks
 - Sources: database, file, api
 - File backends: local and s3
 
+## Optional modules
+
+Product surfaces are isolated into their own workspace modules. The slim
+data path never links them; an application imports what it wants and passes
+it to the service through options.
+
+| Module | Import path | Provides |
+|---|---|---|
+| `webui/` | `github.com/aegion-dynamic/graphjin-slim/webui/v3` | Embedded React console (`webui.Handler`) |
+| `openapi/` | `github.com/aegion-dynamic/graphjin-slim/openapi/v3` | OpenAPI 3.0 spec generator for saved queries (`openapi.Generator`) |
+
+```go
+gjs, err := serv.NewGraphJinService(conf,
+    serv.OptionSetWebUI(webui.Handler),
+    serv.OptionSetOpenAPI(openapi.Generator(openapi.Config{Title: "My API"})),
+)
+```
+
+Setting `openapi_specs_dir` in the service config writes the spec to disk at
+startup for SDK codegen pipelines.
+
 ## What was removed
 
 - Role and identity system: RBAC/ABAC role models, presets, role-based column/table blocking, and `$user_id` contextual injections have been removed in favor of an un-opinionated, pure GraphQL-to-SQL compiler where authorization is host-owned.

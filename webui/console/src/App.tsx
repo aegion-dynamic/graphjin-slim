@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from "react"
-import { QueryEditor } from "./components/QueryEditor"
-import { SavedQueries, OpenedQuery } from "./components/SavedQueries"
-import { endpointURL, listSavedQueries } from "./api"
+import { GraphiQL } from "graphiql"
+import { ToolbarButton, ToolbarMenu } from "@graphiql/react"
+import { createGraphiQLFetcher } from "@graphiql/toolkit"
+import "graphiql/style.css"
 
-const DEFAULT_QUERY = `# GraphJin — write a named query and hit Save.
-# Autocomplete: Ctrl+Space. Validation happens as you type.
+const DEFAULT_QUERY = `# Welcome to GraphJin Web
+
+# Use this editor to build and test your GraphQL queries.
+# Give the operation a name and press Save to store it
+# in the allow list together with its variables.
 
 query getUsers {
   users(limit: 10, order_by: { id: desc }) {
@@ -19,6 +23,11 @@ query getUsers {
 }
 `
 
+function endpointPath(): string {
+  const ep = new URLSearchParams(window.location.search).get("endpoint")
+  return ep && ep.startsWith("/") && !ep.startsWith("//") ? ep : "/api/v1/graphql"
+}
+
 function extractOpName(query: string): string {
   const m = query.match(/\b(query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/)
   return m ? m[2] : ""
@@ -32,17 +41,25 @@ function resetGraphiQLStorage() {
   }
 }
 
+interface SavedQuerySummary {
+  name: string
+  operation?: string
+}
+
 export default function App() {
-  const [queries, setQueries] = useState<{ name: string; operation?: string }[]>([])
+  const [queries, setQueries] = useState<SavedQuerySummary[]>([])
   const [active, setActive] = useState("")
   const [query, setQuery] = useState(DEFAULT_QUERY)
   const [variables, setVariables] = useState("{}")
   const [instanceKey, setInstanceKey] = useState(0)
-  const [name, setName] = useState("getUsers")
   const [status, setStatus] = useState("")
 
+  const fetcher = createGraphiQLFetcher({
+    url: `${window.location.origin}${endpointPath()}`,
+  })
+
   const refresh = useCallback(() => {
-    listSavedQueries()
+    listSaved()
       .then(setQueries)
       .catch(() => {})
   }, [])
@@ -50,12 +67,13 @@ export default function App() {
   useEffect(refresh, [refresh])
 
   useEffect(() => {
-    const n = extractOpName(query)
-    if (n) setName(n)
-  }, [query])
+    const t = setTimeout(() => setStatus(""), 2500)
+    return () => clearTimeout(t)
+  }, [status])
 
   function save() {
-    if (!name.trim()) return void setStatus("Query needs a name")
+    const name = extractOpName(query)
+    if (!name) return void setStatus("Name the operation to save it")
     let vars: Record<string, unknown> = {}
     try {
       vars = JSON.parse(variables || "{}")
@@ -65,67 +83,107 @@ export default function App() {
     fetch("/api/v1/queries", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), query, variables: vars }),
+      body: JSON.stringify({ name, query, variables: vars }),
     })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `HTTP ${r.status}`)
-        setActive(name.trim())
-        setStatus(`Saved "${name.trim()}"`)
+        setActive(name)
+        setStatus(`Saved "${name}"`)
         refresh()
       })
       .catch((e: Error) => setStatus(e.message))
   }
 
-  function onOpen(q: OpenedQuery) {
-    resetGraphiQLStorage()
-    setActive(q.name)
-    setQuery(q.query || DEFAULT_QUERY)
-    setVariables(q.variables || "{}")
-    setInstanceKey((k) => k + 1)
-    setStatus(`Loaded "${q.name}"`)
+  function open(name: string) {
+    fetch(`/api/v1/queries?name=${encodeURIComponent(name)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        resetGraphiQLStorage()
+        setActive(name)
+        setQuery(d.query || DEFAULT_QUERY)
+        setVariables(d.variables ? JSON.stringify(d.variables, null, 2) : "{}")
+        setInstanceKey((k) => k + 1)
+        setStatus(`Loaded "${name}"`)
+      })
+      .catch(() => setStatus(`Failed to load "${name}"`))
   }
 
-  function onDelete(deleted: string) {
-    refresh()
-    if (active === deleted) setActive("")
-    setStatus(`Deleted "${deleted}"`)
+  function remove(name: string) {
+    if (!confirm(`Delete saved query "${name}"?`)) return
+    fetch(`/api/v1/queries?name=${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    })
+      .then(() => {
+        refresh()
+        if (active === name) setActive("")
+        setStatus(`Deleted "${name}"`)
+      })
+      .catch(() => setStatus(`Failed to delete "${name}"`))
   }
 
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-dot" />
-          <span className="brand-name">GraphJin</span>
-          <span className="brand-env">console</span>
-        </div>
-        <span className="endpoint">{endpointURL()}</span>
-        {status && <span className="status">{status}</span>}
-        <div className="actions">
-          <input
-            className="name-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="query-name"
-            spellCheck={false}
-          />
-          <button className="save-btn" onClick={save}>
+      <GraphiQL
+        key={instanceKey}
+        fetcher={fetcher}
+        initialQuery={query}
+        initialVariables={variables}
+        onEditQuery={setQuery}
+        onEditVariables={setVariables}
+        isHeadersEditorEnabled={false}
+      >
+        <GraphiQL.Logo>
+          <span className="gj-logo">
+            <span className="gj-logo-dot" />
+            GraphJin
+            {status && <span className="gj-status">{status}</span>}
+          </span>
+        </GraphiQL.Logo>
+        <GraphiQL.Toolbar>
+          <ToolbarMenu
+            button={
+              <span className="gj-menu-btn" title="Saved Queries">
+                Saved…
+              </span>
+            }
+          >
+            {queries.length === 0 && (
+              <ToolbarMenu.Item disabled>No saved queries yet</ToolbarMenu.Item>
+            )}
+            {queries.map((q) => (
+              <ToolbarMenu.Item key={q.name} onSelect={() => open(q.name)} title={q.operation}>
+                {badge(q.operation)} {q.name}
+              </ToolbarMenu.Item>
+            ))}
+            {active && queries.length > 0 && (
+              <ToolbarMenu.Item onSelect={() => remove(active)}>
+                Delete "{active}"…
+              </ToolbarMenu.Item>
+            )}
+          </ToolbarMenu>
+          <ToolbarButton onClick={save} label="Save named query with its variables">
             Save
-          </button>
-        </div>
-      </header>
-      <div className="body">
-        <SavedQueries queries={queries} active={active} onOpen={onOpen} onDelete={onDelete} />
-        <main className="editor">
-          <QueryEditor
-            query={query}
-            variables={variables}
-            instanceKey={instanceKey}
-            onQueryChange={setQuery}
-            onVariablesChange={setVariables}
-          />
-        </main>
-      </div>
+          </ToolbarButton>
+        </GraphiQL.Toolbar>
+      </GraphiQL>
     </div>
   )
+}
+
+function badge(op?: string): string {
+  switch ((op ?? "").toLowerCase()) {
+    case "mutation":
+      return "[M]"
+    case "subscription":
+      return "[S]"
+    default:
+      return "[Q]"
+  }
+}
+
+async function listSaved(): Promise<SavedQuerySummary[]> {
+  const res = await fetch("/api/v1/queries")
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const body = await res.json()
+  return body.queries ?? []
 }

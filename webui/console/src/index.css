@@ -1,64 +1,40 @@
-@import "tailwindcss";
-
-/* GraphJin Console — Vercel-inspired dark chrome around GraphiQL. */
+/* GraphJin Console — fullscreen GraphiQL, dark chrome, minimal footprint. */
 
 :root {
   --gj-bg: #000000;
   --gj-panel: #0a0a0a;
   --gj-border: #262626;
-  --gj-border-soft: #1a1a1a;
   --gj-text: #ededed;
   --gj-muted: #888888;
   --gj-accent: #3b82f6;
-  --gj-hover: #141414;
 
   color-scheme: dark;
-  font-family:
-    ui-sans-serif,
-    -apple-system,
-    "Segoe UI",
-    Helvetica,
-    Arial,
-    sans-serif;
 }
 
 html,
 body,
-#root {
+#root,
+.app {
   height: 100%;
   margin: 0;
 }
 
 .app {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
   background: var(--gj-bg);
   color: var(--gj-text);
 }
 
-/* ── Top bar ─────────────────────────────────────────────── */
-
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  height: 52px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--gj-border);
-  background: var(--gj-panel);
-  flex-shrink: 0;
-}
-
-.brand {
+/* Branding inside GraphiQL's own header. */
+.gj-logo {
   display: flex;
   align-items: center;
   gap: 8px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  font-size: 14px;
 }
 
-.brand-dot {
+.gj-logo-dot {
   width: 10px;
   height: 10px;
   border-radius: 999px;
@@ -66,218 +42,13 @@ body,
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.7);
 }
 
-.brand-env {
+.gj-status {
+  margin-left: 10px;
   color: var(--gj-muted);
   font-size: 12px;
   font-weight: 400;
-  border: 1px solid var(--gj-border);
-  border-radius: 4px;
-  padding: 1px 7px;
 }
 
-.endpoint {
-  color: var(--gj-muted);
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-}
-
-.status {
-  margin-left: auto;
-  margin-right: auto;
-  color: var(--gj-muted);
-  font-size: 12px;
-  max-width: 40%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.status ~ .actions {
-  margin-left: 0;
-}
-
-.name-input {
-  width: 180px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--gj-border);
-  border-radius: 6px;
-  background: var(--gj-bg);
-  color: var(--gj-text);
-  font-family: ui-monospace, monospace;
+.gj-menu-btn {
   font-size: 13px;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.name-input:focus {
-  border-color: var(--gj-accent);
-}
-
-.save-btn {
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: var(--gj-accent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: filter 0.15s ease;
-}
-
-.save-btn:hover {
-  filter: brightness(1.15);
-}
-
-/* ── Layout ──────────────────────────────────────────────── */
-
-.body {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-}
-
-.rail {
-  width: 240px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--gj-border);
-  background: var(--gj-panel);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.rail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--gj-muted);
-}
-
-.rail-count {
-  border: 1px solid var(--gj-border);
-  border-radius: 999px;
-  padding: 0 7px;
-  font-size: 11px;
-}
-
-.rail-list {
-  list-style: none;
-  margin: 0;
-  padding: 4px 8px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.rail-empty {
-  color: var(--gj-muted);
-  font-size: 12px;
-  line-height: 1.6;
-  padding: 10px 8px;
-}
-
-.rail-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 9px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.1s ease;
-}
-
-.rail-item:hover {
-  background: var(--gj-hover);
-}
-
-.rail-item-active {
-  background: var(--gj-hover);
-  box-shadow: inset 2px 0 0 var(--gj-accent);
-}
-
-.rail-op {
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--gj-border);
-  border-radius: 4px;
-  font-size: 10px;
-  color: var(--gj-muted);
-  flex-shrink: 0;
-}
-
-.rail-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: ui-monospace, monospace;
-}
-
-.rail-delete {
-  margin-left: auto;
-  color: var(--gj-muted);
-  opacity: 0;
-  cursor: pointer;
-  padding: 0 4px;
-  border-radius: 4px;
-  font-size: 15px;
-  transition:
-    opacity 0.1s ease,
-    color 0.1s ease;
-}
-
-.rail-item:hover .rail-delete {
-  opacity: 1;
-}
-
-.rail-delete:hover {
-  color: #f87171;
-}
-
-.editor {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.graphiql-shell {
-  flex: 1;
-  min-height: 0;
-}
-
-/* ── GraphiQL dark theme ─────────────────────────────────── */
-
-.graphiql-container {
-  --graphiql-background-color: var(--gj-bg);
-  --graphiql-secondary-text-color: var(--gj-muted);
-  --graphiql-primary-color: var(--gj-text);
-  --graphiql-toolbar-button-background-color: var(--gj-hover);
-  --graphiql-toolbar-button-border: var(--gj-border);
-  --graphiql-toolbar-button-icon-color: var(--gj-text);
-  --graphiql-sidebar-background-color: var(--gj-panel);
-  --graphiql-dialog-header-background-color: var(--gj-panel);
-  --graphiql-table-header-background-color: var(--gj-panel);
-  --graphiql-code-editor-decoration-color: var(--gj-border-soft);
-  --graphiql-tab-active-background-color: var(--gj-bg);
-
-  /* CodeMirror token colors — tuned for near-black. */
-  --cm-editor-background: var(--gj-bg);
 }

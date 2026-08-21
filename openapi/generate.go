@@ -10,8 +10,8 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 // Config controls the generated specification metadata.
@@ -382,13 +382,13 @@ func generatePathItem(qcc *qcode.Compiler, item allow.Item) (PathItem, bool) {
 			},
 		}
 
-		if method == "GET" && len(a.parameters) > 0 {
-			operation.Parameters = append(a.parameters, Parameter{
-				Name:        "variables",
-				In:          "query",
-				Description: "JSON-encoded GraphQL variables",
-				Schema:      Schema{Type: "string", Description: "JSON object as string"},
-			})
+		if method == "GET" {
+			// Typed per-variable parameters only. The server additionally
+			// accepts a single JSON-encoded `variables` query parameter,
+			// but it is deliberately not advertised here — an untyped
+			// string blob would surface in generated SDKs and undermine
+			// the type safety of the parameters above.
+			operation.Parameters = a.parameters
 		}
 
 		if (method == "POST" || method == "PUT") && len(a.parameters) > 0 {

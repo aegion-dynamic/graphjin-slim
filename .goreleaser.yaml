@@ -1,0 +1,62 @@
+# GoReleaser configuration for graphjin-slim library releases.
+#
+# This is a LIBRARY-ONLY release: no binaries are built or shipped.
+# GoReleaser turns a pushed semver tag into a GitHub Release with generated
+# notes; the tag itself is the consumable artifact (`go get` it).
+#
+# Consumers compile SQLCipher themselves from the committed amalgamation -
+# see serv/database/sqlite/ and serv/database/README.md.
+
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: graphjin-slim
+
+# Library modules only (core/, serv/, native/) — nothing to compile here.
+# The absence of a `builds` section is intentional.
+
+release:
+  mode: replace
+  prerelease: auto   # vX.Y.Z-snapshot.* tags are marked prerelease automatically
+  header: |
+    ## {{ .Tag }}
+
+    Library release - consume via:
+
+    ```bash
+    go get github.com/aegion-dynamic/graphjin-slim/serv/v3@{{ .Tag }}
+    go get github.com/aegion-dynamic/graphjin-slim/core/v3@{{ .Tag }}
+    ```
+
+    SQLite encryption is compiled into consumer builds automatically
+    (SQLCipher 4.18.0 / SQLite 3.53.4, dynamic system OpenSSL 3).
+  footer: |
+    **Full Changelog**: see commit history for details.
+
+changelog:
+  use: git
+  sort: asc
+  abbrev: 0
+  groups:
+    - title: 'New Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: 'Refactors'
+      regexp: '^.*?refactor(\([[:word:]]+\))??!?:.+$'
+      order: 3
+    - title: 'Documentation'
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 4
+    - title: 'Other Changes'
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore:'
+      - '^ci:'

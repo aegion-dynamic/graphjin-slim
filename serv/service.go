@@ -1329,7 +1329,31 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
 			vars, err = parseBody(r)
 
 		case "GET":
-			vars = json.RawMessage(r.URL.Query().Get("variables"))
+			// Variables arrive either as a single JSON-encoded
+			// `variables` parameter or as individual parameters
+			// matching variable names (as advertised in the OpenAPI
+			// spec).
+			if v := r.URL.Query().Get("variables"); v != "" {
+				vars = json.RawMessage(v)
+			} else {
+				q := r.URL.Query()
+				m := make(map[string]any, len(q))
+				for k := range q {
+					if k == "variables" {
+						continue
+					}
+					raw := q.Get(k)
+					var vv any
+					if json.Unmarshal([]byte(raw), &vv) == nil {
+						m[k] = vv
+					} else {
+						m[k] = raw
+					}
+				}
+				if len(m) != 0 {
+					vars, err = json.Marshal(m)
+				}
+			}
 		}
 
 		if err != nil {

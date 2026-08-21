@@ -36,7 +36,15 @@ jobs:
         with:
           go-version-file: 'serv/go.mod'
 
-      # preflight: prove the committed tree compiles before versioning it
+      # preflight: prove the committed tree compiles before versioning it.
+      # Native deps are provisioned here so CI never depends on a developer
+      # machine: SQLCipher needs a C toolchain + OpenSSL headers/libraries
+      # (dynamic libcrypto.so.3 at runtime).
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev
+
       - name: Verify modules compile
         run: go build ./core/... ./serv/...
 

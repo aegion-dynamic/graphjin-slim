@@ -37,18 +37,22 @@ The driver registers under the name `"sqlite"`; Postgres uses pgx's `"pgx"`.
 
 SQLCipher is compiled directly into the application from the committed
 amalgamation (`sqlite3.c`), so no external SQLCipher library or patch step is
-needed. The only runtime dependency is the system OpenSSL 3
-(`libcrypto.so.3`) used by the cipher provider.
+needed. Builds require a C toolchain plus OpenSSL 3 development files; the
+resulting binary dynamically links the system `libcrypto.so.3` at runtime.
+
+Local one-time setup (Debian/Ubuntu):
 
 ```bash
-go build ./...      # requires a C toolchain (gcc/clang) — that's it
+sudo apt-get install -y build-essential pkg-config libssl-dev
+go build ./...
 ```
 
-To upgrade SQLCipher, move the `cipher/` submodule to a new release commit and
-regenerate the amalgamation:
+CI provisions these packages itself (see `.github/workflows/auto-release.yml`),
+so releases never depend on a developer machine. To upgrade SQLCipher, move the
+`cipher/` submodule to a new release commit and regenerate the amalgamation:
 
 ```bash
-./scripts/gen-sqlite3.sh
+./gen.sh
 ```
 
 ## Key Functions

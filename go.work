@@ -4,6 +4,8 @@ use (
 	./bench
 	./core
 	./openapi
+	./postgres
 	./serv
+	./sqlite
 	./webui
 )

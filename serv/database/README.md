@@ -16,8 +16,8 @@ applying pooling limits, idle timeouts, and connection lifecycles.
 
 Both SQLite modes share one adapter:
 
-- `encryption_key` unset → plain SQLite; files remain standard plaintext.
-- `encryption_key` set   → SQLCipher: the key is applied via ConnectHook on
+- `encryption_key` unset -> plain SQLite; files remain standard plaintext.
+- `encryption_key` set   -> SQLCipher: the key is applied via ConnectHook on
   every physical connection before any other statement, and the open is
   validated against `PRAGMA cipher_version`.
 

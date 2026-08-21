@@ -3,11 +3,13 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	pgadapter "github.com/aegion-dynamic/graphjin-slim/postgres/v3"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +37,7 @@ func OpenCore(ctx context.Context, name string, c core.DatabaseConfig) (*sql.DB,
 	var driverName, dsn string
 	switch dbType {
 	case "sqlite":
-		d, derr := buildSQLiteDSN(c.ConnString, c.Path, c.EncryptionKey)
+		d, derr := buildCoreSQLiteDSN(c)
 		if derr != nil {
 			return nil, fmt.Errorf("sqlite database %q: %w", name, derr)
 		}
@@ -134,13 +136,32 @@ func Connection(opts Options) (string, string, error) {
 	}
 	switch dbType {
 	case "postgres":
-		dsn, err := buildPostgresConn(c, opts)
+		dsn, err := pgadapter.BuildConn(pgadapter.Options{
+			ConnString: c.ConnString,
+			Host:       c.Host,
+			Port:       c.Port,
+			User:       c.User,
+			Password:   c.Password,
+			DBName:     c.DBName,
+			Schema:     c.Schema,
+			AppName:    opts.AppName,
+			OpenDBName: opts.OpenDBName,
+			EnableTLS:  c.EnableTLS,
+			ServerName: c.ServerName,
+			ServerCert: c.ServerCert,
+			GetFile: func(p string) ([]byte, error) {
+				if opts.Filesystem == nil {
+					return nil, errors.New("tls: filesystem is required for server_cert paths")
+				}
+				return opts.Filesystem.Get(p)
+			},
+		})
 		if err != nil {
 			return "", "", err
 		}
-		return DriverPostgres, dsn, nil
+		return pgadapter.DriverPostgres, dsn, nil
 	case "sqlite":
-		dsn, err := buildSQLiteDSN(c.ConnString, c.Path, c.EncryptionKey)
+		dsn, err := buildSQLiteDSN(c)
 		if err != nil {
 			return "", "", err
 		}
@@ -152,7 +173,7 @@ func Connection(opts Options) (string, string, error) {
 
 func configure(db *sql.DB, c Config) {
 	// Pool retention guard: a zero-value programmatic SQLite config must not
-	// silently disable idle-connection retention — with SQLCipher every
+	// silently disable idle-connection retention - with SQLCipher every
 	// dropped connection is re-paid (KDF) on the next request. Explicitly
 	// configured positive sizes are preserved; Postgres keeps database/sql
 	// defaults.

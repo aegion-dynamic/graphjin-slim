@@ -5,8 +5,8 @@
 // One engine, one driver name ("sqlite"). Encryption is policy, not a
 // different stack:
 //
-//	encryption_key == "" → standard SQLite behavior through SQLCipher
-//	encryption_key != "" → PRAGMA key applied as the first statement on
+//	encryption_key == "" -> standard SQLite behavior through SQLCipher
+//	encryption_key != "" -> PRAGMA key applied as the first statement on
 //	                       every physical connection
 //
 // Provenance of the vendored C sources (see scripts/gen-sqlite3.sh):

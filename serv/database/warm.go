@@ -40,7 +40,7 @@ func WarmPoolContext(ctx context.Context, db *sql.DB, n int) error {
 	}
 
 	// Phase 1: acquire and HOLD n distinct physical connections. Holding is
-	// what forces distinctness — released conns could be handed to a later
+	// what forces distinctness - released conns could be handed to a later
 	// acquisition instead of triggering a new physical open.
 	conns := make([]*sql.Conn, 0, n)
 	defer func() {
@@ -57,7 +57,7 @@ func WarmPoolContext(ctx context.Context, db *sql.DB, n int) error {
 	}
 
 	// Phase 2: touch a real page on every connection in parallel so all key
-	// derivations overlap (wall time ≈ one derivation, not n).
+	// derivations overlap (wall time ~ one derivation, not n).
 	errMu := sync.Mutex{}
 	var firstErr error
 	setErr := func(err error) {

@@ -88,8 +88,8 @@ func newConn(dsn string) (*conn, error) {
 	c := &conn{db: db}
 
 	// Initialization order is explicit and owned by this driver:
-	//   open_v2 → PRAGMA key (first statement when configured)
-	//           → remaining pragmas → normal use
+	//   open_v2 -> PRAGMA key (first statement when configured)
+	//           -> remaining pragmas -> normal use
 	if key != "" {
 		if err := c.execRaw(applyKey(key) + ";"); err != nil {
 			c.Close()

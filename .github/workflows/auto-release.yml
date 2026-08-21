@@ -114,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           V="${{ steps.next.outputs.version }}"
-          TAGS=("core/v$V" "serv/v$V" "openapi/v$V" "webui/v$V" "v$V")
+          TAGS=("core/v$V" "serv/v$V" "sqlite/v$V" "postgres/v$V" "openapi/v$V" "webui/v$V" "v$V")
 
           for t in "${TAGS[@]}"; do
               git tag -d "$t" >/dev/null 2>&1 || true

@@ -4,14 +4,8 @@ import { ToolbarButton, ToolbarMenu } from "@graphiql/react"
 import { createGraphiQLFetcher } from "@graphiql/toolkit"
 import "graphiql/graphiql.css"
 
-const DEFAULT_QUERY = `# Welcome to GraphJin Web
-
-# Use this editor to build and test your GraphQL queries.
-# Give the operation a name and press Save to store it
-# in the allow list together with its variables.
-
-query getUsers {
-  users(limit: 10, order_by: { id: desc }) {
+const DEFAULT_QUERY = `query getUsers {
+  users(limit: 10, orderBy: { id: desc }) {
     id
     full_name
     email
@@ -21,6 +15,22 @@ query getUsers {
     }
   }
 }
+`
+
+// Content for tabs opened via the "+" button inside GraphiQL.
+const WELCOME_QUERY = `# GraphJin Slim — write GraphQL, get SQL.
+#
+#     query getUsers {
+#       users(limit: 10, orderBy: { id: desc }) {
+#         id
+#         full_name
+#       }
+#     }
+#
+# Run Query:     Ctrl-Enter (or the play button)
+# Auto Complete: Ctrl-Space (or just start typing)
+#
+# Name an operation and press Save to persist it with its variables.
 `
 
 function endpointPath(): string {
@@ -131,7 +141,9 @@ export default function App() {
         onEditQuery={setQuery}
         onEditVariables={setVariables}
         isHeadersEditorEnabled={false}
+        defaultQuery={WELCOME_QUERY}
       >
+        <GraphiQL.Logo>{null}</GraphiQL.Logo>
         <GraphiQL.Toolbar>
           <ToolbarMenu
             label="Saved Queries"

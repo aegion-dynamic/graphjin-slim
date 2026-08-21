@@ -137,11 +137,6 @@ var stdTypes = []FullType{
 		Fields:     []FieldObject{},
 	}, {
 		Kind:       KIND_OBJECT,
-		Name:       "Subscription",
-		Interfaces: []TypeRef{},
-		Fields:     []FieldObject{},
-	}, {
-		Kind:       KIND_OBJECT,
 		Name:       "Mutation",
 		Interfaces: []TypeRef{},
 		Fields:     []FieldObject{},
@@ -218,10 +213,11 @@ func BuildIntrospection(opts IntroOptions) (result json.RawMessage, err error) {
 		inputValues: make(map[string]InputValue),
 	}
 
+	// Slim build: subscriptions are not supported, so the introspected
+	// schema carries no subscription root at all.
 	in.result.Schema = IntrospectionSchema{
-		QueryType:        &ShortFullType{Name: "Query"},
-		SubscriptionType: &ShortFullType{Name: "Subscription"},
-		MutationType:     &ShortFullType{Name: "Mutation"},
+		QueryType:    &ShortFullType{Name: "Query"},
+		MutationType: &ShortFullType{Name: "Mutation"},
 	}
 
 	for _, v := range stdTypes {
@@ -321,8 +317,6 @@ func (in *Introspection) addTable(table sdata.DBTable, alias string) (err error)
 	}
 	in.addTypeTo("Query", ftQS)
 	in.addCursorFieldTo("Query", ftQS.Name)
-	in.addTypeTo("Subscription", ftQS)
-	in.addCursorFieldTo("Subscription", ftQS.Name)
 
 	var ftM FullType
 
@@ -343,7 +337,6 @@ func (in *Introspection) addTable(table sdata.DBTable, alias string) (err error)
 	ftQSByID.addOrReplaceArg("id", newTypeRef(KIND_NONNULL, "", newTypeRef("", "ID", nil)))
 	in.addType(ftQSByID)
 	in.addTypeTo("Query", ftQSByID)
-	in.addTypeTo("Subscription", ftQSByID)
 
 	return
 }

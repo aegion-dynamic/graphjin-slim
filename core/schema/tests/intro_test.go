@@ -302,8 +302,17 @@ func TestIntrospectionIncludesSyntheticCursorFields(t *testing.T) {
 	}
 	requireNoIntroField(t, query, "productsByID_cursor")
 
-	subscription := requireIntroType(t, introResult, "Subscription")
-	requireIntroField(t, subscription, "products_cursor")
+	// Slim build: subscriptions are not supported, so the introspected
+	// schema exposes no subscription root or Subscription type at all.
+	for i := range introResult.Schema.Types {
+		if introResult.Schema.Types[i].Name == "Subscription" {
+			t.Fatalf("introspection must not include a %q type in the slim build", "Subscription")
+		}
+	}
+	if introResult.Schema.SubscriptionType != nil {
+		t.Fatalf("schema.subscriptionType = %q, want nil in the slim build",
+			introResult.Schema.SubscriptionType.Name)
+	}
 
 	mutation := requireIntroType(t, introResult, "Mutation")
 	requireNoIntroField(t, mutation, "products_cursor")

@@ -112,15 +112,14 @@ jobs:
 
               git tag -a "$TAG" -m "$TAG: $TYPE release [created-by-release-workflow]"
               git push origin "$TAG"
-          fi
-
-          # dispatch always proceeds with the build itself; a GITHUB_TOKEN
-          # tag push would not re-trigger workflows anyway
 
           else
               echo "::error::Unsupported event: $EVENT"
               exit 1
           fi
+
+          # dispatch always proceeds with the build itself; a GITHUB_TOKEN
+          # tag push would not re-trigger workflows anyway
 
           echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
           echo "should_release=true" >> "$GITHUB_OUTPUT"

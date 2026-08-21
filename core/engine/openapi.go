@@ -1,6 +1,10 @@
 package engine
 
 import (
+	"errors"
+	"io/fs"
+	"os"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
@@ -46,7 +50,11 @@ func (g *GraphJin) OpenAPISpecInputs(ns *string) (OpenAPIInputs, error) {
 	}
 	items, err := gj.allowList.ListAll()
 	if err != nil {
-		return OpenAPIInputs{}, err
+		// A missing queries directory simply means no saved queries yet.
+		if !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
+			return OpenAPIInputs{}, err
+		}
+		items = nil
 	}
 	for _, item := range items {
 		if ns != nil && item.Namespace != *ns {

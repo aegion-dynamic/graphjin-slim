@@ -1,86 +1,131 @@
-import { useEffect, useState } from "react"
-import { endpointURL, runQuery } from "./api"
-import { fetchRoots, RootType, skeletonFor } from "./schema"
-import { SchemaBrowser } from "./components/SchemaBrowser"
-import { ResultViewer } from "./components/ResultViewer"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { useCallback, useEffect, useState } from "react"
+import { QueryEditor } from "./components/QueryEditor"
+import { SavedQueries, OpenedQuery } from "./components/SavedQueries"
+import { endpointURL, listSavedQueries } from "./api"
+
+const DEFAULT_QUERY = `# GraphJin — write a named query and hit Save.
+# Autocomplete: Ctrl+Space. Validation happens as you type.
+
+query getUsers {
+  users(limit: 10, order_by: { id: desc }) {
+    id
+    full_name
+    email
+    products {
+      name
+      price
+    }
+  }
+}
+`
+
+function extractOpName(query: string): string {
+  const m = query.match(/\b(query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/)
+  return m ? m[2] : ""
+}
+
+// GraphiQL persists editor tabs in localStorage; clear it so remounts always
+// start from the content we pass in.
+function resetGraphiQLStorage() {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith("graphiql")) localStorage.removeItem(key)
+  }
+}
 
 export default function App() {
-  const [roots, setRoots] = useState<RootType[]>([])
-  const [error, setError] = useState("")
-  const [query, setQuery] = useState("query Q {\n  \n}")
-  const [result, setResult] = useState("")
-  const [running, setRunning] = useState(false)
+  const [queries, setQueries] = useState<{ name: string; operation?: string }[]>([])
+  const [active, setActive] = useState("")
+  const [query, setQuery] = useState(DEFAULT_QUERY)
+  const [variables, setVariables] = useState("{}")
+  const [instanceKey, setInstanceKey] = useState(0)
+  const [name, setName] = useState("getUsers")
+  const [status, setStatus] = useState("")
 
-  useEffect(() => {
-    fetchRoots()
-      .then((r) => {
-        setRoots(r)
-        if (r.length && r[0].fields.length) {
-          setQuery(skeletonFor(r[0].fields[0]))
-        }
-      })
-      .catch((e: Error) => setError(e.message))
+  const refresh = useCallback(() => {
+    listSavedQueries()
+      .then(setQueries)
+      .catch(() => {})
   }, [])
 
-  async function execute() {
-    setRunning(true)
+  useEffect(refresh, [refresh])
+
+  useEffect(() => {
+    const n = extractOpName(query)
+    if (n) setName(n)
+  }, [query])
+
+  function save() {
+    if (!name.trim()) return void setStatus("Query needs a name")
+    let vars: Record<string, unknown> = {}
     try {
-      const res = await runQuery(query)
-      setResult(JSON.stringify(res, null, 2))
-      if (res.errors?.length) setError(res.errors[0].message)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setRunning(false)
+      vars = JSON.parse(variables || "{}")
+    } catch {
+      return void setStatus("Variables are not valid JSON")
     }
+    fetch("/api/v1/queries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), query, variables: vars }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `HTTP ${r.status}`)
+        setActive(name.trim())
+        setStatus(`Saved "${name.trim()}"`)
+        refresh()
+      })
+      .catch((e: Error) => setStatus(e.message))
+  }
+
+  function onOpen(q: OpenedQuery) {
+    resetGraphiQLStorage()
+    setActive(q.name)
+    setQuery(q.query || DEFAULT_QUERY)
+    setVariables(q.variables || "{}")
+    setInstanceKey((k) => k + 1)
+    setStatus(`Loaded "${q.name}"`)
+  }
+
+  function onDelete(deleted: string) {
+    refresh()
+    if (active === deleted) setActive("")
+    setStatus(`Deleted "${deleted}"`)
   }
 
   return (
-    <div className="bg-background text-foreground flex h-screen flex-col">
-      <header className="border-border bg-card flex items-center gap-3 border-b px-4 py-2.5">
-        <h1 className="text-sm font-semibold">GraphJin Console</h1>
-        <Badge variant="secondary" className="font-mono text-xs">
-          {endpointURL()}
-        </Badge>
-        {error && (
-          <span
-            title={error}
-            onClick={() => setError("")}
-            className="text-destructive ml-auto max-w-1/2 cursor-pointer truncate text-xs"
-          >
-            ⚠ {error}
-          </span>
-        )}
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-dot" />
+          <span className="brand-name">GraphJin</span>
+          <span className="brand-env">console</span>
+        </div>
+        <span className="endpoint">{endpointURL()}</span>
+        {status && <span className="status">{status}</span>}
+        <div className="actions">
+          <input
+            className="name-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="query-name"
+            spellCheck={false}
+          />
+          <button className="save-btn" onClick={save}>
+            Save
+          </button>
+        </div>
       </header>
-      {roots.length === 0 ? (
-        <main className="text-muted-foreground grid flex-1 place-items-center">
-          {error ? "" : <p>Introspecting schema…</p>}
+      <div className="body">
+        <SavedQueries queries={queries} active={active} onOpen={onOpen} onDelete={onDelete} />
+        <main className="editor">
+          <QueryEditor
+            query={query}
+            variables={variables}
+            instanceKey={instanceKey}
+            onQueryChange={setQuery}
+            onVariablesChange={setVariables}
+          />
         </main>
-      ) : (
-        <main className="grid min-h-0 flex-1 grid-cols-[260px_1fr_1fr] gap-px bg-border">
-          <SchemaBrowser roots={roots} onPick={(q) => setQuery(q)} />
-          <section className="bg-background flex min-h-0 flex-col">
-            <div className="border-border bg-card flex items-center border-b px-3 py-2">
-              <span className="text-muted-foreground text-xs tracking-wide uppercase">Query</span>
-              <Button size="sm" className="ml-auto" disabled={running} onClick={execute}>
-                {running ? "Running…" : "Run (Ctrl+↵)"}
-              </Button>
-            </div>
-            <textarea
-              spellCheck={false}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") execute()
-              }}
-              className="focus:ring-ring/50 font-mono flex-1 resize-none p-3 text-sm outline-none focus:ring-2"
-            />
-          </section>
-          <ResultViewer result={result} />
-        </main>
-      )}
+      </div>
     </div>
   )
 }

@@ -391,3 +391,37 @@ func (al *List) ListAll() (items []Item, err error) {
 
 	return items, nil
 }
+
+// Delete removes a saved query and its variables file from the store.
+func (al *List) Delete(name string) (err error) {
+	name, err = validateLookupName(name)
+	if err != nil {
+		return err
+	}
+
+	del, ok := al.fs.(interface{ Delete(path string) error })
+	if !ok {
+		return errors.New("allow list filesystem does not support delete")
+	}
+
+	found := false
+	for _, ext := range []string{".gql", ".graphql", ".json"} {
+		fp := filepath.Join(QUERY_PATH, name+ext)
+		exists, eerr := al.fs.Exists(fp)
+		if eerr != nil {
+			return eerr
+		}
+		if !exists {
+			continue
+		}
+		if err = del.Delete(fp); err != nil {
+			return err
+		}
+		found = true
+	}
+	if !found {
+		return ErrUnknownGraphQLQuery
+	}
+	al.cache.Purge()
+	return nil
+}

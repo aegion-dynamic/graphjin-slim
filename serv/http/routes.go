@@ -23,12 +23,14 @@ type Handlers struct {
 	WebUI   stdhttp.Handler
 	WebUIOn bool
 	OpenAPI stdhttp.Handler
+	Queries stdhttp.Handler
 }
 
 const (
 	GraphQLPath = "/api/v1/graphql"
 	RESTPath    = "/api/v1/rest/"
 	OpenAPIPath = "/api/v1/openapi.json"
+	QueriesPath = "/api/v1/queries"
 )
 
 // Register installs the standard GraphJin endpoints.
@@ -43,6 +45,9 @@ func Register(mux Mux, handlers Handlers) Mux {
 	mux.Handle(RESTPath, handlers.REST)
 	if handlers.OpenAPI != nil {
 		mux.Handle(OpenAPIPath, handlers.OpenAPI)
+	}
+	if handlers.Queries != nil {
+		mux.Handle(QueriesPath, handlers.Queries)
 	}
 	if handlers.WebUIOn && handlers.WebUI != nil {
 		mux.Handle("/", handlers.WebUI)

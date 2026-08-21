@@ -38,6 +38,8 @@ type (
 	Lifecycle             = engine.Lifecycle
 	Member                = engine.Member
 	OpenAPIInputs         = engine.OpenAPIInputs
+	SavedQueryDetails     = engine.SavedQueryDetails
+	SavedQuerySummary     = engine.SavedQuerySummary
 )
 
 const (

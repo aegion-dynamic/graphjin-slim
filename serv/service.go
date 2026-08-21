@@ -126,6 +126,7 @@ func routesHandler(s1 *HttpService, mux Mux, ns *string) (Mux, error) {
 	if s.openAPIGen != nil {
 		h.OpenAPI = s1.openAPIHandler(ns)
 	}
+	h.Queries = s1.queriesHandler(ns)
 	return httpapi.Register(mux, h), nil
 }
 
@@ -152,7 +153,7 @@ type graphjinService struct {
 	namespace           *string
 	tracer              trace.Tracer
 	configMu            sync.Mutex
-	webUIFn             webUIFactory                          // optional embedded UI handler factory (nil = unavailable)
+	webUIFn             webUIFactory                                                 // optional embedded UI handler factory (nil = unavailable)
 	openAPIGen          func(gj *core.GraphJin, ns *string) (json.RawMessage, error) // optional OpenAPI spec generator (nil = unavailable)
 }
 

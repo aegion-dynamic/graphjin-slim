@@ -28,6 +28,7 @@ type Service struct {
 	AllowedHeaders             []string        `mapstructure:"cors_allowed_headers" jsonschema:"title=HTTP CORS Allowed Headers"`
 	DebugCORS                  bool            `mapstructure:"cors_debug" jsonschema:"title=Log CORS"`
 	CacheControl               string          `mapstructure:"cache_control" jsonschema:"title=Enable Cache-Control"`
+	OpenAPISpecsDir            string          `mapstructure:"openapi_specs_dir" jsonschema:"title=OpenAPI Specs Directory,description=Write the OpenAPI spec to this directory at startup for SDK codegen"`
 	DB                         database.Config `mapstructure:"database" jsonschema:"title=Database"`
 	Secrets                    SecretsConfig   `mapstructure:"secrets" jsonschema:"title=Secrets"`
 	Redis                      RedisConfig     `mapstructure:"redis" jsonschema:"title=Redis Configuration"`

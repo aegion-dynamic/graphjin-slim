@@ -114,12 +114,19 @@ func newDBOnce(conf *Config, openDB, _ bool, log *zap.SugaredLogger, fs core.FS)
 }
 
 func routesHandler(s1 *HttpService, mux Mux, ns *string) (Mux, error) {
-	return httpapi.Register(mux, httpapi.Handlers{
+	s := s1.Load().(*graphjinService)
+	h := httpapi.Handlers{
 		GraphQL: s1.apiV1GraphQL(ns, nil),
 		REST:    s1.apiV1Rest(ns, nil),
-		WebUI:   nil,
-		WebUIOn: false,
-	}), nil
+	}
+	if s.conf.WebUI && s.webUIFn != nil {
+		h.WebUIOn = true
+		h.WebUI = s.webUIFn("/", httpapi.GraphQLPath)
+	}
+	if s.openAPIGen != nil {
+		h.OpenAPI = s1.openAPIHandler(ns)
+	}
+	return httpapi.Register(mux, h), nil
 }
 
 type graphjinService struct {
@@ -145,7 +152,14 @@ type graphjinService struct {
 	namespace           *string
 	tracer              trace.Tracer
 	configMu            sync.Mutex
+	webUIFn             webUIFactory                          // optional embedded UI handler factory (nil = unavailable)
+	openAPIGen          func(gj *core.GraphJin, ns *string) (json.RawMessage, error) // optional OpenAPI spec generator (nil = unavailable)
 }
+
+// webUIFactory builds the embedded web UI handler for a route prefix and
+// GraphQL endpoint path. Supplied by the application (e.g. the webui module);
+// the slim default is nil, which keeps the UI endpoint unavailable.
+type webUIFactory func(routePrefix, gqlEndpoint string) http.Handler
 
 // anyDB returns any single connection from the dbs map (for callers
 // that just need a live connection, e.g. health checks, DDL, listing).
@@ -361,6 +375,28 @@ func OptionSetRuntimeSchemaDDLDir(dir string) Option {
 	}
 }
 
+// OptionSetWebUI registers a factory that builds the embedded web UI handler.
+// The application supplies the factory (typically from the webui module); the
+// service only mounts the UI when config enables it (web_ui). Without this
+// option the web UI endpoint stays unavailable.
+func OptionSetWebUI(fn func(routePrefix, gqlEndpoint string) http.Handler) Option {
+	return func(s *graphjinService) error {
+		s.webUIFn = fn
+		return nil
+	}
+}
+
+// OptionSetOpenAPI registers the OpenAPI specification generator. The
+// generator receives the engine and an optional namespace, and returns the
+// spec document as JSON. Without this option the OpenAPI endpoint stays
+// unavailable.
+func OptionSetOpenAPI(gen func(gj *core.GraphJin, ns *string) (json.RawMessage, error)) Option {
+	return func(s *graphjinService) error {
+		s.openAPIGen = gen
+		return nil
+	}
+}
+
 // OptionDisableQueryLearning suppresses dev-mode named-query and fragment
 // auto-save for this embedded service instance. Existing saved queries remain
 // discoverable and executable. This is intended for deterministic evaluation
@@ -490,7 +526,39 @@ func (s *graphjinService) normalStart() error {
 	if err != nil {
 		return err
 	}
+	s.writeOpenAPISpecs()
 	return nil
+}
+
+// writeOpenAPISpecs writes the OpenAPI specification to the configured
+// directory (serv.OpenAPISpecsDir) once at startup. It is intended for SDK
+// codegen pipelines that consume the spec from source control or CI.
+// Requires a generator registered via OptionSetOpenAPI. Failures are logged
+// and do not block startup.
+func (s *graphjinService) writeOpenAPISpecs() {
+	dir := s.conf.Serv.OpenAPISpecsDir
+	if dir == "" || s.openAPIGen == nil || s.gj == nil {
+		return
+	}
+	name := "openapi.json"
+	if s.namespace != nil && *s.namespace != "" {
+		name = *s.namespace + ".openapi.json"
+	}
+	spec, err := s.openAPIGen(s.gj, s.namespace)
+	if err != nil {
+		s.log.Errorf("failed to generate OpenAPI spec for %s: %s", name, err)
+		return
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		s.log.Errorf("failed to create OpenAPI specs dir %q: %s", dir, err)
+		return
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, spec, 0o644); err != nil {
+		s.log.Errorf("failed to write OpenAPI spec %q: %s", path, err)
+		return
+	}
+	s.log.Infof("OpenAPI spec written to %s", path)
 }
 
 // hotStart starts the service in hot-deploy mode
@@ -626,9 +694,25 @@ func (s *HttpService) apiHandler(ns *string, ah HandlerFunc, rest bool) http.Han
 	return apiV1Handler(s, ns, h, ah)
 }
 
-// WebUI is the http handler the web ui endpoint
+// WebUI is the http handler the web ui endpoint. When no web UI factory was
+// registered via OptionSetWebUI, the slim-build unavailable handler is
+// returned.
 func (s *HttpService) WebUI(routePrefix, gqlEndpoint string) http.Handler {
+	s1 := s.Load().(*graphjinService)
+	if s1.webUIFn != nil {
+		return s1.webUIFn(routePrefix, gqlEndpoint)
+	}
 	return httpapi.UnavailableWebUI(routePrefix, gqlEndpoint)
+}
+
+// OpenAPI is the http handler for the OpenAPI specification endpoint.
+func (s *HttpService) OpenAPI() http.Handler {
+	return s.openAPIHandler(nil)
+}
+
+// OpenAPIWithNS is the http handler for the namespaced OpenAPI specification endpoint
+func (s *HttpService) OpenAPIWithNS(ns string) http.Handler {
+	return s.openAPIHandler(&ns)
 }
 
 // GetGraphJin fetching internal GraphJin core
@@ -1444,11 +1528,42 @@ func newDTrace(dtrace propagation.TextMapPropagator, r *http.Request) (context.C
 	return ctx, opts
 }
 
-// openAPIHandler is removed in slim (no OpenAPI export).
+// openAPIHandler serves the OpenAPI specification generated by the generator
+// registered through OptionSetOpenAPI. Without a generator it responds 404.
 func (s1 *HttpService) openAPIHandler(ns *string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = s1
-		_ = ns
-		http.Error(w, "openapi export not available in slim build", http.StatusNotFound)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s := s1.Load().(*graphjinService)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		switch r.Method {
+		case http.MethodOptions:
+			w.WriteHeader(http.StatusOK)
+			return
+		case http.MethodGet:
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if s.openAPIGen == nil {
+			http.Error(w, "openapi export not available in slim build", http.StatusNotFound)
+			return
+		}
+
+		spec, err := s.openAPIGen(s.gj, ns)
+		if err != nil {
+			s.log.Errorf("failed to generate OpenAPI spec: %s", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(spec); err != nil {
+			s.log.Errorf("failed to write OpenAPI spec: %s", err)
+		}
 	})
 }

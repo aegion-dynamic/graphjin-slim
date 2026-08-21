@@ -22,14 +22,18 @@ type Handlers struct {
 	REST    stdhttp.Handler
 	WebUI   stdhttp.Handler
 	WebUIOn bool
+	OpenAPI stdhttp.Handler
 }
 
 const (
 	GraphQLPath = "/api/v1/graphql"
 	RESTPath    = "/api/v1/rest/"
+	OpenAPIPath = "/api/v1/openapi.json"
 )
 
 // Register installs the standard GraphJin endpoints.
+// Optional handlers (WebUI, OpenAPI) are only mounted when supplied,
+// matching the slim-build default of absent product surfaces.
 func Register(mux Mux, handlers Handlers) Mux {
 	mux.Handle("/health", stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, _ *stdhttp.Request) {
 		w.WriteHeader(stdhttp.StatusOK)
@@ -37,6 +41,9 @@ func Register(mux Mux, handlers Handlers) Mux {
 	}))
 	mux.Handle(GraphQLPath, handlers.GraphQL)
 	mux.Handle(RESTPath, handlers.REST)
+	if handlers.OpenAPI != nil {
+		mux.Handle(OpenAPIPath, handlers.OpenAPI)
+	}
 	if handlers.WebUIOn && handlers.WebUI != nil {
 		mux.Handle("/", handlers.WebUI)
 	}

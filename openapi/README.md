@@ -23,10 +23,11 @@ This serves an OpenAPI document at `/api/v1/openapi.json`. Public handlers:
 `HttpService.OpenAPI()` and `HttpService.OpenAPIWithNS(ns)` are available for
 custom routers.
 
-Saved query variables become endpoint defaults: a caller omitting a
-variable receives the value stored in `<name>.json`, and an explicit
-parameter always wins. This applies identically in dev and production
-(the queries directory ships with the deployment).
+Variables are supplied explicitly on every call — GET query parameters
+or a flat POST body. A missing variable is an error naming it; nothing
+is silently filled. The stored `<name>.json` file documents an example
+invocation, is version-controlled with the query, and pre-fills the
+console editor, but never substitutes for request values.
 
 Setting `openapi_specs_dir` in the service config writes the spec to disk at
 startup (as `openapi.json`, or `<ns>.openapi.json` for namespaced services)

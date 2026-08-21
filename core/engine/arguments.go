@@ -104,20 +104,25 @@ func (gj *graphjinEngine) argList(c context.Context,
 				// Convert Go bool to int (1/0) before it reaches the driver
 				vl[i] = convertBoolIfNeeded(pc, vl[i])
 
-			} else if rc != nil {
-				if v, ok := rc.Vars[p.Name]; ok {
-					switch v1 := v.(type) {
-					case (func() string):
-						vl[i] = v1()
-					case (func() int):
-						vl[i] = v1()
-					case (func() bool):
-						vl[i] = convertBoolIfNeeded(pc, v1())
-					default:
-						vl[i] = convertBoolIfNeeded(pc, v)
+			} else {
+				// The compiled query references this variable, so it
+				// must be supplied: RequestConfig first, then a loud
+				// error — never an implicit NULL.
+				if rc != nil {
+					if v, ok := rc.Vars[p.Name]; ok {
+						switch v1 := v.(type) {
+						case (func() string):
+							vl[i] = v1()
+						case (func() int):
+							vl[i] = v1()
+						case (func() bool):
+							vl[i] = convertBoolIfNeeded(pc, v1())
+						default:
+							vl[i] = convertBoolIfNeeded(pc, v)
+						}
+						continue
 					}
 				}
-			} else {
 				return ar, argErr(p)
 			}
 		}

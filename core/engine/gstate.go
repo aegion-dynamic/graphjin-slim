@@ -522,17 +522,12 @@ func (s *gstate) setDefaultVars() {
 		s.vmap = make(map[string]json.RawMessage, vlen)
 	}
 
-	// Saved-query defaults (from <name>.json) seed the variable map;
-	// request-supplied variables always win.
-	for k, raw := range s.r.aschema {
-		if cur, ok := s.vmap[k]; !ok || len(cur) == 0 {
-			s.vmap[k] = raw
-		}
-	}
-
+	// Execution binds exactly what the caller supplied. Stored query
+	// variables (<name>.json) are artifacts for the console and VCS —
+	// they never silently satisfy a request.
 	for _, v := range s.cs.st.qc.Vars {
 		if len(v.Val) == 0 {
-			continue // declaration without a compiled value; keep what we have
+			continue // declaration without a compiled value
 		}
 		if cur, ok := s.vmap[v.Name]; !ok || len(cur) == 0 {
 			s.vmap[v.Name] = v.Val

@@ -5,15 +5,16 @@ import "time"
 
 // Config contains connection and pool settings for the supported drivers.
 type Config struct {
-	ConnString string `mapstructure:"connection_string" jsonschema:"title=Connection String"`
-	Type       string `jsonschema:"title=Type,enum=postgres,enum=sqlite"`
-	Host       string `jsonschema:"title=Host"`
-	Port       uint16 `jsonschema:"title=Port"`
-	DBName     string `jsonschema:"title=Database Name"`
-	User       string `jsonschema:"title=User"`
-	Password   string `jsonschema:"title=Password"`
-	Schema     string `jsonschema:"title=Postgres Schema"`
-	Path       string `jsonschema:"title=File Path (SQLite)"`
+	ConnString    string `mapstructure:"connection_string" jsonschema:"title=Connection String"`
+	Type          string `jsonschema:"title=Type,enum=postgres,enum=sqlite"`
+	Host          string `jsonschema:"title=Host"`
+	Port          uint16 `jsonschema:"title=Port"`
+	DBName        string `jsonschema:"title=Database Name"`
+	User          string `jsonschema:"title=User"`
+	Password      string `jsonschema:"title=Password"`
+	Schema        string `jsonschema:"title=Postgres Schema"`
+	Path          string `jsonschema:"title=File Path (SQLite)"`
+	EncryptionKey string `mapstructure:"encryption_key" jsonschema:"title=SQLCipher Encryption Key (optional)"`
 
 	PoolSize        int           `mapstructure:"pool_size" jsonschema:"title=Connection Pool Size"`
 	MaxConnections  int           `mapstructure:"max_connections" jsonschema:"title=Maximum Connections"`

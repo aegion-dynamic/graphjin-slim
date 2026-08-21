@@ -7,6 +7,7 @@ require (
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/klauspost/compress v1.18.3
+	github.com/mattn/go-sqlite3 v1.14.50
 	github.com/rs/cors v1.11.1
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/viper v1.21.0
@@ -63,3 +64,4 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+

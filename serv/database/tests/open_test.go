@@ -41,7 +41,7 @@ func TestOpenCoreRejectsUnsupportedDatabase(t *testing.T) {
 
 func TestOpenCoreRejectsMissingSQLitePath(t *testing.T) {
 	_, err := database.OpenCore(context.Background(), "local", core.DatabaseConfig{Type: "sqlite"})
-	if err == nil || !strings.Contains(err.Error(), "requires a path") {
+	if err == nil || !strings.Contains(err.Error(), "connection_string or path") {
 		t.Fatalf("OpenCore error = %v, want missing path error", err)
 	}
 }

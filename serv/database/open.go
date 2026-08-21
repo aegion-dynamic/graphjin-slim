@@ -2,20 +2,13 @@ package database
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
-
-	_ "modernc.org/sqlite"
 )
 
 // Options controls how a database connection is opened.
@@ -42,14 +35,12 @@ func OpenCore(ctx context.Context, name string, c core.DatabaseConfig) (*sql.DB,
 	var driverName, dsn string
 	switch dbType {
 	case "sqlite":
-		dsn = c.Path
-		if dsn == "" {
-			dsn = c.ConnString
+		d, derr := buildSQLiteDSN(c.ConnString, c.Path, c.EncryptionKey)
+		if derr != nil {
+			return nil, fmt.Errorf("sqlite database %q: %w", name, derr)
 		}
-		if dsn == "" {
-			return nil, fmt.Errorf("sqlite database %q requires a path or connection_string", name)
-		}
-		driverName = "sqlite"
+		dsn = d
+		driverName = DriverSQLite
 	case "postgres":
 		dsn = c.ConnString
 		if dsn == "" {
@@ -73,6 +64,12 @@ func OpenCore(ctx context.Context, name string, c core.DatabaseConfig) (*sql.DB,
 		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("ping %s: %w", driverName, err)
 	}
+	if c.EncryptionKey != "" {
+		if err := validateSQLCipher(db); err != nil {
+			db.Close() //nolint:errcheck
+			return nil, fmt.Errorf("sqlite database %q: %w", name, err)
+		}
+	}
 	return db, nil
 }
 
@@ -91,6 +88,12 @@ func Open(opts Options) (*sql.DB, error) {
 		if err := db.Ping(); err != nil {
 			db.Close() //nolint:errcheck
 			return nil, err
+		}
+		if opts.Config.EncryptionKey != "" {
+			if err := validateSQLCipher(db); err != nil {
+				db.Close() //nolint:errcheck
+				return nil, err
+			}
 		}
 		return db, nil
 	}
@@ -131,84 +134,34 @@ func Connection(opts Options) (string, string, error) {
 	}
 	switch dbType {
 	case "postgres":
-		cfg, err := pgx.ParseConfig(c.ConnString)
+		dsn, err := buildPostgresConn(c, opts)
 		if err != nil {
 			return "", "", err
 		}
-		if c.Host != "" {
-			cfg.Host = c.Host
-		}
-		if c.Port != 0 {
-			cfg.Port = c.Port
-		}
-		if c.User != "" {
-			cfg.User = c.User
-		}
-		if c.Password != "" {
-			cfg.Password = c.Password
-		}
-		if opts.OpenDBName {
-			cfg.Database = c.DBName
-		}
-		if c.Schema != "" {
-			if cfg.RuntimeParams == nil {
-				cfg.RuntimeParams = map[string]string{}
-			}
-			cfg.RuntimeParams["search_path"] = c.Schema
-		}
-		if opts.AppName != "" {
-			if cfg.RuntimeParams == nil {
-				cfg.RuntimeParams = map[string]string{}
-			}
-			cfg.RuntimeParams["application_name"] = opts.AppName
-		}
-		if err := applyTLS(cfg, c, opts.Filesystem); err != nil {
+		return DriverPostgres, dsn, nil
+	case "sqlite":
+		dsn, err := buildSQLiteDSN(c.ConnString, c.Path, c.EncryptionKey)
+		if err != nil {
 			return "", "", err
 		}
-		return "pgx", stdlib.RegisterConnConfig(cfg), nil
-	case "sqlite":
-		dsn := c.ConnString
-		if dsn == "" {
-			dsn = c.Path
-		}
-		if dsn == "" {
-			return "", "", errors.New("sqlite requires a connection string or path")
-		}
-		return "sqlite", dsn, nil
+		return DriverSQLite, dsn, nil
 	default:
-		return "", "", fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", c.Type)
+		return "", "", fmt.Errorf("unsupported database type %q: supported types are postgres, sqlite", dbType)
 	}
 }
 
 func configure(db *sql.DB, c Config) {
-	db.SetMaxIdleConns(c.PoolSize)
+	// Pool retention guard: a zero-value programmatic SQLite config must not
+	// silently disable idle-connection retention — with SQLCipher every
+	// dropped connection is re-paid (KDF) on the next request. Explicitly
+	// configured positive sizes are preserved; Postgres keeps database/sql
+	// defaults.
+	ps := c.PoolSize
+	if strings.EqualFold(strings.TrimSpace(c.Type), "sqlite") && ps <= 0 {
+		ps = 4
+	}
+	db.SetMaxIdleConns(ps)
 	db.SetMaxOpenConns(c.MaxConnections)
 	db.SetConnMaxIdleTime(c.MaxConnIdleTime)
 	db.SetConnMaxLifetime(c.MaxConnLifeTime)
-}
-
-func applyTLS(cfg *pgx.ConnConfig, c Config, fs core.FS) error {
-	if !c.EnableTLS {
-		return nil
-	}
-	if c.ServerName == "" || c.ServerCert == "" {
-		return errors.New("tls: server_name and server_cert are required")
-	}
-	certData := []byte(c.ServerCert)
-	if !strings.Contains(c.ServerCert, "--BEGIN ") {
-		if fs == nil {
-			return errors.New("tls: filesystem is required for server_cert paths")
-		}
-		var err error
-		certData, err = fs.Get(c.ServerCert)
-		if err != nil {
-			return fmt.Errorf("tls: %w", err)
-		}
-	}
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM([]byte(strings.ReplaceAll(string(certData), `\n`, "\n"))) {
-		return errors.New("tls: failed to append server certificate")
-	}
-	cfg.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool, ServerName: c.ServerName}
-	return nil
 }

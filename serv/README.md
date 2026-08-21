@@ -147,6 +147,17 @@ database:
   path: ./app.db
 ```
 
+SQLite sources can be encrypted at rest by adding an `encryption_key`
+(SQLCipher is applied per connection; requires a SQLCipher-linked build —
+see [serv/database/README.md](database/README.md)):
+
+```yaml
+database:
+  type: sqlite
+  path: ./app.db
+  encryption_key: ${GJ_DB_KEY}   # supply via environment, not in the file
+```
+
 Environment overrides use the `GJ_` prefix. Configuration names, defaults, and
 the generated `config.schema.json` are part of the service's compatibility
 surface.

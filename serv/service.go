@@ -102,7 +102,51 @@ func redactRuntimeStringValue(value string) string { return value }
 type Mux = httpapi.Mux
 
 func NewDB(conf *Config, openDB bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {
-	return database.Open(database.Options{Config: conf.DB, AppName: conf.AppName, OpenDBName: openDB, Filesystem: fs, Logger: log, Retry: true})
+	db, err := database.Open(database.Options{Config: conf.DB, AppName: conf.AppName, OpenDBName: openDB, Filesystem: fs, Logger: log, Retry: true})
+	if err != nil {
+		return nil, err
+	}
+	warmSQLitePool(conf, db, log)
+	return db, nil
+}
+
+// warmSQLCipherPool pre-pays per-connection initialization (with SQLCipher:
+// PBKDF2 key derivation) so it never lands on request handling.
+//
+// It runs only for SQLite sources with encryption configured — plaintext
+// connections initialize in microseconds and need no warming. The warm count
+// is the configured pool size (adapter-guarded to >= 4), capped by
+// max_connections. Failures never block startup: a database that has not
+// been initialized yet simply has no pages to read; that class of error is
+// logged at debug level, anything else at warn.
+func warmSQLitePool(conf *Config, db *sql.DB, log *zap.SugaredLogger) {
+	if db == nil || !strings.EqualFold(strings.TrimSpace(conf.DB.Type), "sqlite") {
+		return
+	}
+	if conf.DB.EncryptionKey == "" {
+		return // plaintext connections are cheap to establish
+	}
+
+	n := conf.DB.PoolSize
+	if n <= 0 {
+		n = 4 // mirror the adapter's retention guard
+	}
+	if conf.DB.MaxConnections > 0 && n > conf.DB.MaxConnections {
+		n = conf.DB.MaxConnections
+	}
+
+	if err := database.WarmPool(db, n); err != nil {
+		msg := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(msg, "no such table"),
+			strings.Contains(msg, "file is not a database"):
+			log.Debugf("sqlite pool warming skipped: %s", err)
+		default:
+			log.Warnf("sqlite pool warming failed: %s", err)
+		}
+		return
+	}
+	log.Debugf("sqlite pool warmed with %d connections", n)
 }
 
 func newDB(conf *Config, openDB, _ bool, log *zap.SugaredLogger, fs core.FS) (*sql.DB, error) {

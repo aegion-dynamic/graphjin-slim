@@ -289,6 +289,7 @@ type DatabaseConfig struct {
 	DBName          string        `mapstructure:"db_name" json:"db_name" yaml:"db_name"`
 	Schema          string        `mapstructure:"schema" json:"schema" yaml:"schema"`
 	Path            string        `mapstructure:"path" json:"path" yaml:"path"`
+	EncryptionKey   string        `mapstructure:"encryption_key" json:"encryption_key" yaml:"encryption_key"`
 	ReadOnly        bool          `mapstructure:"read_only" json:"read_only" yaml:"read_only"`
 	AnalyticsMode   bool          `mapstructure:"analytics_mode" json:"analytics_mode" yaml:"analytics_mode"`
 	PoolSize        int           `mapstructure:"pool_size" json:"pool_size" yaml:"pool_size"`

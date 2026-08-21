@@ -23,6 +23,11 @@ This serves an OpenAPI document at `/api/v1/openapi.json`. Public handlers:
 `HttpService.OpenAPI()` and `HttpService.OpenAPIWithNS(ns)` are available for
 custom routers.
 
+Saved query variables become endpoint defaults: a caller omitting a
+variable receives the value stored in `<name>.json`, and an explicit
+parameter always wins. This applies identically in dev and production
+(the queries directory ships with the deployment).
+
 Setting `openapi_specs_dir` in the service config writes the spec to disk at
 startup (as `openapi.json`, or `<ns>.openapi.json` for namespaced services)
 for SDK codegen pipelines. Requires a registered generator; failures are

@@ -1,22 +1,34 @@
 {
   "name": "graphjin-console",
-  "private": true,
   "version": "3.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "typecheck": "tsc -b --noEmit",
+    "format": "vp fmt",
+    "lint": "vp lint",
+    "check": "vp check"
   },
   "dependencies": {
+    "@base-ui/react": "1.6.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.3.0",
+    "tw-animate-css": "^1.4.0",
     "typescript": "^5.6.3",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vite-plus": "^0.2.9"
   }
 }

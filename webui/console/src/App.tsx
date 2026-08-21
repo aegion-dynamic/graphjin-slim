@@ -1,83 +1,86 @@
-import { useEffect, useState } from 'react';
-import { endpointURL, runQuery } from './api';
-import { fetchRoots, RootType, skeletonFor } from './schema';
-import { SchemaBrowser } from './components/SchemaBrowser';
-import { ResultViewer } from './components/ResultViewer';
+import { useEffect, useState } from "react"
+import { endpointURL, runQuery } from "./api"
+import { fetchRoots, RootType, skeletonFor } from "./schema"
+import { SchemaBrowser } from "./components/SchemaBrowser"
+import { ResultViewer } from "./components/ResultViewer"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
 export default function App() {
-  const [roots, setRoots] = useState<RootType[]>([]);
-  const [error, setError] = useState('');
-  const [query, setQuery] = useState(
-    'query Q {\n  \n}',
-  );
-  const [result, setResult] = useState('');
-  const [running, setRunning] = useState(false);
+  const [roots, setRoots] = useState<RootType[]>([])
+  const [error, setError] = useState("")
+  const [query, setQuery] = useState("query Q {\n  \n}")
+  const [result, setResult] = useState("")
+  const [running, setRunning] = useState(false)
 
   useEffect(() => {
     fetchRoots()
       .then((r) => {
-        setRoots(r);
-        // Seed the editor with the first root field as a starting point.
-        if (r.length && r[0].fields.length && query.trim() === 'query Q {\n  \n}') {
-          setQuery(skeletonFor(r[0].fields[0]));
+        setRoots(r)
+        if (r.length && r[0].fields.length) {
+          setQuery(skeletonFor(r[0].fields[0]))
         }
       })
-      .catch((e: Error) => setError(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      .catch((e: Error) => setError(e.message))
+  }, [])
 
   async function execute() {
-    setRunning(true);
+    setRunning(true)
     try {
-      const res = await runQuery(query);
-      setResult(JSON.stringify(res, null, 2));
-      if (res.errors?.length) setError(res.errors[0].message);
+      const res = await runQuery(query)
+      setResult(JSON.stringify(res, null, 2))
+      if (res.errors?.length) setError(res.errors[0].message)
     } catch (e) {
-      setError((e as Error).message);
+      setError((e as Error).message)
     } finally {
-      setRunning(false);
+      setRunning(false)
     }
   }
 
   return (
-    <div className="app">
-      <header>
-        <h1>GraphJin Console</h1>
-        <span className="endpoint">{endpointURL()}</span>
+    <div className="bg-background text-foreground flex h-screen flex-col">
+      <header className="border-border bg-card flex items-center gap-3 border-b px-4 py-2.5">
+        <h1 className="text-sm font-semibold">GraphJin Console</h1>
+        <Badge variant="secondary" className="font-mono text-xs">
+          {endpointURL()}
+        </Badge>
         {error && (
-          <span className="error" title={error} onClick={() => setError('')}>
+          <span
+            title={error}
+            onClick={() => setError("")}
+            className="text-destructive ml-auto max-w-1/2 cursor-pointer truncate text-xs"
+          >
             ⚠ {error}
           </span>
         )}
       </header>
-      <main className={roots.length ? '' : 'loading'}>
-        {!roots.length && !error && <p>Introspecting schema…</p>}
-        {roots.length > 0 && (
-          <>
-            <SchemaBrowser
-              roots={roots}
-              onPick={(q) => setQuery(q)}
+      {roots.length === 0 ? (
+        <main className="text-muted-foreground grid flex-1 place-items-center">
+          {error ? "" : <p>Introspecting schema…</p>}
+        </main>
+      ) : (
+        <main className="grid min-h-0 flex-1 grid-cols-[260px_1fr_1fr] gap-px bg-border">
+          <SchemaBrowser roots={roots} onPick={(q) => setQuery(q)} />
+          <section className="bg-background flex min-h-0 flex-col">
+            <div className="border-border bg-card flex items-center border-b px-3 py-2">
+              <span className="text-muted-foreground text-xs tracking-wide uppercase">Query</span>
+              <Button size="sm" className="ml-auto" disabled={running} onClick={execute}>
+                {running ? "Running…" : "Run (Ctrl+↵)"}
+              </Button>
+            </div>
+            <textarea
+              spellCheck={false}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") execute()
+              }}
+              className="focus:ring-ring/50 font-mono flex-1 resize-none p-3 text-sm outline-none focus:ring-2"
             />
-            <section className="pane editor">
-              <div className="pane-head">
-                <span>Query</span>
-                <button onClick={execute} disabled={running}>
-                  {running ? 'Running…' : 'Run (Ctrl+↵)'}
-                </button>
-              </div>
-              <textarea
-                spellCheck={false}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') execute();
-                }}
-              />
-            </section>
-            <ResultViewer result={result} />
-          </>
-        )}
-      </main>
+          </section>
+          <ResultViewer result={result} />
+        </main>
+      )}
     </div>
-  );
+  )
 }

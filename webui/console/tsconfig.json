@@ -9,7 +9,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src"]
 }

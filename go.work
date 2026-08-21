@@ -3,5 +3,7 @@ go 1.26.6
 use (
 	./bench
 	./core
+	./openapi
 	./serv
+	./webui
 )

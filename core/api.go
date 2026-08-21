@@ -37,6 +37,7 @@ type (
 	SchemaCallbacks       = engine.SchemaCallbacks
 	Lifecycle             = engine.Lifecycle
 	Member                = engine.Member
+	OpenAPIInputs         = engine.OpenAPIInputs
 )
 
 const (

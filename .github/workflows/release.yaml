@@ -2,14 +2,13 @@ name: Library Release
 
 # Stable releases: push a tag matching vX.Y.Z
 # Snapshot releases: run manually; this creates and pushes a timestamped tag,
-# whose push event then performs the actual release. The tag is the source of
-# truth - this workflow never builds on its own behalf.
+# then publishes its GitHub Release directly.
 
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'                        # stable (v1.2.3)
-      - 'v[0-9]+.[0-9]+.[0-9]+-snapshot.[0-9]+-[0-9]+' # snapshot (v1.2.3-snapshot.20260821-143000)
+      - 'v[0-9]+.[0-9]+.[0-9]+-snapshot.[0-9]+-[0-9]+' # snapshot (v1.2.3-snapshot.20260821-204941)
   workflow_dispatch:
     inputs:
       release_type:
@@ -33,17 +32,10 @@ permissions:
   contents: write
 
 jobs:
-  config:
+  release:
     runs-on: ubuntu-latest
-    outputs:
-      tag_name: ${{ steps.cfg.outputs.tag_name }}
-      should_release: ${{ steps.cfg.outputs.should_release }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Classify event and resolve tag
+      - name: Resolve tag and type
         id: cfg
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,7 +48,6 @@ jobs:
 
           if [[ "$EVENT" == "push" ]]; then
               TAG="${{ github.ref_name }}"
-
               case "$TAG" in
                   v[0-9]*.[0-9]*.[0-9]*)
                       TYPE="stable"
@@ -96,61 +87,49 @@ jobs:
 
                       TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-snapshot.$(date +%Y%m%d-%H%M%S)"
                   fi
+
+                  git config user.name "${GITHUB_ACTOR}"
+                  git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+                  if git rev-parse "$TAG" >/dev/null 2>&1 || \
+                     git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+                      echo "::error::Tag $TAG already exists; delete it first or pick another name"
+                      exit 1
+                  fi
+                  git tag -a "$TAG" -m "$TAG: snapshot release"
+                  git push origin "$TAG"
               else
                   echo "::error::Unknown release type: $TYPE"
                   exit 1
               fi
-
-              git config user.name "${GITHUB_ACTOR}"
-              git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-
-              if git rev-parse "$TAG" >/dev/null 2>&1 || \
-                 git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
-                  echo "::error::Tag $TAG already exists; delete it first or pick another name"
-                  exit 1
-              fi
-
-              git tag -a "$TAG" -m "$TAG: $TYPE release [created-by-release-workflow]"
-              git push origin "$TAG"
-
           else
               echo "::error::Unsupported event: $EVENT"
               exit 1
           fi
 
-          # dispatch always proceeds with the build itself; a GITHUB_TOKEN
-          # tag push would not re-trigger workflows anyway
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
 
-          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
-          echo "should_release=true" >> "$GITHUB_OUTPUT"
-
-  release:
-    needs: config
-    if: needs.config.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ steps.cfg.outputs.tag }}
           fetch-depth: 0
-          ref: ${{ needs.config.outputs.tag_name }}
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: 'serv/go.mod'
 
-      - name: Install GoReleaser
-        run: |
-          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends goreleaser
+      # prove the committed tree compiles standalone (no submodules needed)
+      - name: Verify modules compile
+        run: go build ./core/... ./serv/...
 
-      - name: Verify modules compile from committed sources
-        run: |
-          # library consumers need no submodules and no C toolchain setup;
-          # prove our module tree is complete.
-          go build ./core/... ./serv/...
-
-      - name: Run GoReleaser
+      - name: Create release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: goreleaser release --clean --config .goreleaser.yaml
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.cfg.outputs.tag }}
+          TYPE: ${{ steps.cfg.outputs.type }}
+        run: |
+          ARGS=( "$TAG" --generate-notes --title "$TAG" )
+          if [[ "$TYPE" == "snapshot" ]]; then
+              ARGS+=( --prerelease )
+          fi
+          gh release create "${ARGS[@]}"

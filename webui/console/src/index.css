@@ -24,31 +24,6 @@ body,
   color: var(--gj-text);
 }
 
-/* Branding inside GraphiQL's own header. */
-.gj-logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  font-size: 14px;
-}
-
-.gj-logo-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, #fff, var(--gj-accent));
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.7);
-}
-
-.gj-status {
-  margin-left: 10px;
-  color: var(--gj-muted);
-  font-size: 12px;
-  font-weight: 400;
-}
-
 .gj-menu-btn {
   font-size: 13px;
 }

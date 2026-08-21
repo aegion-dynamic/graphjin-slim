@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { GraphiQL } from "graphiql"
 import { ToolbarButton, ToolbarMenu } from "@graphiql/react"
 import { createGraphiQLFetcher } from "@graphiql/toolkit"
-import "graphiql/style.css"
+import "graphiql/graphiql.css"
 
 const DEFAULT_QUERY = `# Welcome to GraphJin Web
 
@@ -126,21 +126,15 @@ export default function App() {
       <GraphiQL
         key={instanceKey}
         fetcher={fetcher}
-        initialQuery={query}
-        initialVariables={variables}
+        query={query}
+        variables={variables}
         onEditQuery={setQuery}
         onEditVariables={setVariables}
         isHeadersEditorEnabled={false}
       >
-        <GraphiQL.Logo>
-          <span className="gj-logo">
-            <span className="gj-logo-dot" />
-            GraphJin
-            {status && <span className="gj-status">{status}</span>}
-          </span>
-        </GraphiQL.Logo>
         <GraphiQL.Toolbar>
           <ToolbarMenu
+            label="Saved Queries"
             button={
               <span className="gj-menu-btn" title="Saved Queries">
                 Saved…

@@ -1,0 +1,127 @@
+name: Library Release
+
+# Stable releases: push a tag matching vX.Y.Z
+# Snapshot releases: run manually, a timestamped tag is generated for you
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'                       # stable (v1.2.3)
+      - 'v[0-9]+.[0-9]+.[0-9]+-snapshot.[0-9]+-[0-9]+' # snapshot (v1.2.3-snapshot.20260821-143000)
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'snapshot'
+        type: choice
+        options:
+          - stable
+          - snapshot
+      tag_name:
+        description: 'Tag name (stable requires it; snapshot auto-generates when empty)'
+        required: false
+        type: string
+
+concurrency:
+  group: release-${{ github.ref_name || github.event.inputs.tag_name || 'manual' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.cfg.outputs.tag_name }}
+      should_release: ${{ steps.cfg.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify release and resolve tag
+        id: cfg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TYPE="${{ github.event.inputs.release_type }}"
+          TAG="${{ github.event.inputs.tag_name }}"
+          SHOULD=true
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TAG="${{ github.ref_name }}"
+            case "$TAG" in
+              v[0-9]*.[0-9]*.[0-9]*)                          TYPE="stable";;
+              v[0-9]*.[0-9]*.[0-9]*-snapshot.[0-9]*-[0-9]*)   TYPE="snapshot";;
+              *) echo "::error::tag $TAG does not match vX.Y.Z or vX.Y.Z-snapshot.TS-TS"; exit 1;;
+            esac
+            # skip double-builds of tags this workflow created itself
+            MSG=$(git tag -l --format='%(contents:subject)' "$TAG" || true)
+            if [[ "$MSG" == *"[created-by-release-workflow]"* ]]; then
+              echo "tag was created by this workflow; skipping"
+              SHOULD=false
+            fi
+          else
+            # manual dispatch
+            if [[ "$TYPE" == "stable" ]]; then
+              [[ -n "$TAG" ]] || { echo "::error::stable releases require tag_name input"; exit 1; }
+              [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::stable tag must be vX.Y.Z"; exit 1; }
+            else
+              TYPE="snapshot"
+              LAST=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+              MAJOR=$(echo "$LAST" | cut -d. -f1 | tr -d v); [ -n "$MAJOR" ] || MAJOR=0
+              MINOR=$(echo "$LAST" | cut -d. -f2); [ -n "$MINOR" ] || MINOR=1
+              PATCH=$(echo "$LAST" | cut -d. -f3 | cut -d- -f1); [ -n "$PATCH" ] || PATCH=0
+              TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-snapshot.$(date +%Y%m%d-%H%M%S)"
+            fi
+
+            # create and push the tag (marked so the push event skips rebuild)
+            git config user.name "${GITHUB_ACTOR}"
+            git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+            if git rev-parse "$TAG" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+              echo "tag $TAG already exists; building it without recreating"
+            else
+              git tag -a "$TAG" -m "$TAG: $TYPE release [created-by-release-workflow]"
+              git push origin "$TAG"
+            fi
+
+            # dispatch always (re)builds the release
+            SHOULD=true
+          fi
+
+          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
+          echo "should_release=$SHOULD" >> "$GITHUB_OUTPUT"
+          echo "== type=$TYPE tag=$TAG should_release=$SHOULD"
+
+  release:
+    needs: config
+    if: needs.config.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'serv/go.mod'
+
+      - name: Install GoReleaser
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends goreleaser
+
+      - name: Verify modules compile from committed sources
+        run: |
+          # library consumers need no submodules and no C toolchain setup
+          # beyond their own compiler; prove our module tree is complete.
+          go build ./core/... ./serv/...
+
+      - name: Run GoReleaser
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: goreleaser release --clean --config .goreleaser.yaml

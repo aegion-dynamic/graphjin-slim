@@ -133,6 +133,12 @@ jobs:
           TYPE: ${{ steps.cfg.outputs.type }}
         run: |
           ARGS=( "$TAG" --generate-notes --title "$TAG" )
+          # anchor notes at the nearest ancestor version tag (e.g. v3.0.0-pre),
+          # falling back to GitHub defaults when none exists
+          START=$(git describe --abbrev=0 --match='v*' "$TAG^" 2>/dev/null || true)
+          if [[ -n "$START" ]]; then
+              ARGS+=( --notes-start-tag "$START" )
+          fi
           if [[ "$TYPE" == "snapshot" ]]; then
               ARGS+=( --prerelease )
           fi

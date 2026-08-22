@@ -93,16 +93,11 @@ func GenerateJSON(gj *core.GraphJin, ns *string, cfg Config) (json.RawMessage, e
 	return json.MarshalIndent(doc, "", "  ")
 }
 
-// Generator returns a serv.OptionSetOpenAPI-compatible generator bound to
-// this configuration:
+// Module (defined in module.go) binds this configuration into a service
+// module:
 //
 //	serv.NewGraphJinService(conf,
-//	    serv.OptionSetOpenAPI(openapi.Generator(openapi.Config{Title: "My API"})))
-func Generator(cfg Config) func(gj *core.GraphJin, ns *string) (json.RawMessage, error) {
-	return func(gj *core.GraphJin, ns *string) (json.RawMessage, error) {
-		return GenerateJSON(gj, ns, cfg)
-	}
-}
+//	    serv.OptionSetModule(openapi.Module(openapi.Config{Title: "My API"})))
 
 // defaultSchema returns the default database's schema from the snapshot.
 func defaultSchema(inputs core.OpenAPIInputs) (*sdata.DBSchema, error) {

@@ -16,6 +16,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/openapi/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
+	_ "github.com/aegion-dynamic/graphjin-slim/sqlite/v3" // register the engine adapter this harness runs on
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 )
@@ -133,14 +134,15 @@ func SpinUp(o Opts) (*H, error) {
 	conf := serv.Config{}
 	conf.Serv.AppName = "bench-" + o.Name
 	conf.Serv.Production = o.Prod
-	conf.Serv.WebUI = !o.Prod
-	conf.Serv.OpenAPISpecsDir = "./specs"
+	conf.Modules = map[string]map[string]any{
+		"openapi": {"specs_dir": "./specs"},
+	}
 	conf.Serv.HostPort = fmt.Sprintf("127.0.0.1:%d", port)
 	conf.DB.Type = "sqlite"
 	conf.DB.Path = dbPath
 
 	gjs, err := serv.NewGraphJinService(&conf,
-		serv.OptionSetOpenAPI(openapi.Generator(openapi.Config{Title: "GraphJin Bench"})),
+		serv.OptionSetModule(openapi.Module(openapi.Config{Title: "GraphJin Bench"})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("new service: %w", err)

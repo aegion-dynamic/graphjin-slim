@@ -8,31 +8,30 @@ type CachingConfig struct{}
 
 // Service contains HTTP service settings layered onto core.Config.
 type Service struct {
-	AppName                    string          `mapstructure:"app_name" jsonschema:"title=Application Name"`
-	Production                 bool            `jsonschema:"title=Production Mode,default=false"`
-	DisableColumnValueSampling bool            `mapstructure:"disable_column_value_sampling" jsonschema:"title=Disable Catalog Column Value Sampling,default=false"`
-	ConfigPath                 string          `mapstructure:"config_path" jsonschema:"title=Config Path"`
-	LogLevel                   string          `mapstructure:"log_level" jsonschema:"title=Log Level,enum=debug,enum=error,enum=warn,enum=info"`
-	LogFormat                  string          `mapstructure:"log_format" jsonschema:"title=Logging Format,enum=auto,enum=json,enum=simple"`
-	HostPort                   string          `mapstructure:"host_port" jsonschema:"title=Host and Port"`
-	Host                       string          `jsonschema:"title=Host"`
-	Port                       string          `jsonschema:"title=Port"`
-	HTTPGZip                   bool            `mapstructure:"http_compress" jsonschema:"title=Enable Compression,default=true"`
-	RateLimiter                RateLimiter     `mapstructure:"rate_limiter" jsonschema:"title=Set API Rate Limiting"`
-	ServerTiming               bool            `mapstructure:"server_timing" jsonschema:"title=Server Timing HTTP Header,default=true"`
-	WebUI                      bool            `mapstructure:"web_ui" jsonschema:"title=Enable Web UI,default=false"`
-	EnableTracing              bool            `mapstructure:"enable_tracing" jsonschema:"title=Enable Tracing,default=true"`
-	WatchAndReload             bool            `mapstructure:"reload_on_config_change" jsonschema:"title=Reload Config"`
-	AuthFailBlock              bool            `mapstructure:"auth_fail_block" jsonschema:"title=Block Request on Authorization Failure"`
-	AllowedOrigins             []string        `mapstructure:"cors_allowed_origins" jsonschema:"title=HTTP CORS Allowed Origins"`
-	AllowedHeaders             []string        `mapstructure:"cors_allowed_headers" jsonschema:"title=HTTP CORS Allowed Headers"`
-	DebugCORS                  bool            `mapstructure:"cors_debug" jsonschema:"title=Log CORS"`
-	CacheControl               string          `mapstructure:"cache_control" jsonschema:"title=Enable Cache-Control"`
-	OpenAPISpecsDir            string          `mapstructure:"openapi_specs_dir" jsonschema:"title=OpenAPI Specs Directory,description=Write the OpenAPI spec to this directory at startup for SDK codegen"`
-	DB                         database.Config `mapstructure:"database" jsonschema:"title=Database"`
-	Secrets                    SecretsConfig   `mapstructure:"secrets" jsonschema:"title=Secrets"`
-	Redis                      RedisConfig     `mapstructure:"redis" jsonschema:"title=Redis Configuration"`
-	Caching                    CachingConfig   `mapstructure:"caching" jsonschema:"title=Caching Configuration"`
+	AppName                    string                    `mapstructure:"app_name" jsonschema:"title=Application Name"`
+	Production                 bool                      `jsonschema:"title=Production Mode,default=false"`
+	DisableColumnValueSampling bool                      `mapstructure:"disable_column_value_sampling" jsonschema:"title=Disable Catalog Column Value Sampling,default=false"`
+	ConfigPath                 string                    `mapstructure:"config_path" jsonschema:"title=Config Path"`
+	LogLevel                   string                    `mapstructure:"log_level" jsonschema:"title=Log Level,enum=debug,enum=error,enum=warn,enum=info"`
+	LogFormat                  string                    `mapstructure:"log_format" jsonschema:"title=Logging Format,enum=auto,enum=json,enum=simple"`
+	HostPort                   string                    `mapstructure:"host_port" jsonschema:"title=Host and Port"`
+	Host                       string                    `jsonschema:"title=Host"`
+	Port                       string                    `jsonschema:"title=Port"`
+	HTTPGZip                   bool                      `mapstructure:"http_compress" jsonschema:"title=Enable Compression,default=true"`
+	RateLimiter                RateLimiter               `mapstructure:"rate_limiter" jsonschema:"title=Set API Rate Limiting"`
+	ServerTiming               bool                      `mapstructure:"server_timing" jsonschema:"title=Server Timing HTTP Header,default=true"`
+	Modules                    map[string]map[string]any `mapstructure:"modules" jsonschema:"title=Optional Module Settings,description=Per-module settings keyed by module name; only read by modules the application supplies"`
+	EnableTracing              bool                      `mapstructure:"enable_tracing" jsonschema:"title=Enable Tracing,default=true"`
+	WatchAndReload             bool                      `mapstructure:"reload_on_config_change" jsonschema:"title=Reload Config"`
+	AuthFailBlock              bool                      `mapstructure:"auth_fail_block" jsonschema:"title=Block Request on Authorization Failure"`
+	AllowedOrigins             []string                  `mapstructure:"cors_allowed_origins" jsonschema:"title=HTTP CORS Allowed Origins"`
+	AllowedHeaders             []string                  `mapstructure:"cors_allowed_headers" jsonschema:"title=HTTP CORS Allowed Headers"`
+	DebugCORS                  bool                      `mapstructure:"cors_debug" jsonschema:"title=Log CORS"`
+	CacheControl               string                    `mapstructure:"cache_control" jsonschema:"title=Enable Cache-Control"`
+	DB                         database.Config           `mapstructure:"database" jsonschema:"title=Database"`
+	Secrets                    SecretsConfig             `mapstructure:"secrets" jsonschema:"title=Secrets"`
+	Redis                      RedisConfig               `mapstructure:"redis" jsonschema:"title=Redis Configuration"`
+	Caching                    CachingConfig             `mapstructure:"caching" jsonschema:"title=Caching Configuration"`
 }
 
 type SecretsConfig struct {

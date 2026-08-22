@@ -15,13 +15,12 @@ internals, no database access, no network.
 import "github.com/aegion-dynamic/graphjin-slim/openapi/v3"
 
 gjs, err := serv.NewGraphJinService(conf,
-    serv.OptionSetOpenAPI(openapi.Generator(openapi.Config{Title: "My API"})),
+    serv.OptionSetModule(openapi.Module(openapi.Config{Title: "My API"})),
 )
 ```
 
-This serves an OpenAPI document at `/api/v1/openapi.json`. Public handlers:
-`HttpService.OpenAPI()` and `HttpService.OpenAPIWithNS(ns)` are available for
-custom routers.
+This serves an OpenAPI document at `/api/v1/openapi.json`. For custom
+routers, `HttpService.ModuleRoutes()` exposes every mounted module's routes.
 
 Variables are supplied explicitly on every call — GET query parameters
 or a flat POST body. A missing variable is an error naming it; nothing
@@ -29,10 +28,10 @@ is silently filled. The stored `<name>.json` file documents an example
 invocation, is version-controlled with the query, and pre-fills the
 console editor, but never substitutes for request values.
 
-Setting `openapi_specs_dir` in the service config writes the spec to disk at
-startup (as `openapi.json`, or `<ns>.openapi.json` for namespaced services)
-for SDK codegen pipelines. Requires a registered generator; failures are
-logged and do not block startup.
+Setting `modules.openapi.specs_dir` in the service config writes the spec to
+disk at mount time (as `openapi.json`, or `<ns>.openapi.json` for namespaced
+services) for SDK codegen pipelines. Failures are logged and do not block
+startup.
 
 ## Behavior
 
@@ -51,5 +50,5 @@ logged and do not block startup.
   rendering from a snapshot.
 - `GenerateJSON(gj *core.GraphJin, ns *string, cfg Config) (json.RawMessage, error)`
   — collects inputs from the engine and renders indented JSON.
-- `Generator(cfg Config)` — returns a `serv.OptionSetOpenAPI`-compatible
-  function.
+- `Module(cfg Config)` — returns a service module for `serv.OptionSetModule`;
+  reads its settings from the `modules.openapi:` config section.

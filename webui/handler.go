@@ -4,13 +4,13 @@
 // assets/build. It ships as its own module so that applications which do not
 // import it keep zero UI assets in their binary.
 //
-// Wire it into the service with:
+// Wire it into the service as a module:
 //
-//	serv.NewGraphJinService(conf, serv.OptionSetWebUI(webui.Handler))
+//	serv.NewGraphJinService(conf, serv.OptionSetModule(webui.Module()))
 //
-// The service mounts the handler at "/" when config enables it (web_ui).
-// The console discovers the GraphQL endpoint from the "?endpoint=" query
-// parameter appended by Handler's root redirect.
+// Enable it from config (modules.webui.enabled: true); the module then mounts
+// the handler at "/". The console discovers the GraphQL endpoint from the
+// "?endpoint=" query parameter appended by Handler's root redirect.
 package webui
 
 import (
@@ -24,7 +24,8 @@ import (
 var buildFS embed.FS
 
 // Handler returns the web UI http.Handler for the given route prefix and
-// GraphQL endpoint path (e.g. "/api/v1/graphql").
+// GraphQL endpoint path (e.g. "/api/v1/graphql"). Most applications use
+// webui.Module() instead, which wires this into the service automatically.
 func Handler(routePrefix string, gqlEndpoint string) http.Handler {
 	webRoot, err := fs.Sub(buildFS, "assets/build")
 	if err != nil {

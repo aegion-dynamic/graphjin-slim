@@ -116,18 +116,25 @@ application
              +--> serv/database
              +--> core
 
-application (optional product surfaces)
+application (optional database engines, via blank import into core/dbadapter)
     |
-    +--> webui     embedded React console, stdlib only
+    +--> postgres  pgx/v5 connection adapter
+    +--> sqlite    SQLCipher-backed driver
+
+application (optional product surfaces, via serv.OptionSetModule)
+    |
+    +--> webui     embedded React console
     +--> openapi   spec generator over core/v3/{qcode,sdata,schema,allow}
 ```
 
 Internal compiler packages should not import the service package. Transport
 packages should not own compiler behavior. The root service package is the
 composition point where configuration, database, cache, HTTP, and core are
-assembled. The webui and openapi modules are opt-in: the service only holds
-neutral hooks (`serv.OptionSetWebUI`, `serv.OptionSetOpenAPI`), so slim
-binaries are unchanged unless an application imports them.
+assembled. The webui and openapi modules are opt-in: the service only knows
+the neutral seam (`serv/module`, shaped like `core/dbadapter`), so slim
+binaries are unchanged unless an application passes modules via
+`serv.OptionSetModule`. The service never names a module; each module parses
+its own section under the top-level `modules:` config key.
 
 ## Refactoring Direction
 

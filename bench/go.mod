@@ -1,17 +1,18 @@
 module github.com/aegion-dynamic/graphjin-slim/bench/v3
 
-go 1.25.5
+go 1.26.6
 
 require (
 	github.com/aegion-dynamic/graphjin-slim/openapi/v3 v3.0.0-00010101000000-000000000000
-	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.0.0
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.34.0
+	github.com/aegion-dynamic/graphjin-slim/sqlite/v3 v3.34.1
 	github.com/uptrace/bun v1.2.11
 	github.com/uptrace/bun/dialect/sqlitedialect v1.2.11
 )
 
 require (
 	github.com/Code-Hex/dd v1.1.0 // indirect
-	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.0.0 // indirect
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.34.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a // indirect
@@ -19,13 +20,8 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.7.6 // indirect
-	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
-	github.com/mattn/go-sqlite3 v1.14.50 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
@@ -48,7 +44,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
@@ -61,3 +56,5 @@ replace github.com/aegion-dynamic/graphjin-slim/serv/v3 => ../serv
 replace github.com/aegion-dynamic/graphjin-slim/openapi/v3 => ../openapi
 
 replace github.com/aegion-dynamic/graphjin-slim/webui/v3 => ../webui
+
+replace github.com/aegion-dynamic/graphjin-slim/sqlite/v3 => ../sqlite

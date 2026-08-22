@@ -49,7 +49,6 @@ type Config struct {
 	dirty    bool
 	viper    *viper.Viper
 
-	webUIExplicit    bool
 	parsedConfig     bool
 	explicitSettings map[string]bool
 }
@@ -113,15 +112,12 @@ func readInConfig(configFile string, fs afero.Fs) (*Config, error) {
 	config.parsedConfig = true
 	config.explicitSettings = captureRuntimeDefaultExplicitSettings(viper)
 
-	webUIExplicit := webUISettingExplicit(viper)
 	if err := viper.Unmarshal(&config, capabilityMapDecodeOption()); err != nil {
 		return nil, fmt.Errorf("failed to decode config, %v", err)
 	}
 	if err := normalizeConfigMode(config); err != nil {
 		return nil, err
 	}
-	normalizeWebUIDefault(config, webUIExplicit)
-	config.webUIExplicit = webUIExplicit
 
 	return config, nil
 }
@@ -152,15 +148,12 @@ func NewConfig(config, format string) (*Config, error) {
 	c := &Config{viper: viper, parsedConfig: true}
 	c.explicitSettings = captureRuntimeDefaultExplicitSettings(viper)
 
-	webUIExplicit := webUISettingExplicit(viper)
 	if err := viper.Unmarshal(&c, capabilityMapDecodeOption()); err != nil {
 		return nil, fmt.Errorf("failed to decode config, %v", err)
 	}
 	if err := normalizeConfigMode(c); err != nil {
 		return nil, err
 	}
-	normalizeWebUIDefault(c, webUIExplicit)
-	c.webUIExplicit = webUIExplicit
 
 	return c, nil
 }
@@ -262,28 +255,6 @@ func (c *Config) settingExplicit(key string) bool {
 		}
 	}
 	return configSettingExplicit(c.viper, key)
-}
-
-func normalizeWebUIDefault(c *Config, explicit bool) {
-	if c == nil || explicit {
-		return
-	}
-	c.Serv.WebUI = c.Core.Mode == "dev"
-}
-
-func webUISettingExplicit(v *viper.Viper) bool {
-	if v == nil {
-		return false
-	}
-	if v.InConfig("web_ui") {
-		return true
-	}
-	for _, key := range []string{"GJ_WEB_UI", "SG_WEB_UI", "SJ_WEB_UI"} {
-		if value, ok := os.LookupEnv(key); ok && strings.TrimSpace(value) != "" {
-			return true
-		}
-	}
-	return false
 }
 
 func applyConfigNameMode(v *viper.Viper, mode string) {

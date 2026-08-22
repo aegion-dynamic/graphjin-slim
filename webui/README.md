@@ -9,12 +9,12 @@ applications that do not import it keep zero UI assets in their binary.
 import "github.com/aegion-dynamic/graphjin-slim/webui/v3"
 
 gjs, err := serv.NewGraphJinService(conf,
-    serv.OptionSetWebUI(webui.Handler),
+    serv.OptionSetModule(webui.Module()),
 )
 ```
 
-The service mounts `webui.Handler` at `/` when config enables it (`web_ui`,
-default on in dev mode). On a bare request to `/` the handler redirects to
+Enable it from config (`modules.webui.enabled: true`); the module then mounts
+the handler at `/`. On a bare request to `/` the handler redirects to
 `/?endpoint=<graphql path>`; the single-page app reads that parameter to find
 the GraphQL endpoint.
 

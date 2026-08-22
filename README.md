@@ -14,30 +14,49 @@ Upstream remains the full project with its broader feature set. This repo tracks
 - `core/` - GraphQL parsing, schema discovery (`sdata`), IR (`qcode`), SQL generation (`psql`, postgres and sqlite dialects), allow list, and the stable public API in `core/api.go`
 - `serv/` - `NewGraphJinService`, `GraphQL` and `REST` handlers, `GetDB`, `Attach`, database initialization, health, caching, and config loading
 - Sub-packages: `core/graph`, `core/jsn`, `core/sdata`, `core/qcode`, `core/psql`, `core/dialect` (postgres and sqlite), `core/allow`, `core/valid`, `core/schema`, `core/introspection`, `core/util`
-- Databases: Postgres and SQLite (optional at-rest encryption via SQLCipher)
+- Database engines: Postgres and SQLite as opt-in adapter modules (see `core/dbadapter`); optional at-rest encryption via SQLCipher
 - Sources: database, file, api
 - File backends: local and s3
 
 ## Optional modules
 
-Product surfaces are isolated into their own workspace modules. The slim
-data path never links them; an application imports what it wants and passes
-it to the service through options.
+Everything beyond the core data path ships as its own workspace module. The
+slim build never links them; an application imports exactly what it wants.
+Two seams make this work, one per layer:
+
+**Database engines**, registered into `core/dbadapter` by a blank import;
+the service resolves whichever engine a config names via `database.type`.
+Nothing in core or serv links a driver.
 
 | Module | Import path | Provides |
 |---|---|---|
-| `webui/` | `github.com/aegion-dynamic/graphjin-slim/webui/v3` | Embedded React console (`webui.Handler`) |
-| `openapi/` | `github.com/aegion-dynamic/graphjin-slim/openapi/v3` | OpenAPI 3.0 spec generator for saved queries (`openapi.Generator`) |
+| `postgres/` | `github.com/aegion-dynamic/graphjin-slim/postgres/v3` | Postgres adapter over pgx/v5 |
+| `sqlite/` | `github.com/aegion-dynamic/graphjin-slim/sqlite/v3` | SQLite adapter (SQLCipher-backed; optional at-rest encryption) |
 
 ```go
-gjs, err := serv.NewGraphJinService(conf,
-    serv.OptionSetWebUI(webui.Handler),
-    serv.OptionSetOpenAPI(openapi.Generator(openapi.Config{Title: "My API"})),
+import (
+    _ "github.com/aegion-dynamic/graphjin-slim/postgres/v3" // or sqlite/v3
 )
 ```
 
-Setting `openapi_specs_dir` in the service config writes the spec to disk at
-startup for SDK codegen pipelines.
+**Product surfaces**, passed to the service through options; the service
+knows only the `serv/module` seam and never names a module. Each module
+reads its own section under the top-level `modules:` config key.
+
+| Module | Import path | Provides |
+|---|---|---|
+| `webui/` | `github.com/aegion-dynamic/graphjin-slim/webui/v3` | Embedded React console (`webui.Module`) |
+| `openapi/` | `github.com/aegion-dynamic/graphjin-slim/openapi/v3` | OpenAPI 3.0 spec generator for saved queries (`openapi.Module`) |
+
+```go
+gjs, err := serv.NewGraphJinService(conf,
+    serv.OptionSetModule(webui.Module()),
+    serv.OptionSetModule(openapi.Module(openapi.Config{Title: "My API"})),
+)
+```
+
+Setting `modules.openapi.specs_dir` writes the spec to disk at startup for
+SDK codegen pipelines.
 
 ## What was removed
 
@@ -65,6 +84,8 @@ go get github.com/aegion-dynamic/graphjin-slim/core/v3
 import (
     "github.com/aegion-dynamic/graphjin-slim/core/v3"
     "github.com/aegion-dynamic/graphjin-slim/serv/v3"
+
+    _ "github.com/aegion-dynamic/graphjin-slim/postgres/v3" // engine adapter (or sqlite/v3)
 )
 
 gjs, err := serv.NewGraphJinService(conf, servOpts...)

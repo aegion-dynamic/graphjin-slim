@@ -79,3 +79,4 @@ docs/DESIGN-OPENAPI-TOPLEVEL.md
 
 # agent data-eval ledger (reports are local artifacts)
 .graphjin-evals/
+bin/

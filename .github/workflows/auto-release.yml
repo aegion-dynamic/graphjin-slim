@@ -75,6 +75,17 @@ jobs:
                   PATCH=$((PATCH + 1));;
           esac
 
+          # Release floor: proxy.golang.org permanently cached old dosco-era
+          # zips for every vX <= v3.20.29 on these module paths (a mistaken
+          # bulk tag push long ago), so those versions are burned forever.
+          # Never publish at or below the floor.
+          FLOOR_MAJOR=3; FLOOR_MINOR=33; FLOOR_PATCH=33
+          if (( MAJOR < FLOOR_MAJOR )) \
+             || (( MAJOR == FLOOR_MAJOR && MINOR < FLOOR_MINOR )) \
+             || (( MAJOR == FLOOR_MAJOR && MINOR == FLOOR_MINOR && PATCH < FLOOR_PATCH )); then
+              MAJOR=$FLOOR_MAJOR; MINOR=$FLOOR_MINOR; PATCH=$FLOOR_PATCH
+          fi
+
           echo "version=$MAJOR.$MINOR.$PATCH" >> "$GITHUB_OUTPUT"
           echo "next version: $MAJOR.$MINOR.$PATCH (from $STABLE)"
 

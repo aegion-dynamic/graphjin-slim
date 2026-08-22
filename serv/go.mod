@@ -3,7 +3,7 @@ module github.com/aegion-dynamic/graphjin-slim/serv/v3
 go 1.25.5
 
 require (
-	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.34.0
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.34.1
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/klauspost/compress v1.18.3
@@ -31,8 +31,8 @@ require (
 )
 
 require (
-	github.com/aegion-dynamic/graphjin-slim/postgres/v3 v3.34.0
-	github.com/aegion-dynamic/graphjin-slim/sqlite/v3 v3.34.0
+	github.com/aegion-dynamic/graphjin-slim/postgres/v3 v3.34.1
+	github.com/aegion-dynamic/graphjin-slim/sqlite/v3 v3.34.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

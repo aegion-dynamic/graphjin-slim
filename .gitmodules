@@ -1,4 +1,0 @@
-[submodule "serv/database/sqlite/cipher"]
-	path = sqlite/cipher
-	url = https://github.com/sqlcipher/sqlcipher.git
-	ignore = dirty

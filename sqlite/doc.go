@@ -7,14 +7,12 @@
 //
 //	encryption_key == "" -> standard SQLite behavior through SQLCipher
 //	encryption_key != "" -> PRAGMA key applied as the first statement on
-//	                       every physical connection
+//	                        every physical connection
 //
-// Provenance of the vendored C sources (see scripts/gen-sqlite3.sh):
-//
-//	SQLCipher       4.18.0 community   (tag v4.18.0)
-//	SQLite baseline 3.53.4
-//	Pinned commit   63697beb0fafcb61faa7a3e6fd267036548ab11b
-//
-// Runtime dependency model: SQLCipher code is statically linked into the
-// application; OpenSSL's libcrypto remains a dynamic system dependency.
+// Provenance of the vendored C sources (regenerate with gen.sh): the
+// amalgamation is generated from SQLCipher v4.18.0 community (SQLite
+// baseline 3.53.4, upstream commit 63697beb0fafcb61faa7a3e6fd267036548ab11b)
+// and committed here, so consumers need no submodules. Runtime dependency
+// model: SQLCipher code is statically linked into the application;
+// OpenSSL's libcrypto remains a dynamic system dependency.
 package sqlite

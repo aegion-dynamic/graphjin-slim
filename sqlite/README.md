@@ -34,14 +34,16 @@ db, err := sqlite.Open(ctx, sqlite.Options{
 | `key.go` | cipher availability check and key statement building |
 | `open.go` | Options and Open entry point |
 | `sqlite3.c/h` | committed SQLCipher amalgamation - the actual build input |
-| `cipher/` | git submodule pinning upstream sqlcipher (provenance only) |
-| `gen.sh` | regenerates the amalgamation from the pinned commit |
+| `upstream/` | gitignored; where gen.sh clones pinned upstream sources |
+| `gen.sh` | clones pinned upstream and regenerates the amalgamation |
 
 Consumers need no submodules: `go get` + `go build` compiles the committed
 amalgamation directly. A C toolchain is required.
 
 ## Upgrading SQLCipher
 
-1. Move `cipher/` to the new upstream release tag.
-2. Update `PIN_SQLCIPHER` in `gen.sh`.
-3. Run `./gen.sh` and commit the regenerated amalgamation.
+1. Update `PIN_SQLCIPHER` in `gen.sh` to the new release commit.
+2. Run `./gen.sh` (clones the pinned commit into gitignored `upstream/`) and
+   commit the regenerated amalgamation.
+3. Bump the module version via a normal master push - auto-release handles
+   tags and the GitHub Release.

@@ -48,11 +48,12 @@ go build ./...
 ```
 
 CI provisions these packages itself (see `.github/workflows/auto-release.yml`),
-so releases never depend on a developer machine. To upgrade SQLCipher, move the
-`cipher/` submodule to a new release commit and regenerate the amalgamation:
+so releases never depend on a developer machine. To upgrade SQLCipher, update
+`PIN_SQLCIPHER` in the sqlite module's `gen.sh` to the new release commit and
+regenerate the amalgamation:
 
 ```bash
-./gen.sh
+cd sqlite && ./gen.sh
 ```
 
 ## Key Functions

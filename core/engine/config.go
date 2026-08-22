@@ -290,6 +290,10 @@ type DatabaseConfig struct {
 	Schema          string        `mapstructure:"schema" json:"schema" yaml:"schema"`
 	Path            string        `mapstructure:"path" json:"path" yaml:"path"`
 	EncryptionKey   string        `mapstructure:"encryption_key" json:"encryption_key" yaml:"encryption_key"`
+	EnableTLS       bool          `mapstructure:"enable_tls" json:"enable_tls" yaml:"enable_tls"`
+	ServerName      string        `mapstructure:"server_name" json:"server_name" yaml:"server_name"`
+	ServerCert      string        `mapstructure:"server_cert" json:"server_cert" yaml:"server_cert"`
+	Settings        map[string]any `mapstructure:",remain" json:"-" yaml:",inline"`
 	ReadOnly        bool          `mapstructure:"read_only" json:"read_only" yaml:"read_only"`
 	AnalyticsMode   bool          `mapstructure:"analytics_mode" json:"analytics_mode" yaml:"analytics_mode"`
 	PoolSize        int           `mapstructure:"pool_size" json:"pool_size" yaml:"pool_size"`

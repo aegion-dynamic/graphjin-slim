@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 )
 
 var Formats = map[string]string{
@@ -21,7 +21,7 @@ var Formats = map[string]string{
 	"ulid":                "^[A-HJKMNP-TV-Z0-9]{26}$",
 }
 
-func format(args []string) (fn qcode.ValidFn, err error) {
+func format(args []string) (fn graphql.ValidFn, err error) {
 	reStr, ok := Formats[args[0]]
 	if !ok {
 		err = fmt.Errorf("unknown format: %s", args[0])
@@ -31,7 +31,7 @@ func format(args []string) (fn qcode.ValidFn, err error) {
 	if err != nil {
 		return
 	}
-	fn = func(vars qcode.Vars, c qcode.Constraint) (ok bool) {
+	fn = func(vars graphql.Vars, c graphql.Constraint) (ok bool) {
 		v1, ok := vars[c.VarName]
 		if ok {
 			ok = re.Match(v1)

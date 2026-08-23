@@ -9,8 +9,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/util"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/valid"
-)
+	)
 
 const (
 	KIND_SCALAR      = "SCALAR"
@@ -201,6 +200,19 @@ type IntroOptions struct {
 	DisableAgg bool
 	// Schemas is the ordered list of database schemas to include.
 	Schemas []*sdata.DBSchema
+
+	// ValidateFormats and Validators describe the frontend's @validate
+	// directive for the introspection document. Injected by the caller so
+	// this package stays independent of any query language.
+	ValidateFormats []string
+	Validators      []ValidatorInfo
+}
+
+// ValidatorInfo describes one input validator for the validate directive.
+type ValidatorInfo struct {
+	Name string
+	Type string
+	List bool
 }
 
 // BuildIntrospection builds the GraphQL introspection JSON for the given schemas.
@@ -309,7 +321,7 @@ func BuildIntrospection(opts IntroOptions) (result json.RawMessage, err error) {
 	for _, dt := range dirTypes {
 		in.addDirType(dt)
 	}
-	in.addDirValidateType()
+	in.addDirValidateType(opts)
 
 	typeNames := make([]string, 0, len(in.types))
 	for name := range in.types {
@@ -1053,16 +1065,13 @@ func (in *Introspection) addDirType(dt dir) {
 }
 
 // addDirValidateType adds a validate directive type to the introspection schema
-func (in *Introspection) addDirValidateType() {
+func (in *Introspection) addDirValidateType(opts IntroOptions) {
 	ft := FullType{
 		Kind:        KIND_ENUM,
 		Name:        ("validateFormat" + SUFFIX_ENUM),
 		Description: "Various formats supported by @validate",
 	}
-	fmtNames := make([]string, 0, len(valid.Formats))
-	for k := range valid.Formats {
-		fmtNames = append(fmtNames, k)
-	}
+	fmtNames := append([]string(nil), opts.ValidateFormats...)
 	sort.Strings(fmtNames)
 	for _, k := range fmtNames {
 		ft.EnumValues = append(ft.EnumValues, EnumValue{
@@ -1079,16 +1088,10 @@ func (in *Introspection) addDirValidateType() {
 	}
 	d.Args = append(d.Args, InputValue{
 		Name:        "variable",
-		Description: "Variable to add the validation on",
+		Description: "Variable to add a validation on",
 		Type:        newTypeRef(KIND_NONNULL, "", newTypeRef("", "String", nil)),
 	})
-	valNames := make([]string, 0, len(valid.Validators))
-	for k := range valid.Validators {
-		valNames = append(valNames, k)
-	}
-	sort.Strings(valNames)
-	for _, k := range valNames {
-		v := valid.Validators[k]
+	for _, v := range opts.Validators {
 		if v.Type == "" {
 			continue
 		}
@@ -1099,9 +1102,10 @@ func (in *Introspection) addDirValidateType() {
 			ty = newTypeRef("", v.Type, nil)
 		}
 		d.Args = append(d.Args, InputValue{
-			Name:        k,
-			Description: v.Description,
-			Type:        ty,
+			Name: v.Name,
+			// Description intentionally omitted; validators carry their own
+			// docs at the language layer.
+			Type: ty,
 		})
 	}
 	in.result.Schema.Directives = append(in.result.Schema.Directives, d)

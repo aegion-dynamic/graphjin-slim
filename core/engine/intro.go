@@ -2,7 +2,9 @@ package engine
 
 import (
 	"encoding/json"
+	"sort"
 
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql/valid"
 	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
@@ -46,9 +48,34 @@ func (gj *graphjinEngine) introQuery() (result json.RawMessage, err error) {
 		schemas = append(schemas, ctx.schema)
 	}
 
+	// Validator metadata comes from the frontend's registry so this
+	// package never imports a query language directly.
+	var validateFormats []string
+	for k := range valid.Formats {
+		validateFormats = append(validateFormats, k)
+	}
+	sort.Strings(validateFormats)
+
+	valNames := make([]string, 0, len(valid.Validators))
+	for name := range valid.Validators {
+		valNames = append(valNames, name)
+	}
+	sort.Strings(valNames)
+	validators := make([]schemapkg.ValidatorInfo, 0, len(valNames))
+	for _, name := range valNames {
+		v := valid.Validators[name]
+		validators = append(validators, schemapkg.ValidatorInfo{
+			Name: name,
+			Type: v.Type,
+			List: v.List,
+		})
+	}
+
 	return schemapkg.BuildIntrospection(schemapkg.IntroOptions{
-		CamelCase:  gj.conf.EnableCamelcase,
-		DisableAgg: gj.conf.DisableAgg,
-		Schemas:    schemas,
+		CamelCase:       gj.conf.EnableCamelcase,
+		DisableAgg:      gj.conf.DisableAgg,
+		Schemas:         schemas,
+		ValidateFormats: validateFormats,
+		Validators:      validators,
 	})
 }

@@ -5,12 +5,12 @@ import (
 	"strconv"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 )
 
 const formatsEnum = "validateFormatEnum"
 
-var Validators = map[string]qcode.Validator{
+var Validators = map[string]graphql.Validator{
 	"format": {
 		Description: "Value must be of a format, eg: email, uuid",
 		Types:       []graph.ParserType{graph.NodeLabel, graph.NodeStr},
@@ -156,30 +156,30 @@ var Validators = map[string]qcode.Validator{
 	},
 }
 
-func required(args []string) (fn qcode.ValidFn, err error) {
-	fn = func(vars qcode.Vars, c qcode.Constraint) bool {
+func required(args []string) (fn graphql.ValidFn, err error) {
+	fn = func(vars graphql.Vars, c graphql.Constraint) bool {
 		_, ok := vars[c.VarName]
 		return ok
 	}
 	return
 }
 
-func requiredIf(args []string) (fn qcode.ValidFn, err error) {
+func requiredIf(args []string) (fn graphql.ValidFn, err error) {
 	return requiredIfUnless(args, true)
 }
 
-func requiredUnless(args []string) (fn qcode.ValidFn, err error) {
+func requiredUnless(args []string) (fn graphql.ValidFn, err error) {
 	return requiredIfUnless(args, false)
 }
 
-func requiredIfUnless(args []string, isIf bool) (fn qcode.ValidFn, err error) {
+func requiredIfUnless(args []string, isIf bool) (fn graphql.ValidFn, err error) {
 	keys := make([]string, len(args)/2)
 	values := make([][]byte, len(args)/2)
 	for i := 0; i < len(args); i += 2 {
 		keys[i] = args[i]
 		values[i] = []byte(args[(i + 1)])
 	}
-	fn = func(vars qcode.Vars, c qcode.Constraint) bool {
+	fn = func(vars graphql.Vars, c graphql.Constraint) bool {
 		m := true
 		for i, k := range keys {
 			v1, ok := vars[k]
@@ -204,20 +204,20 @@ func requiredIfUnless(args []string, isIf bool) (fn qcode.ValidFn, err error) {
 	return
 }
 
-func min(args []string) (fn qcode.ValidFn, err error) {
+func min(args []string) (fn graphql.ValidFn, err error) {
 	return minMax(args, true)
 }
 
-func max(args []string) (fn qcode.ValidFn, err error) {
+func max(args []string) (fn graphql.ValidFn, err error) {
 	return minMax(args, false)
 }
 
-func minMax(args []string, min bool) (fn qcode.ValidFn, err error) {
+func minMax(args []string, min bool) (fn graphql.ValidFn, err error) {
 	val, err := strconv.Atoi(args[0])
 	if err != nil {
 		return
 	}
-	fn = func(vars qcode.Vars, c qcode.Constraint) bool {
+	fn = func(vars graphql.Vars, c graphql.Constraint) bool {
 		v1, ok := vars[c.VarName]
 		if !ok {
 			return false
@@ -235,28 +235,28 @@ func minMax(args []string, min bool) (fn qcode.ValidFn, err error) {
 	return
 }
 
-func equals(args []string) (fn qcode.ValidFn, err error) {
+func equals(args []string) (fn graphql.ValidFn, err error) {
 	return equalsAndNotEquals(args, true, false)
 }
 
-func notEquals(args []string) (fn qcode.ValidFn, err error) {
+func notEquals(args []string) (fn graphql.ValidFn, err error) {
 	return equalsAndNotEquals(args, false, false)
 }
 
-func equalsField(args []string) (fn qcode.ValidFn, err error) {
+func equalsField(args []string) (fn graphql.ValidFn, err error) {
 	return equalsAndNotEquals(args, true, true)
 }
 
-func notEqualsField(args []string) (fn qcode.ValidFn, err error) {
+func notEqualsField(args []string) (fn graphql.ValidFn, err error) {
 	return equalsAndNotEquals(args, false, true)
 }
 
-func equalsAndNotEquals(args []string, equals bool, field bool) (fn qcode.ValidFn, err error) {
+func equalsAndNotEquals(args []string, equals bool, field bool) (fn graphql.ValidFn, err error) {
 	var val []byte
 	if !field {
 		val = []byte(args[0])
 	}
-	fn = func(vars qcode.Vars, c qcode.Constraint) bool {
+	fn = func(vars graphql.Vars, c graphql.Constraint) bool {
 		v1, ok := vars[c.VarName]
 		if !ok {
 			return false
@@ -277,30 +277,30 @@ func equalsAndNotEquals(args []string, equals bool, field bool) (fn qcode.ValidF
 	return
 }
 
-func requiredWith(args []string) (fn qcode.ValidFn, err error) {
+func requiredWith(args []string) (fn graphql.ValidFn, err error) {
 	return conditionalRequired(args, true, false)
 }
 
-func requiredWithAll(args []string) (fn qcode.ValidFn, err error) {
+func requiredWithAll(args []string) (fn graphql.ValidFn, err error) {
 	return conditionalRequired(args, true, true)
 }
 
-func requiredWithout(args []string) (fn qcode.ValidFn, err error) {
+func requiredWithout(args []string) (fn graphql.ValidFn, err error) {
 	return conditionalRequired(args, false, false)
 }
 
-func requiredWithoutAll(args []string) (fn qcode.ValidFn, err error) {
+func requiredWithoutAll(args []string) (fn graphql.ValidFn, err error) {
 	return conditionalRequired(args, false, true)
 }
 
-func conditionalRequired(args []string, with, all bool) (fn qcode.ValidFn, err error) {
+func conditionalRequired(args []string, with, all bool) (fn graphql.ValidFn, err error) {
 	keys := make([]string, len(args)/2)
 	values := make([][]byte, len(args)/2)
 	for i := 0; i < len(args); i += 2 {
 		keys[i] = args[i]
 		values[i] = []byte(args[(i + 1)])
 	}
-	fn = func(vars qcode.Vars, c qcode.Constraint) bool {
+	fn = func(vars graphql.Vars, c graphql.Constraint) bool {
 		m := all // if all then m = true else m = false
 		for _, k := range keys {
 			_, ok := vars[k]
@@ -322,12 +322,12 @@ func conditionalRequired(args []string, with, all bool) (fn qcode.ValidFn, err e
 	return
 }
 
-func oneOf(args []string) (fn qcode.ValidFn, err error) {
+func oneOf(args []string) (fn graphql.ValidFn, err error) {
 	var vals [][]byte
 	for _, a := range args {
 		vals = append(vals, []byte(a))
 	}
-	fn = func(vars qcode.Vars, c qcode.Constraint) bool {
+	fn = func(vars graphql.Vars, c graphql.Constraint) bool {
 		v1, ok := vars[c.VarName]
 		if !ok {
 			return false
@@ -342,39 +342,39 @@ func oneOf(args []string) (fn qcode.ValidFn, err error) {
 	return
 }
 
-func greaterThan(args []string) (fn qcode.ValidFn, err error) {
+func greaterThan(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, true, false, false)
 }
 
-func greaterThanOrEquals(args []string) (fn qcode.ValidFn, err error) {
+func greaterThanOrEquals(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, true, true, false)
 }
 
-func lessThan(args []string) (fn qcode.ValidFn, err error) {
+func lessThan(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, false, false, false)
 }
 
-func lessThanOrEquals(args []string) (fn qcode.ValidFn, err error) {
+func lessThanOrEquals(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, false, true, false)
 }
 
-func greaterThanField(args []string) (fn qcode.ValidFn, err error) {
+func greaterThanField(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, true, false, true)
 }
 
-func greaterThanOrEqualsField(args []string) (fn qcode.ValidFn, err error) {
+func greaterThanOrEqualsField(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, true, true, true)
 }
 
-func lessThanField(args []string) (fn qcode.ValidFn, err error) {
+func lessThanField(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, false, false, true)
 }
 
-func lessThanOrEqualsField(args []string) (fn qcode.ValidFn, err error) {
+func lessThanOrEqualsField(args []string) (fn graphql.ValidFn, err error) {
 	return greaterAndLessThanAndOrEquals(args, false, true, true)
 }
 
-func greaterAndLessThanAndOrEquals(args []string, greater, equals, field bool) (fn qcode.ValidFn, err error) {
+func greaterAndLessThanAndOrEquals(args []string, greater, equals, field bool) (fn graphql.ValidFn, err error) {
 	var val int
 	if !field {
 		val, err = strconv.Atoi(args[0])
@@ -382,7 +382,7 @@ func greaterAndLessThanAndOrEquals(args []string, greater, equals, field bool) (
 			return
 		}
 	}
-	fn = func(vars qcode.Vars, c qcode.Constraint) bool {
+	fn = func(vars graphql.Vars, c graphql.Constraint) bool {
 		v1, ok := vars[c.VarName]
 		if !ok {
 			return false

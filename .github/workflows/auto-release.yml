@@ -1,21 +1,43 @@
 name: Auto Release
 
-# Releases are commit-driven: every green push to master produces the next
-# patch/minor/major version automatically.
+# Releases are OPT-IN: master pushes never release by themselves.
 #
-#   [major]        -> major bump
-#   [minor]/feat:  -> minor bump
-#   anything else  -> patch bump
-#   [skip-release] -> opt out entirely
+# Put a marker on the tip commit of a push:
 #
-# The workflow bumps internal go.mod requires, commits that, creates one tag
-# per module plus a root tag, pushes them, and publishes the GitHub Release.
+#   [release]        -> patch bump
+#   [release minor]  -> minor bump
+#   [release major]  -> major bump
+#
+# Any other message (feat:, fix:, docs:, chores, whatever) lands on master
+# with no version change — commit freely without worrying about releases.
+#
+# Manual cuts go through workflow_dispatch: pass an exact `version`
+# (e.g. 4.0.0) or pick a `level`; with neither it falls back to reading
+# the [release ...] marker from the current tip.
+#
+# A requested release bumps internal go.mod requires (release.sh), commits
+# that, creates one tag per module plus a root tag, and publishes the
+# GitHub Release.
 
 on:
   push:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Exact version to release (e.g. 4.0.0). Overrides level.'
+        required: false
+        type: string
+      level:
+        description: 'Bump level when no exact version given'
+        required: false
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 concurrency:
   group: auto-release-master
@@ -48,53 +70,89 @@ jobs:
       - name: Verify modules compile
         run: go build ./core/... ./serv/...
 
-      - name: Compute next version
-        id: next
+      - name: Decide whether to release
+        id: decide
         env:
-          COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_LEVEL: ${{ inputs.level }}
         run: |
           set -euo pipefail
-          STABLE=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
-          if [[ -z "$STABLE" ]]; then
-              # fall back to any version-ish tag (e.g. v3.0.0-pre) stripped of suffixes
-              STABLE=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+' | head -n1 | sed 's/-.*//' || true)
-          fi
-          [[ -n "$STABLE" ]] || STABLE="v0.1.0"
 
-          MAJOR=$(echo "$STABLE" | cut -d. -f1 | tr -d 'v')
-          MINOR=$(echo "$STABLE" | cut -d. -f2)
-          PATCH=$(echo "$STABLE" | cut -d. -f3)
+          MSG="$(git log -1 --format=%B)"
 
-          MSG="${COMMIT_MSG:-}"
+          # Opt-in detection from the tip commit message.
+          LEVEL=""
           case "$MSG" in
-              *"[major]"*)
-                  MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0;;
-              *"[minor]"*|*"feat:"*|*"feat("*|*"feature:"*)
-                  MINOR=$((MINOR + 1)); PATCH=0;;
-              *)
-                  PATCH=$((PATCH + 1));;
+              *"[release major]"*)  LEVEL="major";;
+              *"[release minor]"*)  LEVEL="minor";;
+              *"[release]"*|*"[release patch]"*) LEVEL="patch";;
           esac
 
-          # Release floor: proxy.golang.org permanently cached old dosco-era
-          # zips for every vX <= v3.20.29 on these module paths (a mistaken
-          # bulk tag push long ago), so those versions are burned forever.
-          # Never publish at or below the floor.
-          FLOOR_MAJOR=3; FLOOR_MINOR=33; FLOOR_PATCH=33
-          if (( MAJOR < FLOOR_MAJOR )) \
-             || (( MAJOR == FLOOR_MAJOR && MINOR < FLOOR_MINOR )) \
-             || (( MAJOR == FLOOR_MAJOR && MINOR == FLOOR_MINOR && PATCH < FLOOR_PATCH )); then
-              MAJOR=$FLOOR_MAJOR; MINOR=$FLOOR_MINOR; PATCH=$FLOOR_PATCH
+          RELEASE=false
+          VERSION=""
+
+          if [[ -n "${INPUT_VERSION:-}" ]]; then
+              # Exact version wins; strip an optional leading v and validate.
+              VERSION="${INPUT_VERSION#v}"
+              if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                  echo "::error::Invalid version input '$INPUT_VERSION' (expected e.g. 4.0.0)"
+                  exit 1
+              fi
+              RELEASE=true
+          elif [[ -n "${INPUT_LEVEL:-}" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              RELEASE=true
+              LEVEL="$INPUT_LEVEL"
+          elif [[ -n "$LEVEL" ]]; then
+              RELEASE=true
+          else
+              echo "::notice::No [release] marker on tip commit; nothing to release."
           fi
 
-          echo "version=$MAJOR.$MINOR.$PATCH" >> "$GITHUB_OUTPUT"
-          echo "next version: $MAJOR.$MINOR.$PATCH (from $STABLE)"
+          if [[ "$RELEASE" == "true" && -z "$VERSION" ]]; then
+              # Compute next version from the latest stable tag.
+              STABLE=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+              if [[ -z "$STABLE" ]]; then
+                  # fall back to any version-ish tag (e.g. v3.0.0-pre) stripped of suffixes
+                  STABLE=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+' | head -n1 | sed 's/-.*//' || true)
+              fi
+              [[ -n "$STABLE" ]] || STABLE="v0.1.0"
+
+              MAJOR=$(echo "$STABLE" | cut -d. -f1 | tr -d 'v')
+              MINOR=$(echo "$STABLE" | cut -d. -f2)
+              PATCH=$(echo "$STABLE" | cut -d. -f3)
+
+              case "$LEVEL" in
+                  major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0;;
+                  minor) MINOR=$((MINOR + 1)); PATCH=0;;
+                  patch) PATCH=$((PATCH + 1));;
+                  *) echo "::error::Unknown level '$LEVEL'"; exit 1;;
+              esac
+
+              # Release floor: proxy.golang.org permanently cached old dosco-era
+              # zips for every vX <= v3.20.29 on these module paths (a mistaken
+              # bulk tag push long ago), so those versions are burned forever.
+              # Never publish at or below the floor.
+              FLOOR_MAJOR=3; FLOOR_MINOR=33; FLOOR_PATCH=33
+              if (( MAJOR < FLOOR_MAJOR )) \
+                 || (( MAJOR == FLOOR_MAJOR && MINOR < FLOOR_MINOR )) \
+                 || (( MAJOR == FLOOR_MAJOR && MINOR == FLOOR_MINOR && PATCH < FLOOR_PATCH )); then
+                  MAJOR=$FLOOR_MAJOR; MINOR=$FLOOR_MINOR; PATCH=$FLOOR_PATCH
+              fi
+
+              VERSION="$MAJOR.$MINOR.$PATCH"
+              echo "next version: $MAJOR.$MINOR.$PATCH ($LEVEL bump from $STABLE)"
+          fi
+
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Bump internal go.mod requires
+        if: steps.decide.outputs.release == 'true'
         id: bump
         run: |
           OLD_HEAD=$(git rev-parse HEAD)
           echo "base_sha=$OLD_HEAD" >> "$GITHUB_OUTPUT"
-          ./release.sh "${{ steps.next.outputs.version }}"
+          ./release.sh "${{ steps.decide.outputs.version }}"
           if git diff --quiet; then
               echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -102,14 +160,15 @@ jobs:
           fi
 
       - name: Commit version bump
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.decide.outputs.release == 'true' && steps.bump.outputs.changed == 'true'
         run: |
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
           git add core/go.mod serv/go.mod openapi/go.mod webui/go.mod
-          git commit -m "chore: bump version to ${{ steps.next.outputs.version }} [skip-release]"
+          git commit -m "chore: bump version to ${{ steps.decide.outputs.version }}"
 
       - name: Push master (race-checked)
+        if: steps.decide.outputs.release == 'true' && steps.bump.outputs.changed == 'true'
         id: push_master
         run: |
           BASE="${{ steps.bump.outputs.base_sha }}"
@@ -119,14 +178,13 @@ jobs:
               echo "::error::master advanced from $BASE to $REMOTE during release; aborting"
               exit 1
           fi
-          if [[ "${{ steps.bump.outputs.changed }}" == "true" ]]; then
-              git push origin HEAD:master
-          fi
+          git push origin HEAD:master
 
       - name: Create and push all module tags
+        if: steps.decide.outputs.release == 'true'
         run: |
           set -euo pipefail
-          V="${{ steps.next.outputs.version }}"
+          V="${{ steps.decide.outputs.version }}"
           TAGS=("core/v$V" "serv/v$V" "sqlite/v$V" "postgres/v$V" "openapi/v$V" "webui/v$V" "v$V")
 
           for t in "${TAGS[@]}"; do
@@ -137,13 +195,15 @@ jobs:
           git push origin "${TAGS[@]/#/refs/tags/}"
 
       - name: Delete existing release if republishing
+        if: steps.decide.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          V: ${{ steps.next.outputs.version }}
+          V: ${{ steps.decide.outputs.version }}
         run: gh release delete "v$V" --yes 2>/dev/null || true
 
       - name: Publish GitHub Release
+        if: steps.decide.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          V: ${{ steps.next.outputs.version }}
+          V: ${{ steps.decide.outputs.version }}
         run: gh release create "v$V" --generate-notes --title "v$V"

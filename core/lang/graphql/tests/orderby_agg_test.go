@@ -44,11 +44,11 @@ func TestOrderByAggregateKeepsGrouping(t *testing.T) {
 	}
 
 	if len(sel.OrderBy) != 1 {
-		t.Fatalf("len(OrderBy) = %d, want 1", len(sel.OrderBy))
+		t.Fatalf("len(qcode.OrderBy) = %d, want 1", len(sel.OrderBy))
 	}
 	ob := sel.OrderBy[0]
 	if !ob.IsFunc || ob.Func.Name != "sum" || ob.Col.Name != "price" {
-		t.Errorf("OrderBy[0] = {IsFunc:%v Func:%q Col:%q}, want aggregate sum(price)",
+		t.Errorf("qcode.OrderBy[0] = {IsFunc:%v Func:%q Col:%q}, want aggregate sum(price)",
 			ob.IsFunc, ob.Func.Name, ob.Col.Name)
 	}
 

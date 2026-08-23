@@ -15,17 +15,9 @@ type fakeLang struct {
 
 func (f fakeLang) Name() string { return f.name }
 
-func (f fakeLang) New(c *qcode.Compiler) (langadapter.Language, error) {
-	return f, nil
-}
-
 type fakeFactory struct{ name string }
 
 func (f fakeFactory) Name() string { return f.name }
-
-func (f fakeFactory) New(c *qcode.Compiler) (langadapter.Language, error) {
-	return fakeLang{name: f.name}, nil
-}
 
 func (f fakeLang) Compile(query []byte, vars map[string]json.RawMessage,
 	opts langadapter.CompileOptions,

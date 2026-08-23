@@ -9,7 +9,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/util"
-	)
+)
 
 const (
 	KIND_SCALAR      = "SCALAR"

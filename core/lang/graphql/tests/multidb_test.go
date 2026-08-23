@@ -1,6 +1,8 @@
 package graphql_test
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"fmt"
 	"testing"
 
@@ -9,7 +11,7 @@ import (
 
 // TestSelectDatabaseField verifies that Select has a Database field.
 func TestSelectDatabaseField(t *testing.T) {
-	sel := Select{
+	sel := qcode.Select{
 		Table:    "users",
 		Database: "analytics",
 	}
@@ -22,19 +24,19 @@ func TestSelectDatabaseField(t *testing.T) {
 // TestSkipTypeDatabaseJoin verifies SkipTypeDatabaseJoin is defined correctly.
 func TestSkipTypeDatabaseJoin(t *testing.T) {
 	// Verify SkipTypeDatabaseJoin has a reasonable value (not 0 which is SkipTypeNone)
-	if SkipTypeDatabaseJoin == SkipTypeNone {
+	if qcode.SkipTypeDatabaseJoin == qcode.SkipTypeNone {
 		t.Error("SkipTypeDatabaseJoin should not equal SkipTypeNone")
 	}
 
 	// Verify it's distinct from other skip types
-	types := []SkipType{
-		SkipTypeNone,
-		SkipTypeDrop,
-		SkipTypeRemote,
+	types := []qcode.SkipType{
+		qcode.SkipTypeNone,
+		qcode.SkipTypeDrop,
+		qcode.SkipTypeRemote,
 	}
 
 	for _, st := range types {
-		if st == SkipTypeDatabaseJoin {
+		if st == qcode.SkipTypeDatabaseJoin {
 			t.Errorf("SkipTypeDatabaseJoin should be distinct from %v", st)
 		}
 	}
@@ -42,16 +44,16 @@ func TestSkipTypeDatabaseJoin(t *testing.T) {
 
 // TestSkipTypeDatabaseJoinString verifies String() for SkipTypeDatabaseJoin.
 func TestSkipTypeDatabaseJoinString(t *testing.T) {
-	s := SkipTypeDatabaseJoin.String()
+	s := qcode.SkipTypeDatabaseJoin.String()
 	if s != "SkipTypeDatabaseJoin" {
-		t.Errorf("SkipTypeDatabaseJoin.String() = %q, want %q", s, "SkipTypeDatabaseJoin")
+		t.Errorf("qcode.SkipTypeDatabaseJoin.String() = %q, want %q", s, "SkipTypeDatabaseJoin")
 	}
 }
 
 // TestQCodeSelectsWithDatabaseField verifies QCode Selects can use Database field.
 func TestQCodeSelectsWithDatabaseField(t *testing.T) {
-	qc := &QCode{
-		Selects: []Select{
+	qc := &qcode.QCode{
+		Selects: []qcode.Select{
 			{Table: "users", Database: "main"},
 			{Table: "orders", Database: "analytics"},
 			{Table: "products", Database: ""}, // default
@@ -71,53 +73,53 @@ func TestQCodeSelectsWithDatabaseField(t *testing.T) {
 
 // TestSkipRenderWithDatabaseJoin verifies SkipRender can be set to SkipTypeDatabaseJoin.
 func TestSkipRenderWithDatabaseJoin(t *testing.T) {
-	sel := Select{
-		Field: Field{
-			SkipRender: SkipTypeDatabaseJoin,
+	sel := qcode.Select{
+		Field: qcode.Field{
+			SkipRender: qcode.SkipTypeDatabaseJoin,
 		},
 		Table:    "orders",
 		Database: "analytics",
 	}
 
-	if sel.SkipRender != SkipTypeDatabaseJoin {
-		t.Errorf("SkipRender = %v, want %v", sel.SkipRender, SkipTypeDatabaseJoin)
+	if sel.SkipRender != qcode.SkipTypeDatabaseJoin {
+		t.Errorf("SkipRender = %v, want %v", sel.SkipRender, qcode.SkipTypeDatabaseJoin)
 	}
 }
 
 // TestMixedSkipTypes verifies different skip types can coexist.
 func TestMixedSkipTypes(t *testing.T) {
-	selects := []Select{
-		{Field: Field{SkipRender: SkipTypeNone}},
-		{Field: Field{SkipRender: SkipTypeRemote}},
-		{Field: Field{SkipRender: SkipTypeDatabaseJoin}},
+	selects := []qcode.Select{
+		{Field: qcode.Field{SkipRender: qcode.SkipTypeNone}},
+		{Field: qcode.Field{SkipRender: qcode.SkipTypeRemote}},
+		{Field: qcode.Field{SkipRender: qcode.SkipTypeDatabaseJoin}},
 	}
 
 	// Count each type
-	counts := make(map[SkipType]int)
+	counts := make(map[qcode.SkipType]int)
 	for _, sel := range selects {
 		counts[sel.SkipRender]++
 	}
 
-	if counts[SkipTypeNone] != 1 {
-		t.Errorf("SkipTypeNone count = %d, want 1", counts[SkipTypeNone])
+	if counts[qcode.SkipTypeNone] != 1 {
+		t.Errorf("SkipTypeNone count = %d, want 1", counts[qcode.SkipTypeNone])
 	}
-	if counts[SkipTypeRemote] != 1 {
-		t.Errorf("SkipTypeRemote count = %d, want 1", counts[SkipTypeRemote])
+	if counts[qcode.SkipTypeRemote] != 1 {
+		t.Errorf("SkipTypeRemote count = %d, want 1", counts[qcode.SkipTypeRemote])
 	}
-	if counts[SkipTypeDatabaseJoin] != 1 {
-		t.Errorf("SkipTypeDatabaseJoin count = %d, want 1", counts[SkipTypeDatabaseJoin])
+	if counts[qcode.SkipTypeDatabaseJoin] != 1 {
+		t.Errorf("SkipTypeDatabaseJoin count = %d, want 1", counts[qcode.SkipTypeDatabaseJoin])
 	}
 }
 
 // TestSelectFieldsForDatabaseJoin verifies a Select configured for DB join.
 func TestSelectFieldsForDatabaseJoin(t *testing.T) {
 	// A typical cross-database child select
-	sel := Select{
-		Field: Field{
+	sel := qcode.Select{
+		Field: qcode.Field{
 			ID:         1,
 			ParentID:   0,
 			FieldName:  "orders",
-			SkipRender: SkipTypeDatabaseJoin,
+			SkipRender: qcode.SkipTypeDatabaseJoin,
 		},
 		Table:    "orders",
 		Database: "analytics",
@@ -129,14 +131,14 @@ func TestSelectFieldsForDatabaseJoin(t *testing.T) {
 	if sel.Database != "analytics" {
 		t.Errorf("Database = %q, want %q", sel.Database, "analytics")
 	}
-	if sel.SkipRender != SkipTypeDatabaseJoin {
-		t.Errorf("SkipRender = %v, want %v", sel.SkipRender, SkipTypeDatabaseJoin)
+	if sel.SkipRender != qcode.SkipTypeDatabaseJoin {
+		t.Errorf("SkipRender = %v, want %v", sel.SkipRender, qcode.SkipTypeDatabaseJoin)
 	}
 }
 
 // TestSelectTiDatabaseField verifies Ti.Database is accessible.
 func TestSelectTiDatabaseField(t *testing.T) {
-	sel := Select{
+	sel := qcode.Select{
 		Table:    "orders",
 		Database: "analytics",
 		Ti: sdata.DBTable{
@@ -158,18 +160,18 @@ func TestAddRelColumnsForDatabaseJoin(t *testing.T) {
 	co := &Compiler{}
 
 	// Set up parent and child selects
-	parentSel := Select{
-		Field:  Field{ID: 0, FieldName: "users"},
+	parentSel := qcode.Select{
+		Field:  qcode.Field{ID: 0, FieldName: "users"},
 		Table:  "users",
-		Fields: []Field{},
-		BCols:  []Column{},
+		Fields: []qcode.Field{},
+		BCols:  []qcode.Column{},
 	}
-	childSel := Select{
-		Field:  Field{ID: 1, ParentID: 0, FieldName: "orders"},
+	childSel := qcode.Select{
+		Field:  qcode.Field{ID: 1, ParentID: 0, FieldName: "orders"},
 		Table:  "orders",
 		Ti:     sdata.DBTable{Name: "orders", Database: "analytics"},
-		Fields: []Field{},
-		BCols:  []Column{},
+		Fields: []qcode.Field{},
+		BCols:  []qcode.Column{},
 		Rel: sdata.DBRel{
 			Type: sdata.RelDatabaseJoin,
 			Right: sdata.DBRelRight{
@@ -178,8 +180,8 @@ func TestAddRelColumnsForDatabaseJoin(t *testing.T) {
 		},
 	}
 
-	qc := &QCode{
-		Selects: []Select{parentSel, childSel},
+	qc := &qcode.QCode{
+		Selects: []qcode.Select{parentSel, childSel},
 	}
 
 	err := co.AddRelColumns(qc, &qc.Selects[1], qc.Selects[1].Rel)
@@ -205,8 +207,8 @@ func TestAddRelColumnsForDatabaseJoin(t *testing.T) {
 	}
 
 	// Verify child select has SkipRender set to SkipTypeDatabaseJoin
-	if qc.Selects[1].SkipRender != SkipTypeDatabaseJoin {
-		t.Errorf("child SkipRender = %v, want %v", qc.Selects[1].SkipRender, SkipTypeDatabaseJoin)
+	if qc.Selects[1].SkipRender != qcode.SkipTypeDatabaseJoin {
+		t.Errorf("child SkipRender = %v, want %v", qc.Selects[1].SkipRender, qcode.SkipTypeDatabaseJoin)
 	}
 
 	// Verify child select has Database set

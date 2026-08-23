@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"errors"
 	"fmt"
 	"strings"
@@ -28,14 +30,14 @@ const (
 // for ratio-of-aggregates): sum, avg, min, max, count.
 //
 // Errors carry the offending key path so users can locate problems.
-func (co *Compiler) compileExprArg(sel *Select, node *graph.Node) (*Exp, error) {
+func (co *Compiler) compileExprArg(sel *qcode.Select, node *graph.Node) (*qcode.Exp, error) {
 	if node == nil {
 		return nil, errors.New("expr: missing expression body")
 	}
 	return co.compileExprNode(sel, node, 0)
 }
 
-func (co *Compiler) compileExprNode(sel *Select, node *graph.Node, depth int) (*Exp, error) {
+func (co *Compiler) compileExprNode(sel *qcode.Select, node *graph.Node, depth int) (*qcode.Exp, error) {
 	if depth > exprMaxDepth {
 		return nil, fmt.Errorf("expr: nesting exceeds maximum depth of %d", exprMaxDepth)
 	}
@@ -60,16 +62,16 @@ func (co *Compiler) compileExprNode(sel *Select, node *graph.Node, depth int) (*
 		// later, { str: "..." } remains available as an escape hatch.
 		return co.compileExprColFromName(sel.Ti, node.Val)
 	case graph.NodeNum:
-		ex := newExpOp(OpLiteral)
-		ex.Lit = ExpLit{Val: node.Val, ValType: ValNum}
+		ex := newExpOp(qcode.OpLiteral)
+		ex.Lit = qcode.ExpLit{Val: node.Val, ValType: qcode.ValNum}
 		return ex, nil
 	case graph.NodeVar:
-		ex := newExpOp(OpLiteral)
-		ex.Lit = ExpLit{Val: node.Val, ValType: ValVar}
+		ex := newExpOp(qcode.OpLiteral)
+		ex.Lit = qcode.ExpLit{Val: node.Val, ValType: qcode.ValVar}
 		return ex, nil
 	case graph.NodeBool:
-		ex := newExpOp(OpLiteral)
-		ex.Lit = ExpLit{Val: node.Val, ValType: ValBool}
+		ex := newExpOp(qcode.OpLiteral)
+		ex.Lit = qcode.ExpLit{Val: node.Val, ValType: qcode.ValBool}
 		return ex, nil
 	}
 
@@ -90,41 +92,41 @@ func (co *Compiler) compileExprNode(sel *Select, node *graph.Node, depth int) (*
 	case "var":
 		return compileExprVar(child)
 	case "add":
-		return co.compileExprVariadic(sel, child, OpAdd, depth, 2)
+		return co.compileExprVariadic(sel, child, qcode.OpAdd, depth, 2)
 	case "sub":
-		return co.compileExprVariadic(sel, child, OpSub, depth, 2)
+		return co.compileExprVariadic(sel, child, qcode.OpSub, depth, 2)
 	case "mul":
-		return co.compileExprVariadic(sel, child, OpMul, depth, 2)
+		return co.compileExprVariadic(sel, child, qcode.OpMul, depth, 2)
 	case "div":
-		return co.compileExprVariadic(sel, child, OpDiv, depth, 2)
+		return co.compileExprVariadic(sel, child, qcode.OpDiv, depth, 2)
 	case "mod":
-		return co.compileExprVariadic(sel, child, OpMod, depth, 2)
+		return co.compileExprVariadic(sel, child, qcode.OpMod, depth, 2)
 	case "neg":
-		return co.compileExprUnary(sel, child, OpNeg, depth)
+		return co.compileExprUnary(sel, child, qcode.OpNeg, depth)
 	case "coalesce":
-		return co.compileExprVariadic(sel, child, OpCoalesce, depth, 1)
+		return co.compileExprVariadic(sel, child, qcode.OpCoalesce, depth, 1)
 	case "nullif":
-		return co.compileExprVariadic(sel, child, OpNullIf, depth, 2)
+		return co.compileExprVariadic(sel, child, qcode.OpNullIf, depth, 2)
 	case "case":
 		return co.compileExprCase(sel, child, depth)
 	case "cast":
 		return co.compileExprCast(sel, child, depth)
 	case "sum":
-		return co.compileExprAgg(sel, child, OpAggSum, depth)
+		return co.compileExprAgg(sel, child, qcode.OpAggSum, depth)
 	case "avg":
-		return co.compileExprAgg(sel, child, OpAggAvg, depth)
+		return co.compileExprAgg(sel, child, qcode.OpAggAvg, depth)
 	case "min":
-		return co.compileExprAgg(sel, child, OpAggMin, depth)
+		return co.compileExprAgg(sel, child, qcode.OpAggMin, depth)
 	case "max":
-		return co.compileExprAgg(sel, child, OpAggMax, depth)
+		return co.compileExprAgg(sel, child, qcode.OpAggMax, depth)
 	case "count":
-		return co.compileExprAgg(sel, child, OpAggCount, depth)
+		return co.compileExprAgg(sel, child, qcode.OpAggCount, depth)
 	}
 
 	return nil, fmt.Errorf("expr: unknown operator key %q", child.Name)
 }
 
-func (co *Compiler) compileExprCol(sel *Select, node *graph.Node) (*Exp, error) {
+func (co *Compiler) compileExprCol(sel *qcode.Select, node *graph.Node) (*qcode.Exp, error) {
 	if node.Type != graph.NodeStr && node.Type != graph.NodeLabel {
 		return nil, fmt.Errorf("expr.col: expected column name, got %s", parserTypeName(node.Type))
 	}
@@ -137,7 +139,7 @@ func (co *Compiler) compileExprCol(sel *Select, node *graph.Node) (*Exp, error) 
 // (e.g. "product.standardcost"); relationship traversal is delegated to
 // compileExprRelCol which supports single-hop and multi-hop belongs-to
 // chains up to exprMaxRelHops.
-func (co *Compiler) compileExprColFromName(ti sdata.DBTable, name string) (*Exp, error) {
+func (co *Compiler) compileExprColFromName(ti sdata.DBTable, name string) (*qcode.Exp, error) {
 	if name == "" {
 		return nil, errors.New("expr: empty column name")
 	}
@@ -151,7 +153,7 @@ func (co *Compiler) compileExprColFromName(ti sdata.DBTable, name string) (*Exp,
 	if col.Blocked {
 		return nil, fmt.Errorf("expr.col: column %q is blocked", name)
 	}
-	ex := newExpOp(OpColRef)
+	ex := newExpOp(qcode.OpColRef)
 	ex.Left.Col = col
 	ex.Left.Table = col.Table
 	return ex, nil
@@ -186,7 +188,7 @@ const exprMaxRelHops = 3
 //
 // Composite FKs at any hop become AND-joined equality predicates in
 // that hop's WHERE.
-func (co *Compiler) compileExprRelCol(ti sdata.DBTable, relName, colName string) (*Exp, error) {
+func (co *Compiler) compileExprRelCol(ti sdata.DBTable, relName, colName string) (*qcode.Exp, error) {
 	if relName == "" || colName == "" {
 		return nil, fmt.Errorf("expr.col: empty relationship or column name in %q", relName+"."+colName)
 	}
@@ -229,7 +231,7 @@ func (co *Compiler) compileExprRelCol(ti sdata.DBTable, relName, colName string)
 		return nil, fmt.Errorf("expr.col: column %q on %q is blocked", colName, lastHop.RT.Name)
 	}
 
-	ex := newExpOp(OpColRef)
+	ex := newExpOp(qcode.OpColRef)
 	ex.Left.Col = col
 	ex.Left.Table = col.Table
 	ex.RelPath = make([]sdata.DBRel, len(paths))
@@ -239,39 +241,39 @@ func (co *Compiler) compileExprRelCol(ti sdata.DBTable, relName, colName string)
 	return ex, nil
 }
 
-func compileExprLiteral(node *graph.Node, kind string) (*Exp, error) {
+func compileExprLiteral(node *graph.Node, kind string) (*qcode.Exp, error) {
 	switch kind {
 	case "num":
 		if node.Type != graph.NodeNum {
 			return nil, fmt.Errorf("expr.num: expected numeric literal, got %s", parserTypeName(node.Type))
 		}
-		ex := newExpOp(OpLiteral)
-		ex.Lit = ExpLit{Val: node.Val, ValType: ValNum}
+		ex := newExpOp(qcode.OpLiteral)
+		ex.Lit = qcode.ExpLit{Val: node.Val, ValType: qcode.ValNum}
 		return ex, nil
 	case "str":
 		if node.Type != graph.NodeStr {
 			return nil, fmt.Errorf("expr.str: expected string literal, got %s", parserTypeName(node.Type))
 		}
-		ex := newExpOp(OpLiteral)
-		ex.Lit = ExpLit{Val: node.Val, ValType: ValStr}
+		ex := newExpOp(qcode.OpLiteral)
+		ex.Lit = qcode.ExpLit{Val: node.Val, ValType: qcode.ValStr}
 		return ex, nil
 	}
 	return nil, fmt.Errorf("expr: internal error — unknown literal kind %q", kind)
 }
 
-func compileExprVar(node *graph.Node) (*Exp, error) {
+func compileExprVar(node *graph.Node) (*qcode.Exp, error) {
 	if node.Type != graph.NodeStr && node.Type != graph.NodeVar && node.Type != graph.NodeLabel {
 		return nil, fmt.Errorf("expr.var: expected variable name, got %s", parserTypeName(node.Type))
 	}
-	ex := newExpOp(OpLiteral)
-	ex.Lit = ExpLit{Val: node.Val, ValType: ValVar}
+	ex := newExpOp(qcode.OpLiteral)
+	ex.Lit = qcode.ExpLit{Val: node.Val, ValType: qcode.ValVar}
 	return ex, nil
 }
 
 // compileExprVariadic builds a node from a list of child expressions.
 // minArgs is the minimum number of children the op accepts (e.g. add/mul
 // need at least 2; coalesce accepts 1+; nullif requires exactly 2).
-func (co *Compiler) compileExprVariadic(sel *Select, node *graph.Node, op ExpOp, depth, minArgs int) (*Exp, error) {
+func (co *Compiler) compileExprVariadic(sel *qcode.Select, node *graph.Node, op qcode.ExpOp, depth, minArgs int) (*qcode.Exp, error) {
 	children, err := co.collectExprChildren(sel, node, depth+1)
 	if err != nil {
 		return nil, err
@@ -279,7 +281,7 @@ func (co *Compiler) compileExprVariadic(sel *Select, node *graph.Node, op ExpOp,
 	if len(children) < minArgs {
 		return nil, fmt.Errorf("expr.%s: requires at least %d arguments, got %d", opLowerName(op), minArgs, len(children))
 	}
-	if op == OpDiv || op == OpMod || op == OpNullIf {
+	if op == qcode.OpDiv || op == qcode.OpMod || op == qcode.OpNullIf {
 		if len(children) != 2 {
 			return nil, fmt.Errorf("expr.%s: requires exactly 2 arguments, got %d", opLowerName(op), len(children))
 		}
@@ -289,7 +291,7 @@ func (co *Compiler) compileExprVariadic(sel *Select, node *graph.Node, op ExpOp,
 	return ex, nil
 }
 
-func (co *Compiler) compileExprUnary(sel *Select, node *graph.Node, op ExpOp, depth int) (*Exp, error) {
+func (co *Compiler) compileExprUnary(sel *qcode.Select, node *graph.Node, op qcode.ExpOp, depth int) (*qcode.Exp, error) {
 	// Accept any expression node (bare leaf or nested operator object) —
 	// compileExprNode handles both forms. E.g. { neg: price } is valid.
 	child, err := co.compileExprNode(sel, node, depth+1)
@@ -303,11 +305,11 @@ func (co *Compiler) compileExprUnary(sel *Select, node *graph.Node, op ExpOp, de
 
 // collectExprChildren handles both list-form (`mul: [...]`) and the
 // degenerate single-object form. Variadic operators always expect a list.
-func (co *Compiler) collectExprChildren(sel *Select, node *graph.Node, depth int) ([]*Exp, error) {
+func (co *Compiler) collectExprChildren(sel *qcode.Select, node *graph.Node, depth int) ([]*qcode.Exp, error) {
 	if node.Type != graph.NodeList {
 		return nil, fmt.Errorf("expr: expected list of arguments, got %s", parserTypeName(node.Type))
 	}
-	out := make([]*Exp, 0, len(node.Children))
+	out := make([]*qcode.Exp, 0, len(node.Children))
 	for _, ch := range node.Children {
 		c, err := co.compileExprNode(sel, ch, depth)
 		if err != nil {
@@ -330,7 +332,7 @@ func (co *Compiler) collectExprChildren(sel *Select, node *graph.Node, depth int
 //	{ case: [{ when: ..., then: ... }, ...] } (flat form, no else)
 //
 // In v1 we only support the nested form to keep parsing unambiguous.
-func (co *Compiler) compileExprCase(sel *Select, node *graph.Node, depth int) (*Exp, error) {
+func (co *Compiler) compileExprCase(sel *qcode.Select, node *graph.Node, depth int) (*qcode.Exp, error) {
 	if node.Type != graph.NodeObj {
 		return nil, fmt.Errorf("expr.case: expected object with `arms` and optional `else`, got %s", parserTypeName(node.Type))
 	}
@@ -349,8 +351,8 @@ func (co *Compiler) compileExprCase(sel *Select, node *graph.Node, depth int) (*
 		return nil, errors.New("expr.case.arms: must be a non-empty list of {when, then} objects")
 	}
 
-	ex := newExpOp(OpCase)
-	ex.CaseArms = make([]CaseArm, 0, len(armsNode.Children))
+	ex := newExpOp(qcode.OpCase)
+	ex.CaseArms = make([]qcode.CaseArm, 0, len(armsNode.Children))
 
 	for i, armNode := range armsNode.Children {
 		if armNode.Type != graph.NodeObj {
@@ -394,7 +396,7 @@ func (co *Compiler) compileExprCase(sel *Select, node *graph.Node, depth int) (*
 			return nil, fmt.Errorf("expr.case.arms[%d].then: %w", i, err)
 		}
 
-		ex.CaseArms = append(ex.CaseArms, CaseArm{When: whenExp, Then: thenExp})
+		ex.CaseArms = append(ex.CaseArms, qcode.CaseArm{When: whenExp, Then: thenExp})
 	}
 
 	if elseNode != nil {
@@ -409,7 +411,7 @@ func (co *Compiler) compileExprCase(sel *Select, node *graph.Node, depth int) (*
 }
 
 // compileExprCast parses { cast: { expr: <scalar-expr>, as: "<sql-type>" } }.
-func (co *Compiler) compileExprCast(sel *Select, node *graph.Node, depth int) (*Exp, error) {
+func (co *Compiler) compileExprCast(sel *qcode.Select, node *graph.Node, depth int) (*qcode.Exp, error) {
 	if node.Type != graph.NodeObj {
 		return nil, fmt.Errorf("expr.cast: expected object with `expr` and `as`, got %s", parserTypeName(node.Type))
 	}
@@ -438,7 +440,7 @@ func (co *Compiler) compileExprCast(sel *Select, node *graph.Node, depth int) (*
 	if err != nil {
 		return nil, err
 	}
-	ex := newExpOp(OpCast)
+	ex := newExpOp(qcode.OpCast)
 	ex.CastType = asNode.Val
 	ex.Children = append(ex.Children[:0], child)
 	return ex, nil
@@ -449,7 +451,7 @@ func (co *Compiler) compileExprCast(sel *Select, node *graph.Node, depth int) (*
 // of a non-aggregate's expr argument, used for ratio-of-aggregates like
 // div(expr: { num_: { sum: { col: "..." } }, den: ... }). The validator
 // enforces this.
-func (co *Compiler) compileExprAgg(sel *Select, node *graph.Node, op ExpOp, depth int) (*Exp, error) {
+func (co *Compiler) compileExprAgg(sel *qcode.Select, node *graph.Node, op qcode.ExpOp, depth int) (*qcode.Exp, error) {
 	// Accept any expression node (bare leaf or nested operator object).
 	// { sum: price } and { sum: { mul: [...] } } are both valid.
 	child, err := co.compileExprNode(sel, node, depth+1)
@@ -466,7 +468,7 @@ func (co *Compiler) compileExprAgg(sel *Select, node *graph.Node, op ExpOp, dept
 //   - leaf nodes are valid column references on sel.Ti or related tables
 //   - types under arithmetic ops are numeric (or cast to numeric)
 //   - tree depth and total node count stay within limits
-func validateExprTree(ex *Exp, ti sdata.DBTable) error {
+func validateExprTree(ex *qcode.Exp, ti sdata.DBTable) error {
 	if ex == nil {
 		return errors.New("expr: nil expression")
 	}
@@ -488,7 +490,7 @@ type exprValidator struct {
 // walk descends the expression tree. underArith is true when the parent
 // is an arithmetic op (Add/Sub/Mul/Div/Mod/Neg) — in that case, leaf
 // columns must be numeric and literal types must be numeric.
-func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
+func (v *exprValidator) walk(ex *qcode.Exp, depth int, underArith bool) error {
 	if ex == nil {
 		return errors.New("expr: nil sub-expression")
 	}
@@ -501,20 +503,20 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 	}
 
 	switch ex.Op {
-	case OpColRef:
+	case qcode.OpColRef:
 		if underArith && !isNumericSQLType(ex.Left.Col.Type) {
 			return fmt.Errorf("expr: column %q has type %q which is not numeric — wrap in cast",
 				ex.Left.Col.Name, ex.Left.Col.Type)
 		}
 		return nil
 
-	case OpLiteral:
-		if underArith && ex.Lit.ValType != ValNum && ex.Lit.ValType != ValVar {
+	case qcode.OpLiteral:
+		if underArith && ex.Lit.ValType != qcode.ValNum && ex.Lit.ValType != qcode.ValVar {
 			return fmt.Errorf("expr: literal of type %d is not numeric under an arithmetic operator", ex.Lit.ValType)
 		}
 		return nil
 
-	case OpAdd, OpSub, OpMul, OpDiv, OpMod, OpNeg:
+	case qcode.OpAdd, qcode.OpSub, qcode.OpMul, qcode.OpDiv, qcode.OpMod, qcode.OpNeg:
 		for _, c := range ex.Children {
 			if err := v.walk(c, depth+1, true); err != nil {
 				return err
@@ -522,7 +524,7 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 		}
 		return nil
 
-	case OpCoalesce, OpNullIf:
+	case qcode.OpCoalesce, qcode.OpNullIf:
 		for _, c := range ex.Children {
 			if err := v.walk(c, depth+1, underArith); err != nil {
 				return err
@@ -530,7 +532,7 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 		}
 		return nil
 
-	case OpCast:
+	case qcode.OpCast:
 		// Cast resets the arithmetic context — its child can be anything,
 		// the cast handles type conversion. The cast's RESULT is treated
 		// as numeric (or whatever the target type is) by the parent.
@@ -541,7 +543,7 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 		}
 		return nil
 
-	case OpCase:
+	case qcode.OpCase:
 		if len(ex.CaseArms) == 0 {
 			return errors.New("expr.case: must have at least one when/then arm")
 		}
@@ -568,7 +570,7 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 		}
 		return nil
 
-	case OpAggSum, OpAggAvg, OpAggMin, OpAggMax, OpAggCount:
+	case qcode.OpAggSum, qcode.OpAggAvg, qcode.OpAggMin, qcode.OpAggMax, qcode.OpAggCount:
 		// Aggregate-of-expression: child is a scalar tree. The aggregate
 		// itself is numeric in the parent context.
 		for _, c := range ex.Children {
@@ -585,7 +587,7 @@ func (v *exprValidator) walk(ex *Exp, depth int, underArith bool) error {
 }
 
 // walkBool walks a boolean sub-tree (used inside CaseArm.When).
-func (v *exprValidator) walkBool(ex *Exp, depth int) error {
+func (v *exprValidator) walkBool(ex *qcode.Exp, depth int) error {
 	if ex == nil {
 		return nil
 	}
@@ -652,41 +654,41 @@ func isAllowedCastType(typ string) bool {
 
 // opLowerName returns the user-facing operator key for a scalar Exp op,
 // used in error messages so users can correlate failures to their input.
-func opLowerName(op ExpOp) string {
+func opLowerName(op qcode.ExpOp) string {
 	switch op {
-	case OpAdd:
+	case qcode.OpAdd:
 		return "add"
-	case OpSub:
+	case qcode.OpSub:
 		return "sub"
-	case OpMul:
+	case qcode.OpMul:
 		return "mul"
-	case OpDiv:
+	case qcode.OpDiv:
 		return "div"
-	case OpMod:
+	case qcode.OpMod:
 		return "mod"
-	case OpNeg:
+	case qcode.OpNeg:
 		return "neg"
-	case OpCoalesce:
+	case qcode.OpCoalesce:
 		return "coalesce"
-	case OpNullIf:
+	case qcode.OpNullIf:
 		return "nullif"
-	case OpCase:
+	case qcode.OpCase:
 		return "case"
-	case OpCast:
+	case qcode.OpCast:
 		return "cast"
-	case OpLiteral:
+	case qcode.OpLiteral:
 		return "literal"
-	case OpColRef:
+	case qcode.OpColRef:
 		return "col"
-	case OpAggSum:
+	case qcode.OpAggSum:
 		return "sum"
-	case OpAggAvg:
+	case qcode.OpAggAvg:
 		return "avg"
-	case OpAggMin:
+	case qcode.OpAggMin:
 		return "min"
-	case OpAggMax:
+	case qcode.OpAggMax:
 		return "max"
-	case OpAggCount:
+	case qcode.OpAggCount:
 		return "count"
 	}
 	return op.String()

@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,7 +11,7 @@ import (
 )
 
 type analyticsDirectiveArgs struct {
-	spec         *WindowSpec
+	spec         *qcode.WindowSpec
 	aggregate    string
 	aggregateSet bool
 	rows         int
@@ -22,11 +24,11 @@ type analyticsDirectiveOpts struct {
 	rows      bool
 }
 
-func (co *Compiler) compileDirectiveAnalytics(sel *Select, f *Field, d graph.Directive) error {
+func (co *Compiler) compileDirectiveAnalytics(sel *qcode.Select, f *qcode.Field, d graph.Directive) error {
 	if f.Window != nil {
 		return fmt.Errorf("only one analytics directive can be used on field %q", f.FieldName)
 	}
-	if f.Type != FieldTypeCol {
+	if f.Type != qcode.FieldTypeCol {
 		return fmt.Errorf("@%s can only be used on a column field", d.Name)
 	}
 
@@ -52,37 +54,37 @@ func (co *Compiler) compileDirectiveAnalytics(sel *Select, f *Field, d graph.Dir
 		return co.applyAggregateAnalytics(f, args)
 
 	case "previous":
-		return co.applyValueAnalytics(sel, f, d, WindowFuncLag)
+		return co.applyValueAnalytics(sel, f, d, qcode.WindowFuncLag)
 
 	case "next":
-		return co.applyValueAnalytics(sel, f, d, WindowFuncLead)
+		return co.applyValueAnalytics(sel, f, d, qcode.WindowFuncLead)
 
 	case "first":
-		return co.applyValueAnalytics(sel, f, d, WindowFuncFirstValue)
+		return co.applyValueAnalytics(sel, f, d, qcode.WindowFuncFirstValue)
 
 	case "last":
-		return co.applyValueAnalytics(sel, f, d, WindowFuncLastValue)
+		return co.applyValueAnalytics(sel, f, d, qcode.WindowFuncLastValue)
 
 	case "rank":
-		return co.applyRankingAnalytics(sel, f, d, WindowFuncRank)
+		return co.applyRankingAnalytics(sel, f, d, qcode.WindowFuncRank)
 
 	case "denseRank":
-		return co.applyRankingAnalytics(sel, f, d, WindowFuncDenseRank)
+		return co.applyRankingAnalytics(sel, f, d, qcode.WindowFuncDenseRank)
 
 	case "rowNumber":
-		return co.applyRankingAnalytics(sel, f, d, WindowFuncRowNumber)
+		return co.applyRankingAnalytics(sel, f, d, qcode.WindowFuncRowNumber)
 	}
 
 	return fmt.Errorf("unknown analytics directive @%s", d.Name)
 }
 
 func (co *Compiler) parseAnalyticsDirectiveArgs(
-	sel *Select,
-	f *Field,
+	sel *qcode.Select,
+	f *qcode.Field,
 	d graph.Directive,
 	opts analyticsDirectiveOpts,
 ) (analyticsDirectiveArgs, error) {
-	args := analyticsDirectiveArgs{spec: &WindowSpec{}}
+	args := analyticsDirectiveArgs{spec: &qcode.WindowSpec{}}
 
 	for _, arg := range d.Args {
 		switch arg.Name {
@@ -155,29 +157,29 @@ func (co *Compiler) parseAnalyticsDirectiveArgs(
 	return args, nil
 }
 
-func (co *Compiler) applyAggregateAnalytics(f *Field, args analyticsDirectiveArgs) error {
+func (co *Compiler) applyAggregateAnalytics(f *qcode.Field, args analyticsDirectiveArgs) error {
 	dbFn, ok := co.s.GetFunctions()[args.aggregate]
 	if !ok || !dbFn.Agg {
 		return fmt.Errorf("unknown aggregate %q", args.aggregate)
 	}
-	f.Type = FieldTypeFunc
+	f.Type = qcode.FieldTypeFunc
 	f.Func = dbFn
-	f.Args = []Arg{{Type: ArgTypeCol, Col: f.Col}}
+	f.Args = []qcode.Arg{{Type: qcode.ArgTypeCol, Col: f.Col}}
 	f.Window = args.spec
 	return nil
 }
 
-func (co *Compiler) applyValueAnalytics(sel *Select, f *Field, d graph.Directive, wf WindowFunc) error {
+func (co *Compiler) applyValueAnalytics(sel *qcode.Select, f *qcode.Field, d graph.Directive, wf qcode.WindowFunc) error {
 	args, err := co.parseAnalyticsDirectiveArgs(sel, f, d, analyticsDirectiveOpts{})
 	if err != nil {
 		return err
 	}
-	if wf == WindowFuncFirstValue || wf == WindowFuncLastValue {
+	if wf == qcode.WindowFuncFirstValue || wf == qcode.WindowFuncLastValue {
 		args.spec.Frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"
 	}
 	fn := newWindowFunction(wf.String(), f.Col.Type, wf)
-	fn.Args = []Arg{{Type: ArgTypeCol, Col: f.Col}}
-	f.Type = FieldTypeFunc
+	fn.Args = []qcode.Arg{{Type: qcode.ArgTypeCol, Col: f.Col}}
+	f.Type = qcode.FieldTypeFunc
 	f.Func = fn.Func
 	f.Args = fn.Args
 	f.WindowFunc = wf
@@ -185,13 +187,13 @@ func (co *Compiler) applyValueAnalytics(sel *Select, f *Field, d graph.Directive
 	return nil
 }
 
-func (co *Compiler) applyRankingAnalytics(sel *Select, f *Field, d graph.Directive, wf WindowFunc) error {
+func (co *Compiler) applyRankingAnalytics(sel *qcode.Select, f *qcode.Field, d graph.Directive, wf qcode.WindowFunc) error {
 	args, err := co.parseAnalyticsDirectiveArgs(sel, f, d, analyticsDirectiveOpts{})
 	if err != nil {
 		return err
 	}
 	fn := newWindowFunction(wf.String(), "bigint", wf)
-	f.Type = FieldTypeFunc
+	f.Type = qcode.FieldTypeFunc
 	f.Func = fn.Func
 	f.Args = nil
 	f.WindowFunc = wf
@@ -199,7 +201,7 @@ func (co *Compiler) applyRankingAnalytics(sel *Select, f *Field, d graph.Directi
 	return nil
 }
 
-func (co *Compiler) analyticsColumnList(sel *Select, dir string, arg graph.Arg) ([]string, error) {
+func (co *Compiler) analyticsColumnList(sel *qcode.Select, dir string, arg graph.Arg) ([]string, error) {
 	if arg.Val == nil {
 		return nil, fmt.Errorf("@%s: argument %q is empty", dir, arg.Name)
 	}
@@ -234,7 +236,7 @@ func (co *Compiler) analyticsColumnList(sel *Select, dir string, arg graph.Arg) 
 	return vals, nil
 }
 
-func (co *Compiler) analyticsOrderBy(sel *Select, dir string, arg graph.Arg) ([]WindowOrder, error) {
+func (co *Compiler) analyticsOrderBy(sel *qcode.Select, dir string, arg graph.Arg) ([]qcode.WindowOrder, error) {
 	if err := validateArg(arg, graph.NodeObj); err != nil {
 		return nil, fmt.Errorf("@%s orderBy must be an object like { month: asc }", dir)
 	}
@@ -242,7 +244,7 @@ func (co *Compiler) analyticsOrderBy(sel *Select, dir string, arg graph.Arg) ([]
 		return nil, fmt.Errorf("@%s orderBy cannot be empty", dir)
 	}
 
-	orders := make([]WindowOrder, 0, len(arg.Val.Children))
+	orders := make([]qcode.WindowOrder, 0, len(arg.Val.Children))
 	seen := make(map[string]struct{}, len(arg.Val.Children))
 	for _, node := range arg.Val.Children {
 		if node.Type != graph.NodeStr && node.Type != graph.NodeLabel {
@@ -263,14 +265,14 @@ func (co *Compiler) analyticsOrderBy(sel *Select, dir string, arg graph.Arg) ([]
 		if err != nil {
 			return nil, err
 		}
-		orders = append(orders, WindowOrder{Col: colName, Desc: desc})
+		orders = append(orders, qcode.WindowOrder{Col: colName, Desc: desc})
 	}
 	return orders, nil
 }
 
 // validateAnalytics enforces column validity on the
 // partitioning and ordering columns stored in analytics WindowSpecs.
-func (co *Compiler) validateAnalytics(qc *QCode, sel *Select) error {
+func (co *Compiler) validateAnalytics(qc *qcode.QCode, sel *qcode.Select) error {
 	for _, f := range sel.Fields {
 		if f.Window == nil {
 			continue
@@ -290,7 +292,7 @@ func (co *Compiler) validateAnalytics(qc *QCode, sel *Select) error {
 	return nil
 }
 
-func validateAnalyticsColumn(qc *QCode, sel *Select, name string) error {
+func validateAnalyticsColumn(qc *qcode.QCode, sel *qcode.Select, name string) error {
 	col, err := sel.Ti.GetColumn(name)
 	if err != nil {
 		return err
@@ -301,15 +303,15 @@ func validateAnalyticsColumn(qc *QCode, sel *Select, name string) error {
 	return nil
 }
 
-func analyticsOrderFromAnnotatedField(dir, col string, arg graph.Arg) (WindowOrder, error) {
+func analyticsOrderFromAnnotatedField(dir, col string, arg graph.Arg) (qcode.WindowOrder, error) {
 	if err := validateArg(arg, graph.NodeStr, graph.NodeLabel); err != nil {
-		return WindowOrder{}, err
+		return qcode.WindowOrder{}, err
 	}
 	desc, err := analyticsDesc(dir, arg.Val.Val)
 	if err != nil {
-		return WindowOrder{}, err
+		return qcode.WindowOrder{}, err
 	}
-	return WindowOrder{Col: col, Desc: desc}, nil
+	return qcode.WindowOrder{Col: col, Desc: desc}, nil
 }
 
 func analyticsDesc(dir, val string) (bool, error) {

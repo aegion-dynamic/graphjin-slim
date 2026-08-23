@@ -1,6 +1,8 @@
 package graphql_test
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"strings"
 	"testing"
@@ -45,7 +47,7 @@ func TestInsertConflictGetArgumentAliasesAndInference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if qc.InsertConflictAction != graphql.ConflictGet || len(qc.Mutates) != 1 || len(qc.Mutates[0].ConflictCols) != 1 || qc.Mutates[0].ConflictCols[0].Col.Name != "email" {
+			if qc.InsertConflictAction != qcode.ConflictGet || len(qc.Mutates) != 1 || len(qc.Mutates[0].ConflictCols) != 1 || qc.Mutates[0].ConflictCols[0].Col.Name != "email" {
 				t.Fatalf("unexpected conflict metadata: %#v", qc.Mutates)
 			}
 		})

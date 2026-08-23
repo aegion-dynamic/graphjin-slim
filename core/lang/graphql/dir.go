@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"fmt"
 	"strings"
 
@@ -8,7 +10,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
-func (co *Compiler) compileOpDirectives(qc *QCode, dirs []graph.Directive) error {
+func (co *Compiler) compileOpDirectives(qc *qcode.QCode, dirs []graph.Directive) error {
 	var err error
 
 	for _, d := range dirs {
@@ -31,8 +33,8 @@ func (co *Compiler) compileOpDirectives(qc *QCode, dirs []graph.Directive) error
 }
 
 // directives need to run before the relationship resolution code
-func (co *Compiler) compileSelectorDirectives(qc *QCode,
-	sel *Select, dirs []graph.Directive,
+func (co *Compiler) compileSelectorDirectives(qc *qcode.QCode,
+	sel *qcode.Select, dirs []graph.Directive,
 ) (err error) {
 	for _, d := range dirs {
 		switch d.Name {
@@ -69,8 +71,8 @@ func (co *Compiler) compileSelectorDirectives(qc *QCode,
 	return
 }
 
-func (co *Compiler) compileFieldDirectives(sel *Select,
-	f *Field, dirs []graph.Directive,
+func (co *Compiler) compileFieldDirectives(sel *qcode.Select,
+	f *qcode.Field, dirs []graph.Directive,
 ) (err error) {
 	for _, d := range dirs {
 		switch d.Name {
@@ -96,7 +98,7 @@ func (co *Compiler) compileFieldDirectives(sel *Select,
 	return
 }
 
-func (co *Compiler) compileDirectiveSchema(sel *Select, d graph.Directive) (err error) {
+func (co *Compiler) compileDirectiveSchema(sel *qcode.Select, d graph.Directive) (err error) {
 	arg, err := getArg(d.Args, "name", graph.NodeStr)
 	if err != nil {
 		return
@@ -105,7 +107,7 @@ func (co *Compiler) compileDirectiveSchema(sel *Select, d graph.Directive) (err 
 	return
 }
 
-func (co *Compiler) compileDirectiveDatabase(sel *Select, d graph.Directive) (err error) {
+func (co *Compiler) compileDirectiveDatabase(sel *qcode.Select, d graph.Directive) (err error) {
 	arg, err := getArg(d.Args, "name", graph.NodeStr)
 	if err != nil {
 		return
@@ -116,8 +118,8 @@ func (co *Compiler) compileDirectiveDatabase(sel *Select, d graph.Directive) (er
 
 func (co *Compiler) compileDirectiveSkipInclude(
 	skip bool,
-	sel *Select,
-	f *Field,
+	sel *qcode.Select,
+	f *qcode.Field,
 	d graph.Directive,
 ) (err error) {
 	if len(d.Args) == 0 {
@@ -131,17 +133,17 @@ func (co *Compiler) compileDirectiveSkipInclude(
 			if err = validateArg(arg, graph.NodeVar); err != nil {
 				return
 			}
-			var ex *Exp
+			var ex *qcode.Exp
 			if skip {
-				ex = newExpOp(OpNotEqualsTrue)
+				ex = newExpOp(qcode.OpNotEqualsTrue)
 			} else {
-				ex = newExpOp(OpEqualsTrue)
+				ex = newExpOp(qcode.OpEqualsTrue)
 			}
-			ex.Right.ValType = ValVar
+			ex.Right.ValType = qcode.ValVar
 			ex.Right.Val = arg.Val.Val
 			addAndFilter(&f.FieldFilter, ex)
 
-			if f.Type == FieldTypeTable {
+			if f.Type == qcode.FieldTypeTable {
 				addAndFilter(&sel.Where, ex)
 			}
 
@@ -152,7 +154,7 @@ func (co *Compiler) compileDirectiveSkipInclude(
 	return
 }
 
-func (co *Compiler) compileDirectiveCacheControl(qc *QCode, d graph.Directive) (err error) {
+func (co *Compiler) compileDirectiveCacheControl(qc *qcode.QCode, d graph.Directive) (err error) {
 	var hdr []string
 
 	if len(d.Args) == 0 {
@@ -184,7 +186,7 @@ func (co *Compiler) compileDirectiveCacheControl(qc *QCode, d graph.Directive) (
 	return nil
 }
 
-func (co *Compiler) compileDirectiveConstraint(qc *QCode, d graph.Directive) (err error) {
+func (co *Compiler) compileDirectiveConstraint(qc *qcode.QCode, d graph.Directive) (err error) {
 	a, err := getArg(d.Args, "variable", graph.NodeStr)
 	if err != nil {
 		return
@@ -192,7 +194,7 @@ func (co *Compiler) compileDirectiveConstraint(qc *QCode, d graph.Directive) (er
 	varName := a.Val.Val
 
 	con, err := co.newConstraint(varName, d.Args)
-	if err == ErrUnknownValidator {
+	if err == qcode.ErrUnknownValidator {
 		return unknownArg(a)
 	}
 	if err != nil {
@@ -203,12 +205,12 @@ func (co *Compiler) compileDirectiveConstraint(qc *QCode, d graph.Directive) (er
 	return
 }
 
-func (co *Compiler) compileDirectiveNotRelated(sel *Select, d graph.Directive) error {
+func (co *Compiler) compileDirectiveNotRelated(sel *qcode.Select, d graph.Directive) error {
 	sel.Rel.Type = sdata.RelSkip
 	return nil
 }
 
-func (co *Compiler) compileDirectiveThrough(sel *Select, d graph.Directive) (err error) {
+func (co *Compiler) compileDirectiveThrough(sel *qcode.Select, d graph.Directive) (err error) {
 	if len(d.Args) == 0 {
 		return fmt.Errorf("required argument 'table' or 'column'")
 	}
@@ -219,16 +221,16 @@ func (co *Compiler) compileDirectiveThrough(sel *Select, d graph.Directive) (err
 			if err = validateArg(a, graph.NodeStr, graph.NodeLabel); err != nil {
 				return
 			}
-			sel.through = a.Val.Val
-			sel.throughKind = "table"
+			sel.Through = a.Val.Val
+			sel.ThroughKind = "table"
 			return
 
 		case "column":
 			if err = validateArg(a, graph.NodeStr); err != nil {
 				return
 			}
-			sel.through = a.Val.Val
-			sel.throughKind = "column"
+			sel.Through = a.Val.Val
+			sel.ThroughKind = "column"
 			return
 
 		default:

@@ -9,6 +9,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
@@ -45,7 +46,7 @@ func Generate(inputs core.OpenAPIInputs, cfg Config) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-	qcc, err := qcode.NewCompiler(dbSchema, qcode.Config{})
+	qcc, err := graphql.NewCompiler(dbSchema, graphql.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("openapi: failed to build compiler: %w", err)
 	}
@@ -197,7 +198,7 @@ type queryAnalysis struct {
 
 // analyzeQuery parses and compiles one saved query to extract HTTP methods,
 // parameters, and a response schema.
-func analyzeQuery(qcc *qcode.Compiler, item allow.Item) (*queryAnalysis, bool) {
+func analyzeQuery(qcc *graphql.Compiler, item allow.Item) (*queryAnalysis, bool) {
 	op, err := graph.Parse(item.Query)
 	if err != nil {
 		return nil, false
@@ -346,7 +347,7 @@ func httpMethodsFor(opType, subType qcode.QType) []string {
 
 // generatePathItem creates the OpenAPI path item for a saved query. The
 // second return value is false when the query could not be analyzed.
-func generatePathItem(qcc *qcode.Compiler, item allow.Item) (PathItem, bool) {
+func generatePathItem(qcc *graphql.Compiler, item allow.Item) (PathItem, bool) {
 	a, ok := analyzeQuery(qcc, item)
 	if !ok {
 		return PathItem{}, false

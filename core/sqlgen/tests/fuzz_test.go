@@ -1,3 +1,4 @@
+//go:build gofuzz
 // +build gofuzz
 
 package sqlgen_test

@@ -1,14 +1,15 @@
 package sqlgen_test
 
 import (
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
+
 	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 )
 
 func simpleQuery(t *testing.T) {
@@ -775,7 +776,7 @@ func partitionFilterInSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pQCompile, err := qcode.NewCompiler(pSchema, qcode.Config{DBSchema: pSchema.DBSchema()})
+	pQCompile, err := graphql.NewCompiler(pSchema, graphql.Config{DBSchema: pSchema.DBSchema()})
 	if err != nil {
 		t.Fatal(err)
 	}

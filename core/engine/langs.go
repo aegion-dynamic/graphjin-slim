@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
@@ -15,19 +16,15 @@ import (
 // langadapter.Language contract. The Phase 4 extraction moves this into
 // core/lang/graphql together with the parser; nothing else changes.
 type graphqlLang struct {
-	c  *qcode.Compiler
+	c  *graphql.Compiler
 	gj *graphjinEngine // engine-level services (schema description)
 }
 
-// graphqlFactory registers the built-in language with the global
+// graphqlDescriptor registers the built-in language with the global
 // registry so discovery and configuration can resolve "graphql".
-type graphqlFactory struct{}
+type graphqlDescriptor struct{}
 
-func (graphqlFactory) Name() string { return "graphql" }
-
-func (graphqlFactory) New(c *qcode.Compiler) (langadapter.Language, error) {
-	return graphqlLang{c: c}, nil
-}
+func (graphqlDescriptor) Name() string { return "graphql" }
 
 func (l graphqlLang) DescribeSchema(ns string) (json.RawMessage, error) {
 	if l.gj == nil {
@@ -44,7 +41,7 @@ func (l graphqlLang) BuildChildQuery(sel *qcode.Select, selects []qcode.Select,
 	return buildChildGraphQLQuery(sel, selects, fkCol, parentID), nil
 }
 
-func init() { langadapter.Register(graphqlFactory{}) }
+func init() { langadapter.Register(graphqlDescriptor{}) }
 
 func (l graphqlLang) Name() string { return "graphql" }
 

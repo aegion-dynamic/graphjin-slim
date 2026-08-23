@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"errors"
 	"fmt"
 	"regexp"
@@ -11,7 +13,7 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
-func (co *Compiler) compileSelectArgs(qc *QCode, sel *Select, args []graph.Arg) (err error) {
+func (co *Compiler) compileSelectArgs(qc *qcode.QCode, sel *qcode.Select, args []graph.Arg) (err error) {
 	for _, a := range args {
 		switch a.Name {
 		case "id":
@@ -36,16 +38,16 @@ func (co *Compiler) compileSelectArgs(qc *QCode, sel *Select, args []graph.Arg) 
 			err = co.compileArgOffset(sel, a)
 
 		case "first":
-			err = co.compileArgFirstLast(sel, a, OrderAsc)
+			err = co.compileArgFirstLast(sel, a, qcode.OrderAsc)
 
 		case "last":
-			err = co.compileArgFirstLast(sel, a, OrderDesc)
+			err = co.compileArgFirstLast(sel, a, qcode.OrderDesc)
 
 		case "after":
-			err = co.compileArgAfterBefore(sel, a, PTForward)
+			err = co.compileArgAfterBefore(sel, a, qcode.PTForward)
 
 		case "before":
-			err = co.compileArgAfterBefore(sel, a, PTBackward)
+			err = co.compileArgAfterBefore(sel, a, qcode.PTBackward)
 
 		case "find":
 			err = co.compileArgFind(sel, a)
@@ -65,7 +67,7 @@ func (co *Compiler) compileSelectArgs(qc *QCode, sel *Select, args []graph.Arg) 
 		case "insert", "update", "upsert", "delete":
 
 		case "on_conflict", "onConflict":
-			if qc.SType != QTInsert || qc.InsertConflictAction != ConflictGet {
+			if qc.SType != qcode.QTInsert || qc.InsertConflictAction != qcode.ConflictGet {
 				err = errors.New("on_conflict is only valid with insert")
 			}
 
@@ -86,7 +88,7 @@ func (co *Compiler) compileSelectArgs(qc *QCode, sel *Select, args []graph.Arg) 
 
 // compileArgRemoteExtra accepts arbitrary scalar args on a remote table
 // and stashes them in sel.ExtraArgs for the resolver to consume.
-func (co *Compiler) compileArgRemoteExtra(sel *Select, arg graph.Arg) error {
+func (co *Compiler) compileArgRemoteExtra(sel *qcode.Select, arg graph.Arg) error {
 	if arg.Val == nil {
 		return fmt.Errorf("argument %q has no value", arg.Name)
 	}
@@ -102,7 +104,7 @@ func (co *Compiler) compileArgRemoteExtra(sel *Select, arg graph.Arg) error {
 	return nil
 }
 
-func (co *Compiler) compileArgFind(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgFind(sel *qcode.Select, arg graph.Arg) (err error) {
 	if err = validateArg(arg, graph.NodeStr); err != nil {
 		return err
 	}
@@ -124,11 +126,11 @@ func (co *Compiler) compileArgFind(sel *Select, arg graph.Arg) (err error) {
 	if arg.Val.Val != "parents" && arg.Val.Val != "children" {
 		return fmt.Errorf("valid values 'parents' or 'children'")
 	}
-	sel.addIArg(Arg{Name: arg.Name, Val: arg.Val.Val})
+	sel.IArgs = append(sel.IArgs, qcode.Arg{Name: arg.Name, Val: arg.Val.Val})
 	return nil
 }
 
-func (co *Compiler) compileArgID(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgID(sel *qcode.Select, arg graph.Arg) (err error) {
 	if sel.ParentID != -1 {
 		return fmt.Errorf("can only be specified at the query root")
 	}
@@ -148,7 +150,7 @@ func (co *Compiler) compileArgID(sel *Select, arg graph.Arg) (err error) {
 		return
 	}
 
-	ex := newExpOp(OpEquals)
+	ex := newExpOp(qcode.OpEquals)
 	ex.Left.Col = sel.Ti.PrimaryCol
 
 	switch node.Type {
@@ -156,16 +158,16 @@ func (co *Compiler) compileArgID(sel *Select, arg graph.Arg) (err error) {
 		if _, err := strconv.ParseInt(node.Val, 10, 32); err != nil {
 			return err
 		} else {
-			ex.Right.ValType = ValNum
+			ex.Right.ValType = qcode.ValNum
 			ex.Right.Val = node.Val
 		}
 
 	case graph.NodeStr:
-		ex.Right.ValType = ValStr
+		ex.Right.ValType = qcode.ValStr
 		ex.Right.Val = node.Val
 
 	case graph.NodeVar:
-		ex.Right.ValType = ValVar
+		ex.Right.ValType = qcode.ValVar
 		ex.Right.Val = node.Val
 	}
 
@@ -175,8 +177,8 @@ func (co *Compiler) compileArgID(sel *Select, arg graph.Arg) (err error) {
 }
 
 // compileArgCompositeID handles id: {col1: val1, col2: val2} for composite PK tables.
-func (co *Compiler) compileArgCompositeID(sel *Select, node *graph.Node) error {
-	and := newExpOp(OpAnd)
+func (co *Compiler) compileArgCompositeID(sel *qcode.Select, node *graph.Node) error {
+	and := newExpOp(qcode.OpAnd)
 
 	for _, pkCol := range sel.Ti.PrimaryCols {
 		child, ok := node.CMap[pkCol.Name]
@@ -184,7 +186,7 @@ func (co *Compiler) compileArgCompositeID(sel *Select, node *graph.Node) error {
 			return fmt.Errorf("composite id missing key '%s' for table '%s'", pkCol.Name, sel.Table)
 		}
 
-		ex := newExpOp(OpEquals)
+		ex := newExpOp(qcode.OpEquals)
 		ex.Left.Col = pkCol
 
 		switch child.Type {
@@ -192,13 +194,13 @@ func (co *Compiler) compileArgCompositeID(sel *Select, node *graph.Node) error {
 			if _, err := strconv.ParseInt(child.Val, 10, 32); err != nil {
 				return err
 			}
-			ex.Right.ValType = ValNum
+			ex.Right.ValType = qcode.ValNum
 			ex.Right.Val = child.Val
 		case graph.NodeStr:
-			ex.Right.ValType = ValStr
+			ex.Right.ValType = qcode.ValStr
 			ex.Right.Val = child.Val
 		case graph.NodeVar:
-			ex.Right.ValType = ValVar
+			ex.Right.ValType = qcode.ValVar
 			ex.Right.Val = child.Val
 		default:
 			return fmt.Errorf("invalid type for composite id key '%s'", pkCol.Name)
@@ -212,7 +214,7 @@ func (co *Compiler) compileArgCompositeID(sel *Select, node *graph.Node) error {
 	return nil
 }
 
-func (co *Compiler) compileArgSearch(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgSearch(sel *qcode.Select, arg graph.Arg) (err error) {
 	if len(sel.Ti.FullText) == 0 {
 		switch co.s.DBType() {
 		case "mysql":
@@ -227,20 +229,20 @@ func (co *Compiler) compileArgSearch(sel *Select, arg graph.Arg) (err error) {
 		return
 	}
 
-	ex := newExpOp(OpTsQuery)
+	ex := newExpOp(qcode.OpTsQuery)
 	if arg.Val.Type == graph.NodeStr {
-		ex.Right.ValType = ValStr
+		ex.Right.ValType = qcode.ValStr
 	} else {
-		ex.Right.ValType = ValVar
+		ex.Right.ValType = qcode.ValVar
 	}
 	ex.Right.Val = arg.Val.Val
 
-	sel.addIArg(Arg{Name: arg.Name, Val: arg.Val.Val})
+	sel.IArgs = append(sel.IArgs, qcode.Arg{Name: arg.Name, Val: arg.Val.Val})
 	addAndFilter(&sel.Where, ex)
 	return nil
 }
 
-func (co *Compiler) compileArgWhere(qc *QCode, sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgWhere(qc *qcode.QCode, sel *qcode.Select, arg graph.Arg) (err error) {
 	if arg.Val.Type == graph.NodeVar {
 		return fmt.Errorf("where must be an inline object; use variables only inside filter values")
 	}
@@ -256,7 +258,7 @@ func (co *Compiler) compileArgWhere(qc *QCode, sel *Select, arg graph.Arg) (err 
 	return
 }
 
-func (co *Compiler) compileArgOrderBy(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgOrderBy(sel *qcode.Select, arg graph.Arg) (err error) {
 	if err = validateArg(arg, graph.NodeObj, graph.NodeVar); err != nil {
 		return
 	}
@@ -279,7 +281,7 @@ func (co *Compiler) compileArgOrderBy(sel *Select, arg graph.Arg) (err error) {
 	return nil
 }
 
-func (co *Compiler) compileArgSkipIncludeIf(qc *QCode, skip bool, sel *Select, f *Field, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgSkipIncludeIf(qc *qcode.QCode, skip bool, sel *qcode.Select, f *qcode.Field, arg graph.Arg) (err error) {
 	if err = validateArg(arg, graph.NodeObj); err != nil {
 		return
 	}
@@ -288,7 +290,7 @@ func (co *Compiler) compileArgSkipIncludeIf(qc *QCode, skip bool, sel *Select, f
 	// functions are rendered in the base select hence
 	// no column suffix is needed when rendering the filter
 	// expression
-	if f.Type == FieldTypeFunc {
+	if f.Type == qcode.FieldTypeFunc {
 		sid = -1
 	}
 
@@ -304,7 +306,7 @@ func (co *Compiler) compileArgSkipIncludeIf(qc *QCode, skip bool, sel *Select, f
 	return
 }
 
-func (co *Compiler) compileArgArgs(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgArgs(sel *qcode.Select, arg graph.Arg) (err error) {
 	if sel.Ti.Type != "function" {
 		return fmt.Errorf("'%s' does not have any argument", sel.Ti.Name)
 	}
@@ -320,7 +322,7 @@ func (co *Compiler) compileArgArgs(sel *Select, arg graph.Arg) (err error) {
 	return
 }
 
-func (co *Compiler) compileArgDistinctOn(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgDistinctOn(sel *qcode.Select, arg graph.Arg) (err error) {
 	if err = validateArg(arg,
 		graph.NodeList, graph.NodeLabel,
 		graph.NodeList, graph.NodeStr,
@@ -337,7 +339,7 @@ func (co *Compiler) compileArgDistinctOn(sel *Select, arg graph.Arg) (err error)
 		}
 		switch co.s.DBType() {
 		case "mysql":
-			sel.OrderBy = append(sel.OrderBy, OrderBy{Order: OrderAsc, Col: col})
+			sel.OrderBy = append(sel.OrderBy, qcode.OrderBy{Order: qcode.OrderAsc, Col: col})
 		default:
 			sel.DistinctOn = append(sel.DistinctOn, col)
 		}
@@ -350,7 +352,7 @@ func (co *Compiler) compileArgDistinctOn(sel *Select, arg graph.Arg) (err error)
 		}
 		switch co.s.DBType() {
 		case "mysql":
-			sel.OrderBy = append(sel.OrderBy, OrderBy{Order: OrderAsc, Col: col})
+			sel.OrderBy = append(sel.OrderBy, qcode.OrderBy{Order: qcode.OrderAsc, Col: col})
 		default:
 			sel.DistinctOn = append(sel.DistinctOn, col)
 		}
@@ -359,7 +361,7 @@ func (co *Compiler) compileArgDistinctOn(sel *Select, arg graph.Arg) (err error)
 	return
 }
 
-func (co *Compiler) compileArgLimit(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgLimit(sel *qcode.Select, arg graph.Arg) (err error) {
 	if err = validateArg(arg, graph.NodeNum, graph.NodeVar); err != nil {
 		return
 	}
@@ -385,7 +387,7 @@ func (co *Compiler) compileArgLimit(sel *Select, arg graph.Arg) (err error) {
 	return
 }
 
-func (co *Compiler) compileArgOffset(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgOffset(sel *qcode.Select, arg graph.Arg) (err error) {
 	if err = validateArg(arg, graph.NodeNum, graph.NodeVar); err != nil {
 		return
 	}
@@ -409,7 +411,7 @@ func (co *Compiler) compileArgOffset(sel *Select, arg graph.Arg) (err error) {
 	return nil
 }
 
-func (co *Compiler) compileArgFirstLast(sel *Select, arg graph.Arg, order Order) (err error) {
+func (co *Compiler) compileArgFirstLast(sel *qcode.Select, arg graph.Arg, order qcode.Order) (err error) {
 	if err := co.compileArgLimit(sel, arg); err != nil {
 		return err
 	}
@@ -418,12 +420,12 @@ func (co *Compiler) compileArgFirstLast(sel *Select, arg graph.Arg, order Order)
 		sel.Paging.Cursor = true
 	}
 
-	sel.order = order
-	sel.Paging.Backward = order == OrderDesc
+	sel.Order = order
+	sel.Paging.Backward = order == qcode.OrderDesc
 	return
 }
 
-func (co *Compiler) compileArgUnrestricted(sel *Select, arg graph.Arg) (err error) {
+func (co *Compiler) compileArgUnrestricted(sel *qcode.Select, arg graph.Arg) (err error) {
 	if err = validateArg(arg, graph.NodeBool); err != nil {
 		return err
 	}
@@ -431,7 +433,7 @@ func (co *Compiler) compileArgUnrestricted(sel *Select, arg graph.Arg) (err erro
 	return
 }
 
-func (co *Compiler) compileArgAfterBefore(sel *Select, arg graph.Arg, pt PagingType) (err error) {
+func (co *Compiler) compileArgAfterBefore(sel *qcode.Select, arg graph.Arg, pt qcode.PagingType) (err error) {
 	if err = validateArg(arg, graph.NodeVar); err != nil {
 		return
 	}
@@ -459,7 +461,7 @@ func isCursorVar(name string) bool {
 	return name == "cursor" || strings.Contains(name, "_cursor")
 }
 
-func (co *Compiler) compileFieldArgs(qc *QCode, sel *Select, f *Field, args []graph.Arg) (err error) {
+func (co *Compiler) compileFieldArgs(qc *qcode.QCode, sel *qcode.Select, f *qcode.Field, args []graph.Arg) (err error) {
 	for _, a := range args {
 		switch a.Name {
 		case "args":
@@ -476,7 +478,7 @@ func (co *Compiler) compileFieldArgs(qc *QCode, sel *Select, f *Field, args []gr
 			// Reaching this branch with a non-function field would mean the
 			// user attached `expr:` to a regular column field, which doesn't
 			// make sense — error explicitly.
-			if f.Type != FieldTypeFunc {
+			if f.Type != qcode.FieldTypeFunc {
 				err = fmt.Errorf("`expr:` is only valid on aggregate fields, not on column %q", f.FieldName)
 			}
 
@@ -486,7 +488,7 @@ func (co *Compiler) compileFieldArgs(qc *QCode, sel *Select, f *Field, args []gr
 			// the resolved ArgTypeCol) may tolerate it; every other field keeps
 			// its historical rejection — otherwise `lower(column: name)` would
 			// silently compile as an argument-less function call.
-			if f.Type != FieldTypeFunc || len(f.Args) == 0 || f.Args[0].Type != ArgTypeCol || !f.Func.Agg {
+			if f.Type != qcode.FieldTypeFunc || len(f.Args) == 0 || f.Args[0].Type != qcode.ArgTypeCol || !f.Func.Agg {
 				err = unknownArg(a)
 			}
 
@@ -504,8 +506,8 @@ func (co *Compiler) compileFieldArgs(qc *QCode, sel *Select, f *Field, args []gr
 
 var numArgKeyRe = regexp.MustCompile(`^[a_]\d+`)
 
-func (co *Compiler) compileFuncArgArgs(sel *Select, f *Field, arg graph.Arg) (err error) {
-	if f.Type == FieldTypeFunc && len(f.Func.Inputs) == 0 {
+func (co *Compiler) compileFuncArgArgs(sel *qcode.Select, f *qcode.Field, arg graph.Arg) (err error) {
+	if f.Type == qcode.FieldTypeFunc && len(f.Func.Inputs) == 0 {
 		return fmt.Errorf("db function '%s': has no arguments", f.Func.Name)
 	}
 

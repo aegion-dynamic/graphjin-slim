@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/dialect"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
@@ -582,27 +581,14 @@ func (c *compilerContext) renderColumnValue(m qcode.Mutate, col qcode.MColumn) {
 			isVar = true
 		}
 	} else {
-		field := m.Data.CMap[col.FieldName]
-		v = field.Val
+		cv := m.ColVals[col.FieldName]
+		v = cv.Val
 		vk = v
-
-		if field.Type == graph.NodeVar {
-			isVar = true
-		}
-
-		if field.Type == graph.NodeList {
-			listItems = make([]string, 0, len(field.Children))
-			for _, c := range field.Children {
-				if c.Type == graph.NodeNum {
-					listItems = append(listItems, c.Val)
-				} else {
-					listItems = append(listItems, (`'` + c.Val + `'`))
-				}
-			}
+		isVar = cv.Var
+		if cv.List {
+			listItems = cv.ListItems
 			// Mark as empty list if NodeList but no children
-			if len(listItems) == 0 {
-				isEmptyList = true
-			}
+			isEmptyList = len(listItems) == 0
 		}
 	}
 

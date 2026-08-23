@@ -1,8 +1,10 @@
 package graphql
 
+import "github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 type Config struct {
 	Vars            map[string]string
-	TConfig         map[string]TConfig
+	TConfig         map[string]qcode.TConfig
 	DefaultLimit    int
 	AnalyticsMode   bool
 	DisableAgg      bool
@@ -15,11 +17,6 @@ type Config struct {
 	EnableCacheTracking bool
 }
 
-type TConfig struct {
-	OrderBy map[string][][2]string
-}
-
-func (co *Compiler) getTConfig(schema, name string) TConfig {
+func (co *Compiler) getTConfig(schema, name string) qcode.TConfig {
 	return co.c.TConfig[(schema + name)]
 }
-

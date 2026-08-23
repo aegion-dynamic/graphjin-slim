@@ -1,6 +1,8 @@
 package graphql_test
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"strings"
 	"testing"
@@ -25,13 +27,13 @@ func TestExprBasicArithmetic(t *testing.T) {
 	for _, f := range sel.Fields {
 		if f.FieldName == "doubled" {
 			found = true
-			if f.Type != graphql.FieldTypeFunc {
+			if f.Type != qcode.FieldTypeFunc {
 				t.Errorf("doubled.Type = %v, want FieldTypeFunc", f.Type)
 			}
-			if len(f.Args) != 1 || f.Args[0].Type != graphql.ArgTypeExpr {
+			if len(f.Args) != 1 || f.Args[0].Type != qcode.ArgTypeExpr {
 				t.Errorf("doubled.Args[0].Type = %v, want ArgTypeExpr", f.Args[0].Type)
 			}
-			if f.Args[0].Expr == nil || f.Args[0].Expr.Op != graphql.OpMul {
+			if f.Args[0].Expr == nil || f.Args[0].Expr.Op != qcode.OpMul {
 				t.Errorf("doubled expression root op = %v, want OpMul", f.Args[0].Expr.Op)
 			}
 		}
@@ -57,20 +59,20 @@ func TestExprTerseLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("terse form compile failed: %v", err)
 	}
-	var terse *graphql.Exp
+	var terse *qcode.Exp
 	for _, f := range q.Selects[0].Fields {
 		if f.FieldName == "doubled" {
 			terse = f.Args[0].Expr
 		}
 	}
-	if terse == nil || terse.Op != graphql.OpMul {
+	if terse == nil || terse.Op != qcode.OpMul {
 		t.Fatalf("terse form root op = %v, want OpMul", terse)
 	}
-	if terse.Children[0].Op != graphql.OpColRef || terse.Children[0].Left.Col.Name != "price" {
+	if terse.Children[0].Op != qcode.OpColRef || terse.Children[0].Left.Col.Name != "price" {
 		t.Errorf("terse form child 0 should be col ref to price, got %v (%s)",
 			terse.Children[0].Op, terse.Children[0].Left.Col.Name)
 	}
-	if terse.Children[1].Op != graphql.OpLiteral || terse.Children[1].Lit.Val != "2" {
+	if terse.Children[1].Op != qcode.OpLiteral || terse.Children[1].Lit.Val != "2" {
 		t.Errorf("terse form child 1 should be literal 2, got %v (%s)",
 			terse.Children[1].Op, terse.Children[1].Lit.Val)
 	}
@@ -84,13 +86,13 @@ func TestExprTerseLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("explicit form compile failed: %v", err)
 	}
-	var explicit *graphql.Exp
+	var explicit *qcode.Exp
 	for _, f := range q2.Selects[0].Fields {
 		if f.FieldName == "doubled" {
 			explicit = f.Args[0].Expr
 		}
 	}
-	if explicit == nil || explicit.Op != graphql.OpMul {
+	if explicit == nil || explicit.Op != qcode.OpMul {
 		t.Fatal("explicit form did not compile to OpMul")
 	}
 	if explicit.Children[0].Left.Col.Name != "price" {
@@ -113,7 +115,7 @@ func TestExprTerseDotNotation(t *testing.T) {
 		t.Fatalf("terse dot-notation compile failed: %v", err)
 	}
 
-	var expr *graphql.Exp
+	var expr *qcode.Exp
 	for _, f := range q.Selects[0].Fields {
 		if f.FieldName == "revenue" {
 			expr = f.Args[0].Expr
@@ -148,10 +150,10 @@ func TestExprBackwardsCompat(t *testing.T) {
 
 	for _, f := range q.Selects[0].Fields {
 		if f.FieldName == "sum_price" {
-			if f.Type != graphql.FieldTypeFunc {
+			if f.Type != qcode.FieldTypeFunc {
 				t.Errorf("sum_price.Type = %v, want FieldTypeFunc", f.Type)
 			}
-			if len(f.Args) != 1 || f.Args[0].Type != graphql.ArgTypeCol {
+			if len(f.Args) != 1 || f.Args[0].Type != qcode.ArgTypeCol {
 				t.Errorf("sum_price.Args[0].Type = %v, want ArgTypeCol (legacy path)", f.Args[0].Type)
 			}
 			if f.Args[0].Col.Name != "price" {
@@ -197,10 +199,10 @@ func TestExprRelCol(t *testing.T) {
 	}
 
 	sel := q.Selects[0]
-	var expr *graphql.Exp
+	var expr *qcode.Exp
 	for _, f := range sel.Fields {
 		if f.FieldName == "revenue" {
-			if len(f.Args) != 1 || f.Args[0].Type != graphql.ArgTypeExpr {
+			if len(f.Args) != 1 || f.Args[0].Type != qcode.ArgTypeExpr {
 				t.Fatal("revenue field should have one ArgTypeExpr")
 			}
 			expr = f.Args[0].Expr
@@ -209,12 +211,12 @@ func TestExprRelCol(t *testing.T) {
 	if expr == nil {
 		t.Fatal("revenue expression not found")
 	}
-	if expr.Op != graphql.OpMul {
+	if expr.Op != qcode.OpMul {
 		t.Fatalf("expression root op = %v, want OpMul", expr.Op)
 	}
 	// expr.Children[1] should be the relationship-qualified col ref.
 	relRef := expr.Children[1]
-	if relRef.Op != graphql.OpColRef {
+	if relRef.Op != qcode.OpColRef {
 		t.Fatalf("second operand op = %v, want OpColRef", relRef.Op)
 	}
 	if len(relRef.RelPath) == 0 {
@@ -244,13 +246,13 @@ func TestExprRelColMultiHop(t *testing.T) {
 		t.Fatalf("compile: %v", err)
 	}
 
-	var expr *graphql.Exp
+	var expr *qcode.Exp
 	for _, f := range q.Selects[0].Fields {
 		if f.FieldName == "multi" {
 			expr = f.Args[0].Expr
 		}
 	}
-	if expr == nil || expr.Op != graphql.OpMul {
+	if expr == nil || expr.Op != qcode.OpMul {
 		t.Fatalf("expected OpMul root, got %v", expr)
 	}
 	relRef := expr.Children[1]
@@ -325,10 +327,10 @@ func TestExprOrderByAlias(t *testing.T) {
 	}
 	ob := sel.OrderBy[0]
 	if ob.Alias != "doubled" {
-		t.Errorf("OrderBy.Alias = %q, want %q", ob.Alias, "doubled")
+		t.Errorf("qcode.OrderBy.Alias = %q, want %q", ob.Alias, "doubled")
 	}
-	if ob.Order != graphql.OrderDesc {
-		t.Errorf("OrderBy.Order = %v, want OrderDesc", ob.Order)
+	if ob.Order != qcode.OrderDesc {
+		t.Errorf("qcode.OrderBy.Order = %v, want OrderDesc", ob.Order)
 	}
 }
 
@@ -369,13 +371,13 @@ func TestExprCase(t *testing.T) {
 		t.Fatalf("compile: %v", err)
 	}
 
-	var expr *graphql.Exp
+	var expr *qcode.Exp
 	for _, f := range q.Selects[0].Fields {
 		if f.FieldName == "big_ticket" {
 			expr = f.Args[0].Expr
 		}
 	}
-	if expr == nil || expr.Op != graphql.OpCase {
+	if expr == nil || expr.Op != qcode.OpCase {
 		t.Fatalf("expected OpCase root, got %v", expr)
 	}
 	if len(expr.CaseArms) != 1 {
@@ -385,7 +387,7 @@ func TestExprCase(t *testing.T) {
 	if arm.When == nil || arm.Then == nil {
 		t.Fatal("arm missing when or then")
 	}
-	if expr.Else == nil || expr.Else.Op != graphql.OpLiteral {
+	if expr.Else == nil || expr.Else.Op != qcode.OpLiteral {
 		t.Error("expected OpLiteral else branch")
 	}
 	// When sub-tree should resolve the column: price > 50 → OpGreaterThan
@@ -440,7 +442,7 @@ func TestGlobalAggSetsFlag(t *testing.T) {
 		t.Error("expected GlobalAgg=true for top-level aggregate without distinct (broken.md fix)")
 	}
 	if !sel.Paging.NoLimit {
-		t.Error("expected Paging.NoLimit=true for global aggregate (LIMIT would yield degenerate per-row results)")
+		t.Error("expected qcode.Paging.NoLimit=true for global aggregate (LIMIT would yield degenerate per-row results)")
 	}
 }
 

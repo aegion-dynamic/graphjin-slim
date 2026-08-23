@@ -1,6 +1,8 @@
 package graphql_test
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"strings"
 	"testing"
@@ -41,13 +43,13 @@ func TestAnalytics_RunningDirectiveParsed(t *testing.T) {
 	}
 
 	f := findWindowField(t, sel.Fields, "running")
-	if f.Type != graphql.FieldTypeFunc {
+	if f.Type != qcode.FieldTypeFunc {
 		t.Fatalf("running.Type = %v, want FieldTypeFunc", f.Type)
 	}
 	if f.Func.Name != "sum" {
 		t.Errorf("running.Func.Name = %q, want sum", f.Func.Name)
 	}
-	if len(f.Args) != 1 || f.Args[0].Type != graphql.ArgTypeCol || f.Args[0].Col.Name != "price" {
+	if len(f.Args) != 1 || f.Args[0].Type != qcode.ArgTypeCol || f.Args[0].Col.Name != "price" {
 		t.Errorf("expected price column arg, got %+v", f.Args)
 	}
 	if got := f.Window.Partition; len(got) != 1 || got[0] != "user_id" {
@@ -56,7 +58,7 @@ func TestAnalytics_RunningDirectiveParsed(t *testing.T) {
 	if len(f.Window.OrderBy) != 1 ||
 		f.Window.OrderBy[0].Col != "created_at" ||
 		!f.Window.OrderBy[0].Desc {
-		t.Errorf("expected OrderBy=[{created_at desc}], got %+v", f.Window.OrderBy)
+		t.Errorf("expected qcode.OrderBy=[{created_at desc}], got %+v", f.Window.OrderBy)
 	}
 	if f.Window.Frame != "ROWS UNBOUNDED PRECEDING" {
 		t.Errorf("Frame = %q, want ROWS UNBOUNDED PRECEDING", f.Window.Frame)
@@ -115,13 +117,13 @@ func TestAnalytics_AggregateChoicesAndOptionalBy(t *testing.T) {
 func TestAnalytics_ValueDirectivesParsed(t *testing.T) {
 	cases := []struct {
 		dir       string
-		want      graphql.WindowFunc
+		want      qcode.WindowFunc
 		wantFrame string
 	}{
-		{"previous", graphql.WindowFuncLag, ""},
-		{"next", graphql.WindowFuncLead, ""},
-		{"first", graphql.WindowFuncFirstValue, "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"},
-		{"last", graphql.WindowFuncLastValue, "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"},
+		{"previous", qcode.WindowFuncLag, ""},
+		{"next", qcode.WindowFuncLead, ""},
+		{"first", qcode.WindowFuncFirstValue, "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"},
+		{"last", qcode.WindowFuncLastValue, "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"},
 	}
 	for _, c := range cases {
 		qc := newWindowCompiler(t)
@@ -151,11 +153,11 @@ func TestAnalytics_RankingDirectivesParsed(t *testing.T) {
 	cases := []struct {
 		dir  string
 		arg  string
-		want graphql.WindowFunc
+		want qcode.WindowFunc
 	}{
-		{"rank", `order: desc`, graphql.WindowFuncRank},
-		{"denseRank", `order: desc`, graphql.WindowFuncDenseRank},
-		{"rowNumber", `orderBy: { created_at: asc }`, graphql.WindowFuncRowNumber},
+		{"rank", `order: desc`, qcode.WindowFuncRank},
+		{"denseRank", `order: desc`, qcode.WindowFuncDenseRank},
+		{"rowNumber", `orderBy: { created_at: asc }`, qcode.WindowFuncRowNumber},
 	}
 	for _, c := range cases {
 		qc := newWindowCompiler(t)
@@ -271,7 +273,7 @@ func TestAnalytics_InternalNamesDoNotShadowColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range result.Selects[0].Fields {
-		if f.Type != graphql.FieldTypeCol {
+		if f.Type != qcode.FieldTypeCol {
 			t.Fatalf("field %q compiled as %v, want column", f.FieldName, f.Type)
 		}
 	}
@@ -359,7 +361,7 @@ func TestAnalytics_ValidationErrors(t *testing.T) {
 	}
 }
 
-func findWindowField(t *testing.T, fields []graphql.Field, name string) graphql.Field {
+func findWindowField(t *testing.T, fields []qcode.Field, name string) qcode.Field {
 	t.Helper()
 	for _, f := range fields {
 		if f.FieldName == name {
@@ -370,5 +372,5 @@ func findWindowField(t *testing.T, fields []graphql.Field, name string) graphql.
 		}
 	}
 	t.Fatalf("field %q not found in %+v", name, fields)
-	return graphql.Field{}
+	return qcode.Field{}
 }

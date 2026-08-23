@@ -71,54 +71,52 @@ type SubqueryBuilder interface {
 }
 
 var (
-	mu        sync.RWMutex
-	factories = map[string]Factory{}
+	mu          sync.RWMutex
+	descriptors = map[string]Descriptor{}
 )
 
-// Factory constructs Language instances bound to a specific database
-// compiler. Registered globally at init time; instances are per-database.
-type Factory interface {
-	// Name matches the language name in configuration and routes.
+// Descriptor is the discovery record for a query language. Frontends
+// register one at init time; construction of per-database Language
+// instances stays with the engine that owns the compilers.
+type Descriptor interface {
+	// Name matches configuration, routes, and discovery output.
 	Name() string
-
-	// New binds a language to the given qcode compiler.
-	New(c *qcode.Compiler) (Language, error)
 }
 
-// Register installs a language factory. Panics on duplicate names:
+// Register installs a language descriptor. Panics on duplicate names:
 // registering twice is always a programming error, matching
 // database/sql conventions.
-func Register(f Factory) {
-	if f == nil || f.Name() == "" {
-		panic("langadapter: Register called with nil factory or empty name")
+func Register(d Descriptor) {
+	if d == nil || d.Name() == "" {
+		panic("langadapter: Register called with nil descriptor or empty name")
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	name := f.Name()
-	if _, dup := factories[name]; dup {
+	name := d.Name()
+	if _, dup := descriptors[name]; dup {
 		panic("langadapter: Register called twice for language " + name)
 	}
-	factories[name] = f
+	descriptors[name] = d
 }
 
-// Lookup resolves a configured language name to its factory.
-func Lookup(name string) (Factory, error) {
+// Lookup resolves a language name to its descriptor.
+func Lookup(name string) (Descriptor, error) {
 	mu.RLock()
 	defer mu.RUnlock()
-	f, ok := factories[name]
+	d, ok := descriptors[name]
 	if !ok {
 		return nil, fmt.Errorf("langadapter: no language registered for %q (available: %s)",
 			name, strings.Join(Names(), ", "))
 	}
-	return f, nil
+	return d, nil
 }
 
 // Names lists registered languages, sorted for stable output.
 func Names() []string {
 	mu.RLock()
 	defer mu.RUnlock()
-	out := make([]string, 0, len(factories))
-	for n := range factories {
+	out := make([]string, 0, len(descriptors))
+	for n := range descriptors {
 		out = append(out, n)
 	}
 	sort.Strings(out)

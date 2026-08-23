@@ -3,9 +3,9 @@ package engine
 import (
 	"sort"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 )
 
 var NewTestEngine = NewTestGraphJin
@@ -42,17 +42,17 @@ func NewTestGraphJin(databaseSchemas map[string]string) (*GraphJin, error) {
 			return nil, err
 		}
 
-		qcc, err := qcode.NewCompiler(schema, qcode.Config{DBSchema: schema.DBSchema()})
+		qcc, err := graphql.NewCompiler(schema, graphql.Config{DBSchema: schema.DBSchema()})
 		if err != nil {
 			return nil, err
 		}
 		psc := sqlgen.NewCompiler(sqlgen.Config{})
 
 		engine.databases[name] = &dbContext{
-			name:          name,
-			schema:        schema,
-			qcodeCompiler: qcc,
-			sqlgenCompiler:  psc,
+			name:           name,
+			schema:         schema,
+			qcodeCompiler:  qcc,
+			sqlgenCompiler: psc,
 		}
 		if engine.defaultDB == "" {
 			engine.defaultDB = name

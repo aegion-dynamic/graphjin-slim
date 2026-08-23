@@ -1,13 +1,14 @@
 package engine
 
 import (
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
+
 	"bytes"
 	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
@@ -19,7 +20,7 @@ func TestCreateSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ds, err := qcode.ParseSchema(buf.Bytes())
+	ds, err := graphql.ParseSchema(buf.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ type audit_logs @database(name: logs) {
 }
 `)
 
-	ds, err := qcode.ParseSchema(schema)
+	ds, err := graphql.ParseSchema(schema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +142,7 @@ func TestSchemaDatabaseRoundtrip(t *testing.T) {
 	}
 
 	// Parse it back
-	ds, err := qcode.ParseSchema(buf.Bytes())
+	ds, err := graphql.ParseSchema(buf.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,7 @@ type orders {
 }
 `)
 
-	ds, err := qcode.ParseSchema(schema)
+	ds, err := graphql.ParseSchema(schema)
 	if err != nil {
 		t.Fatalf("failed to parse schema without @database directives: %v", err)
 	}
@@ -364,7 +365,7 @@ type events @cluster(columns: ["created_at", "region"]) {
 }
 `)
 
-	ds, err := qcode.ParseSchema(schema)
+	ds, err := graphql.ParseSchema(schema)
 	if err != nil {
 		t.Fatalf("ParseSchema failed: %v", err)
 	}

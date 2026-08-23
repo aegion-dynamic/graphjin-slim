@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"bytes"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
@@ -14,29 +16,16 @@ func (co *Compiler) ParseName(name string) string {
 	return name
 }
 
-func GetQType(t graph.ParserType) QType {
+func GetQType(t graph.ParserType) qcode.QType {
 	switch t {
 	case graph.OpQuery:
-		return QTQuery
+		return qcode.QTQuery
 	case graph.OpSub:
-		return QTSubscription
+		return qcode.QTSubscription
 	case graph.OpMutate:
-		return QTMutation
+		return qcode.QTMutation
 	default:
-		return QTUnknown
-	}
-}
-
-func GetQTypeByName(t string) QType {
-	switch t {
-	case "query":
-		return QTQuery
-	case "subscription":
-		return QTSubscription
-	case "mutation":
-		return QTMutation
-	default:
-		return QTUnknown
+		return qcode.QTUnknown
 	}
 }
 

@@ -1,6 +1,8 @@
 package graphql_test
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"strings"
 	"testing"
@@ -29,10 +31,10 @@ func TestColumnArgAggregate(t *testing.T) {
 				continue
 			}
 			found = true
-			if f.Type != graphql.FieldTypeFunc {
+			if f.Type != qcode.FieldTypeFunc {
 				t.Errorf("%q: Type = %v, want FieldTypeFunc", form, f.Type)
 			}
-			if len(f.Args) != 1 || f.Args[0].Type != graphql.ArgTypeCol {
+			if len(f.Args) != 1 || f.Args[0].Type != qcode.ArgTypeCol {
 				t.Fatalf("%q: Args = %+v, want one ArgTypeCol", form, f.Args)
 			}
 			if f.Args[0].Col.Name != "price" {

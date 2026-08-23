@@ -280,27 +280,27 @@ type Config struct {
 }
 
 type DatabaseConfig struct {
-	Type            string        `mapstructure:"type" json:"type" yaml:"type" jsonschema:"title=Database Type,enum=postgres,enum=sqlite"`
-	ConnString      string        `mapstructure:"connection_string" json:"connection_string" yaml:"connection_string"`
-	Host            string        `mapstructure:"host" json:"host" yaml:"host"`
-	Port            uint16        `mapstructure:"port" json:"port" yaml:"port"`
-	User            string        `mapstructure:"user" json:"user" yaml:"user"`
-	Password        string        `mapstructure:"password" json:"password" yaml:"password"`
-	DBName          string        `mapstructure:"db_name" json:"db_name" yaml:"db_name"`
-	Schema          string        `mapstructure:"schema" json:"schema" yaml:"schema"`
-	Path            string        `mapstructure:"path" json:"path" yaml:"path"`
-	EncryptionKey   string        `mapstructure:"encryption_key" json:"encryption_key" yaml:"encryption_key"`
-	EnableTLS       bool          `mapstructure:"enable_tls" json:"enable_tls" yaml:"enable_tls"`
-	ServerName      string        `mapstructure:"server_name" json:"server_name" yaml:"server_name"`
-	ServerCert      string        `mapstructure:"server_cert" json:"server_cert" yaml:"server_cert"`
+	Type            string         `mapstructure:"type" json:"type" yaml:"type" jsonschema:"title=Database Type,enum=postgres,enum=sqlite"`
+	ConnString      string         `mapstructure:"connection_string" json:"connection_string" yaml:"connection_string"`
+	Host            string         `mapstructure:"host" json:"host" yaml:"host"`
+	Port            uint16         `mapstructure:"port" json:"port" yaml:"port"`
+	User            string         `mapstructure:"user" json:"user" yaml:"user"`
+	Password        string         `mapstructure:"password" json:"password" yaml:"password"`
+	DBName          string         `mapstructure:"db_name" json:"db_name" yaml:"db_name"`
+	Schema          string         `mapstructure:"schema" json:"schema" yaml:"schema"`
+	Path            string         `mapstructure:"path" json:"path" yaml:"path"`
+	EncryptionKey   string         `mapstructure:"encryption_key" json:"encryption_key" yaml:"encryption_key"`
+	EnableTLS       bool           `mapstructure:"enable_tls" json:"enable_tls" yaml:"enable_tls"`
+	ServerName      string         `mapstructure:"server_name" json:"server_name" yaml:"server_name"`
+	ServerCert      string         `mapstructure:"server_cert" json:"server_cert" yaml:"server_cert"`
 	Settings        map[string]any `mapstructure:",remain" json:"-" yaml:",inline"`
-	ReadOnly        bool          `mapstructure:"read_only" json:"read_only" yaml:"read_only"`
-	AnalyticsMode   bool          `mapstructure:"analytics_mode" json:"analytics_mode" yaml:"analytics_mode"`
-	PoolSize        int           `mapstructure:"pool_size" json:"pool_size" yaml:"pool_size"`
-	MaxConnections  int           `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"`
-	MaxConnIdleTime time.Duration `mapstructure:"max_conn_idle_time" json:"max_conn_idle_time" yaml:"max_conn_idle_time"`
-	MaxConnLifeTime time.Duration `mapstructure:"max_conn_life_time" json:"max_conn_life_time" yaml:"max_conn_life_time"`
-	PingTimeout     time.Duration `mapstructure:"ping_timeout" json:"ping_timeout" yaml:"ping_timeout"`
+	ReadOnly        bool           `mapstructure:"read_only" json:"read_only" yaml:"read_only"`
+	AnalyticsMode   bool           `mapstructure:"analytics_mode" json:"analytics_mode" yaml:"analytics_mode"`
+	PoolSize        int            `mapstructure:"pool_size" json:"pool_size" yaml:"pool_size"`
+	MaxConnections  int            `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"`
+	MaxConnIdleTime time.Duration  `mapstructure:"max_conn_idle_time" json:"max_conn_idle_time" yaml:"max_conn_idle_time"`
+	MaxConnLifeTime time.Duration  `mapstructure:"max_conn_life_time" json:"max_conn_life_time" yaml:"max_conn_life_time"`
+	PingTimeout     time.Duration  `mapstructure:"ping_timeout" json:"ping_timeout" yaml:"ping_timeout"`
 	// EnableCamelcase / DisableAgg can also be global on Config
 }
 

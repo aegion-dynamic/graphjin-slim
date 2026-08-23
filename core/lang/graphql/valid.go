@@ -1,27 +1,9 @@
 package graphql
 
 import (
-	"encoding/json"
-	"errors"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-)
-
-type Constraint struct {
-	VarName string
-	fns     []constFn
-}
-
-type constFn struct {
-	name string
-	fn   ValidFn
-}
-
-type Vars map[string]json.RawMessage
-
-type (
-	ValidFn    func(Vars, Constraint) bool
-	NewValidFn func(args []string) (fn ValidFn, err error)
 )
 
 type Validator struct {
@@ -29,13 +11,11 @@ type Validator struct {
 	Type        string
 	List        bool
 	Types       []graph.ParserType
-	NewFn       NewValidFn
+	NewFn       qcode.NewValidFn
 }
 
-var ErrUnknownValidator = errors.New("unknown validator")
-
-func (co *Compiler) newConstraint(varName string, dargs []graph.Arg) (con Constraint, err error) {
-	con = Constraint{VarName: varName}
+func (co *Compiler) newConstraint(varName string, dargs []graph.Arg) (con qcode.Constraint, err error) {
+	con = qcode.Constraint{VarName: varName}
 
 	for _, a := range dargs {
 		if a.Name == "variable" {
@@ -44,7 +24,7 @@ func (co *Compiler) newConstraint(varName string, dargs []graph.Arg) (con Constr
 
 		v, ok := co.c.Validators[a.Name]
 		if !ok {
-			err = ErrUnknownValidator
+			err = qcode.ErrUnknownValidator
 			return
 		}
 
@@ -82,42 +62,15 @@ func (co *Compiler) newConstraint(varName string, dargs []graph.Arg) (con Constr
 			}
 		}
 
-		fn := constFn{name: a.Name}
-		if fn.fn, err = v.NewFn(args); err != nil {
+		var fn qcode.ValidFn
+		if fn, err = v.NewFn(args); err != nil {
 			return
 		}
-		con.fns = append(con.fns, fn)
+		con.AddConstFn(a.Name, fn)
 	}
 	return
 }
 
 func quoteStr(v string) string {
 	return `"` + v + `"`
-}
-
-type ValidErr struct {
-	FieldName  string `json:"field_name"`
-	Constraint string `json:"constraint"`
-}
-
-func (qc *QCode) ProcessConstraints(vmap map[string]json.RawMessage) (errs []ValidErr) {
-	for _, c := range qc.Consts {
-		if err := validate(vmap, c); err != nil {
-			errs = append(errs, err...)
-		}
-	}
-	return
-}
-
-func validate(vmap map[string]json.RawMessage, c Constraint) (errs []ValidErr) {
-	for _, fn := range c.fns {
-		if ok := fn.fn(vmap, c); !ok {
-			err := ValidErr{
-				FieldName:  c.VarName,
-				Constraint: fn.name,
-			}
-			errs = append(errs, err)
-		}
-	}
-	return
 }

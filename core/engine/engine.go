@@ -21,6 +21,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
@@ -64,7 +65,7 @@ type dbContext struct {
 	dbtype         string                          // Database type (postgres, mysql, sqlite, etc.)
 	dbinfo         *sdata.DBInfo                   // Raw schema metadata
 	schema         *sdata.DBSchema                 // Processed schema with relationships
-	qcodeCompiler  *qcode.Compiler                 // GraphQL to QCode compiler (validates against this DB's schema)
+	qcodeCompiler  *graphql.Compiler               // GraphQL to QCode compiler (validates against this DB's schema)
 	sqlgenCompiler *sqlgen.Compiler                // QCode to SQL compiler (generates this DB's dialect)
 	langsMu        sync.Mutex                      // guards langs
 	langs          map[string]langadapter.Language // query languages, built lazily

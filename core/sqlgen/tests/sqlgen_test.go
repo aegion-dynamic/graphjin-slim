@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 )
 
 var (
-	qcompile *qcode.Compiler
+	qcompile *graphql.Compiler
 	scompile *sqlgen.Compiler
 )
 
@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	qcompile, err = qcode.NewCompiler(schema, qcode.Config{DBSchema: schema.DBSchema()})
+	qcompile, err = graphql.NewCompiler(schema, graphql.Config{DBSchema: schema.DBSchema()})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestCompositeFK_ThroughColumn_EmitsFullJoinCondition(t *testing.T) {
 		t.Fatalf("schema: %v", err)
 	}
 
-	qc, err := qcode.NewCompiler(schema, qcode.Config{DBSchema: schema.DBSchema()})
+	qc, err := graphql.NewCompiler(schema, graphql.Config{DBSchema: schema.DBSchema()})
 	if err != nil {
 		t.Fatalf("qcode compiler: %v", err)
 	}

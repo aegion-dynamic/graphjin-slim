@@ -6,11 +6,11 @@ package sqlgen
 import (
 	"encoding/json"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 )
 
 var (
-	qcompileTest, _ = qcode.NewCompiler(qcode.Config{})
+	qcompileTest, _ = graphql.NewCompiler(graphql.Config{})
 
 	schema, _ = GetTestSchema()
 

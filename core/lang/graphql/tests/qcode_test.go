@@ -1,6 +1,8 @@
 package graphql_test
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"encoding/json"
 	"errors"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
@@ -546,7 +548,7 @@ func TestPartitionFilterInjected(t *testing.T) {
 	}
 
 	// Verify the injected filter references the partition column
-	if !graphql.HasFilterOnColumn(sel.Where.Exp, "created_at") {
+	if !qcode.HasFilterOnColumn(sel.Where.Exp, "created_at") {
 		t.Error("expected injected filter to reference partition column 'created_at'")
 	}
 }
@@ -686,7 +688,7 @@ func TestPartitionFilterRequiredInOLAPWhenNoUserFilter(t *testing.T) {
 	}
 
 	// Must NOT silently inject the default time-range filter in OLAP mode.
-	if graphql.HasFilterOnColumn(sel.Where.Exp, "created_at") {
+	if qcode.HasFilterOnColumn(sel.Where.Exp, "created_at") {
 		t.Error("analytics_mode must not inject a default partition filter")
 	}
 }
@@ -879,7 +881,7 @@ func TestPostgresNoDangerousQueryWarnings(t *testing.T) {
 	}
 }
 
-func orderByNames(obs []graphql.OrderBy) []string {
+func orderByNames(obs []qcode.OrderBy) []string {
 	names := make([]string, len(obs))
 	for i, ob := range obs {
 		names[i] = ob.Col.Name

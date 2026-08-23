@@ -1,13 +1,14 @@
 package sqlgen_test
 
 import (
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
+
 	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 )
 
 func TestSQLiteGeneration(t *testing.T) {
@@ -16,7 +17,7 @@ func TestSQLiteGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qcCompiler, err := qcode.NewCompiler(schema, qcode.Config{DBSchema: schema.DBSchema()})
+	qcCompiler, err := graphql.NewCompiler(schema, graphql.Config{DBSchema: schema.DBSchema()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestSQLiteEmptySelection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qcCompiler, err := qcode.NewCompiler(schema, qcode.Config{DBSchema: schema.DBSchema()})
+	qcCompiler, err := graphql.NewCompiler(schema, graphql.Config{DBSchema: schema.DBSchema()})
 	if err != nil {
 		t.Fatal(err)
 	}

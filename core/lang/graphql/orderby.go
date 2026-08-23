@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"fmt"
 	"strings"
 
@@ -9,14 +11,14 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/util"
 )
 
-func (co *Compiler) compileArgOrderByObj(sel *Select, parent *graph.Node, cm map[string]struct{}) error {
+func (co *Compiler) compileArgOrderByObj(sel *qcode.Select, parent *graph.Node, cm map[string]struct{}) error {
 	st := util.NewStackInf()
 
 	for i := range parent.Children {
 		st.Push(parent.Children[i])
 	}
 
-	var obList []OrderBy
+	var obList []qcode.OrderBy
 
 	var node *graph.Node
 	var ok bool
@@ -47,7 +49,7 @@ func (co *Compiler) compileArgOrderByObj(sel *Select, parent *graph.Node, cm map
 			continue
 		}
 
-		var ob OrderBy
+		var ob qcode.OrderBy
 		ti := sel.Ti
 		cn := node
 
@@ -77,7 +79,7 @@ func (co *Compiler) compileArgOrderByObj(sel *Select, parent *graph.Node, cm map
 			for i := len(path) - 1; i >= 0; i-- {
 				p := path[i]
 				rel := sdata.PathToRel(p)
-				sel.Joins = append(sel.Joins, Join{
+				sel.Joins = append(sel.Joins, qcode.Join{
 					Rel:    rel,
 					Filter: buildFilter(rel, -1),
 					Local:  true,
@@ -110,7 +112,7 @@ func (co *Compiler) compileArgOrderByObj(sel *Select, parent *graph.Node, cm map
 	return err
 }
 
-func orderByFromList(parent *graph.Node) (ob OrderBy, err error) {
+func orderByFromList(parent *graph.Node) (ob qcode.OrderBy, err error) {
 	if len(parent.Children) != 2 {
 		return ob, fmt.Errorf(`valid format is [values, order] (eg. [$list, "desc"])`)
 	}
@@ -126,8 +128,8 @@ func orderByFromList(parent *graph.Node) (ob OrderBy, err error) {
 	return ob, nil
 }
 
-func (co *Compiler) compileArgOrderByVar(sel *Select, node *graph.Node, cm map[string]struct{}) (err error) {
-	for k, v := range sel.tc.OrderBy {
+func (co *Compiler) compileArgOrderByVar(sel *qcode.Select, node *graph.Node, cm map[string]struct{}) (err error) {
+	for k, v := range sel.TC.OrderBy {
 		if err = compileOrderBy(sel, node.Val, k, v, cm); err != nil {
 			return
 		}
@@ -135,7 +137,7 @@ func (co *Compiler) compileArgOrderByVar(sel *Select, node *graph.Node, cm map[s
 	return
 }
 
-func (co *Compiler) setOrderByColName(ti sdata.DBTable, ob *OrderBy, node *graph.Node) (err error) {
+func (co *Compiler) setOrderByColName(ti sdata.DBTable, ob *qcode.OrderBy, node *graph.Node) (err error) {
 	name := co.ParseName(node.Name)
 	col, err := ti.GetColumn(name)
 	if err == nil {
@@ -165,15 +167,15 @@ func (co *Compiler) setOrderByColName(ti sdata.DBTable, ob *OrderBy, node *graph
 	return nil
 }
 
-func compileOrderBy(sel *Select,
+func compileOrderBy(sel *qcode.Select,
 	keyVar, key string,
 	values [][2]string,
 	cm map[string]struct{},
 ) error {
-	obList := make([]OrderBy, 0, len(values))
+	obList := make([]qcode.OrderBy, 0, len(values))
 
 	for _, v := range values {
-		ob := OrderBy{KeyVar: keyVar, Key: key}
+		ob := qcode.OrderBy{KeyVar: keyVar, Key: key}
 		ob.Order, _ = toOrder(v[1])
 
 		col, err := sel.Ti.GetColumn(v[0])
@@ -212,7 +214,7 @@ func compileOrderBy(sel *Select,
 //     dev-authored like presets, and every variant compiles into the SQL
 //     regardless of which one the client's variable picks at runtime, so
 //     a per-role allowlist could only ever reject the whole feature.
-func (co *Compiler) validateOrderBy(qc *QCode, sel *Select) error {
+func (co *Compiler) validateOrderBy(qc *qcode.QCode, sel *qcode.Select) error {
 	for _, ob := range sel.OrderBy {
 		if ob.Alias != "" {
 			continue
@@ -248,7 +250,7 @@ func (co *Compiler) validateOrderBy(qc *QCode, sel *Select) error {
 // non-empty Alias must match a compiled field's FieldName; unmatched
 // aliases produce a compile-time error so the user sees the problem
 // up-front rather than getting a DB-side "column not found".
-func validateOrderByAliases(sel *Select) error {
+func validateOrderByAliases(sel *qcode.Select) error {
 	for i := range sel.OrderBy {
 		ob := &sel.OrderBy[i]
 		if ob.Alias == "" {
@@ -269,21 +271,21 @@ func validateOrderByAliases(sel *Select) error {
 	return nil
 }
 
-func toOrder(val string) (Order, error) {
+func toOrder(val string) (qcode.Order, error) {
 	switch val {
 	case "asc":
-		return OrderAsc, nil
+		return qcode.OrderAsc, nil
 	case "desc":
-		return OrderDesc, nil
+		return qcode.OrderDesc, nil
 	case "asc_nulls_first":
-		return OrderAscNullsFirst, nil
+		return qcode.OrderAscNullsFirst, nil
 	case "desc_nulls_first":
-		return OrderDescNullsFirst, nil
+		return qcode.OrderDescNullsFirst, nil
 	case "asc_nulls_last":
-		return OrderAscNullsLast, nil
+		return qcode.OrderAscNullsLast, nil
 	case "desc_nulls_last":
-		return OrderDescNullsLast, nil
+		return qcode.OrderDescNullsLast, nil
 	default:
-		return OrderAsc, fmt.Errorf("valid values include asc, desc, asc_nulls_first and desc_nulls_first")
+		return qcode.OrderAsc, fmt.Errorf("valid values include asc, desc, asc_nulls_first and desc_nulls_first")
 	}
 }

@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,12 +15,12 @@ import (
 func (co *Compiler) compileFields(
 	st *util.StackInt32,
 	op *graph.Operation,
-	qc *QCode,
-	sel *Select,
+	qc *qcode.QCode,
+	sel *qcode.Select,
 	field graph.Field,
 ) (err error) {
-	sel.Fields = make([]Field, 0, len(field.Children))
-	sel.BCols = make([]Column, 0, len(field.Children))
+	sel.Fields = make([]qcode.Field, 0, len(field.Children))
+	sel.BCols = make([]qcode.Column, 0, len(field.Children))
 
 	if sel.Rel.Type == sdata.RelDatabaseJoin {
 		co.compileDatabaseJoinPassthroughFields(st, op, sel, field)
@@ -56,7 +58,7 @@ func (co *Compiler) compileFields(
 	// of removeCacheTrackingField (called from compileChildColumns when
 	// aggregates are detected) and force a per-row GROUP BY, producing
 	// the broken.md degenerate result (20 rows of count_id:1).
-	if co.c.EnableCacheTracking && qc.Type == QTQuery && !sel.GroupCols {
+	if co.c.EnableCacheTracking && qc.Type == qcode.QTQuery && !sel.GroupCols {
 		co.addCacheTrackingField(sel)
 	}
 
@@ -66,7 +68,7 @@ func (co *Compiler) compileFields(
 func (co *Compiler) compileDatabaseJoinPassthroughFields(
 	st *util.StackInt32,
 	op *graph.Operation,
-	sel *Select,
+	sel *qcode.Select,
 	gf graph.Field,
 ) {
 	for _, cid := range gf.Children {
@@ -85,10 +87,10 @@ func (co *Compiler) compileDatabaseJoinPassthroughFields(
 		if f.Alias != "" {
 			fieldName = f.Alias
 		}
-		sel.Fields = append(sel.Fields, Field{
+		sel.Fields = append(sel.Fields, qcode.Field{
 			ID:        int32(len(sel.Fields)),
 			ParentID:  sel.ID,
-			Type:      FieldTypeCol,
+			Type:      qcode.FieldTypeCol,
 			FieldName: fieldName,
 			Col: sdata.DBColumn{
 				Name:     name,
@@ -103,15 +105,15 @@ func (co *Compiler) compileDatabaseJoinPassthroughFields(
 func (co *Compiler) compileChildColumns(
 	st *util.StackInt32,
 	op *graph.Operation,
-	qc *QCode,
-	sel *Select,
+	qc *qcode.QCode,
+	sel *qcode.Select,
 	gf graph.Field,
 ) (err error) {
 	var aggExists bool
 	var id int32
 
 	for _, cid := range gf.Children {
-		field := Field{ID: id, ParentID: sel.ID, Type: FieldTypeCol}
+		field := qcode.Field{ID: id, ParentID: sel.ID, Type: qcode.FieldTypeCol}
 		f := op.Fields[cid]
 
 		name := co.ParseName(f.Name)
@@ -152,7 +154,7 @@ func (co *Compiler) compileChildColumns(
 		}
 
 		var isCol, isFunc, fieldAgg bool
-		var fn Function
+		var fn qcode.Function
 
 		field.Col, isCol = sel.Ti.ColumnExists(name)
 
@@ -166,7 +168,7 @@ func (co *Compiler) compileChildColumns(
 		switch {
 		case isCol:
 		case isFunc:
-			field.Type = FieldTypeFunc
+			field.Type = qcode.FieldTypeFunc
 			field.Func = fn.Func
 			field.Args = fn.Args
 			field.WindowFunc = fn.WindowFunc
@@ -177,7 +179,7 @@ func (co *Compiler) compileChildColumns(
 			// For the new expression-aggregate path, run the AST validator.
 			// This enforces type-checks (numeric columns under arithmetic)
 			// and depth/node caps.
-			if len(fn.Args) == 1 && fn.Args[0].Type == ArgTypeExpr {
+			if len(fn.Args) == 1 && fn.Args[0].Type == qcode.ArgTypeExpr {
 				if err := validateExprTree(fn.Args[0].Expr, sel.Ti); err != nil {
 					return fmt.Errorf("field '%s': %w", name, err)
 				}
@@ -189,7 +191,7 @@ func (co *Compiler) compileChildColumns(
 		if err := co.compileFieldDirectives(sel, &field, f.Directives); err != nil {
 			return err
 		}
-		if field.WindowFunc != WindowFuncNone && field.Window == nil {
+		if field.WindowFunc != qcode.WindowFuncNone && field.Window == nil {
 			return fmt.Errorf("analytics function %q is internal; use GraphJin analytics directives like @previous, @rank, or @rowNumber on a column field", field.WindowFunc.String())
 		}
 
@@ -210,7 +212,7 @@ func (co *Compiler) compileChildColumns(
 				field.Col.Name)
 		}
 
-		if field.SkipRender == SkipTypeDrop {
+		if field.SkipRender == qcode.SkipTypeDrop {
 			continue
 		}
 
@@ -224,11 +226,11 @@ func (co *Compiler) compileChildColumns(
 			// recursive-select base-column injection is a workaround for the
 			// legacy single-column path; for the expression path, the
 			// caller is expected to use distinct + non-recursive selection.
-			if len(fn.Args) > 0 && fn.Args[0].Type == ArgTypeCol {
-				sel.addBaseCol(Column{Col: fn.Args[0].Col})
+			if len(fn.Args) > 0 && fn.Args[0].Type == qcode.ArgTypeCol {
+				selAddBaseCol(sel, qcode.Column{Col: fn.Args[0].Col})
 			}
 		}
-		sel.addField(field)
+		selAddField(sel, field)
 		id++
 	}
 
@@ -236,7 +238,7 @@ func (co *Compiler) compileChildColumns(
 		sel.GroupCols = true
 		// Remove injected __gj_id from BCols and Fields — including the
 		// primary key in GROUP BY makes every group unique (count always 1).
-		sel.removeCacheTrackingField()
+		selRemoveCacheTrackingField(sel)
 
 		// Detect the global-aggregate case: top-level selection consists
 		// ONLY of aggregate fields (no regular columns) and has no
@@ -269,7 +271,7 @@ func (co *Compiler) compileChildColumns(
 // and OpenAPI tables may serve fields their registered columns don't list.
 // Keyword selections (__typename, *_cursor) stay pass-through everywhere —
 // they are protocol fields, not columns.
-func validateRemoteField(sel *Select, name string) error {
+func validateRemoteField(sel *qcode.Select, name string) error {
 	if !sel.Ti.StrictColumns {
 		return nil
 	}
@@ -291,29 +293,29 @@ func validateRemoteField(sel *Select, name string) error {
 // (regular column) field. Used to distinguish global-aggregate selections
 // (only FieldTypeFunc fields) from mixed selections that need GROUP BY on
 // the regular columns.
-func hasNonAggField(fields []Field) bool {
+func hasNonAggField(fields []qcode.Field) bool {
 	for _, f := range fields {
-		if f.Type == FieldTypeCol {
+		if f.Type == qcode.FieldTypeCol {
 			return true
 		}
 	}
 	return false
 }
 
-func newArgs(sel *Select, f sdata.DBFunction, arg graph.Arg) (args []Arg, err error) {
+func newArgs(sel *qcode.Select, f sdata.DBFunction, arg graph.Arg) (args []qcode.Arg, err error) {
 	node := arg.Val
 	for i, argNode := range node.Children {
-		var a Arg
+		var a qcode.Arg
 		a, err = parseArg(argNode, f, i)
 		if err != nil {
 			return
 		}
 		switch argNode.Type {
 		case graph.NodeLabel:
-			a.Type = ArgTypeCol
+			a.Type = qcode.ArgTypeCol
 			a.Col, err = sel.Ti.GetColumn(argNode.Val)
 		case graph.NodeVar:
-			a.Type = ArgTypeVar
+			a.Type = qcode.ArgTypeVar
 			fallthrough
 		default:
 			a.Val = argNode.Val
@@ -326,7 +328,7 @@ func newArgs(sel *Select, f sdata.DBFunction, arg graph.Arg) (args []Arg, err er
 	return
 }
 
-func parseArg(arg *graph.Node, f sdata.DBFunction, index int) (a Arg, err error) {
+func parseArg(arg *graph.Node, f sdata.DBFunction, index int) (a qcode.Arg, err error) {
 	argName := arg.Name
 	if numArgKeyRe.MatchString(argName) {
 		var n int
@@ -340,7 +342,7 @@ func parseArg(arg *graph.Node, f sdata.DBFunction, index int) (a Arg, err error)
 			err = fmt.Errorf("db function %s: invalid key order: %s", f.Name, arg.Name)
 			return
 		}
-		a = Arg{DType: f.Inputs[n].Type}
+		a = qcode.Arg{DType: f.Inputs[n].Type}
 		return
 	}
 
@@ -349,11 +351,11 @@ func parseArg(arg *graph.Node, f sdata.DBFunction, index int) (a Arg, err error)
 	if err != nil {
 		err = fmt.Errorf("db function %s: %w", f.Name, err)
 	}
-	a = Arg{Name: arg.Name, DType: input.Type}
+	a = qcode.Arg{Name: arg.Name, DType: input.Type}
 	return
 }
 
-func (co *Compiler) addOrderByColumns(sel *Select) {
+func (co *Compiler) addOrderByColumns(sel *qcode.Select) {
 	for _, ob := range sel.OrderBy {
 		// Aggregate order-by (sum_price → ORDER BY SUM(price)) and
 		// SELECT-list-alias order-by (ORDER BY "revenue") never reference
@@ -364,11 +366,11 @@ func (co *Compiler) addOrderByColumns(sel *Select) {
 		if ob.IsFunc || ob.Alias != "" {
 			continue
 		}
-		sel.addBaseCol(Column{Col: ob.Col})
+		selAddBaseCol(sel, qcode.Column{Col: ob.Col})
 	}
 }
 
-func (co *Compiler) addColumns(qc *QCode, sel *Select) error {
+func (co *Compiler) addColumns(qc *qcode.QCode, sel *qcode.Select) error {
 	var rel sdata.DBRel
 
 	switch {
@@ -387,12 +389,12 @@ func (co *Compiler) addColumns(qc *QCode, sel *Select) error {
 	return nil
 }
 
-func (co *Compiler) AddRelColumns(qc *QCode, sel *Select, rel sdata.DBRel) error {
+func (co *Compiler) AddRelColumns(qc *qcode.QCode, sel *qcode.Select, rel sdata.DBRel) error {
 	return co.addRelColumns(qc, sel, rel)
 }
 
-func (co *Compiler) addRelColumns(qc *QCode, sel *Select, rel sdata.DBRel) error {
-	var psel *Select
+func (co *Compiler) addRelColumns(qc *qcode.QCode, sel *qcode.Select, rel sdata.DBRel) error {
+	var psel *qcode.Select
 
 	if sel.ParentID != -1 {
 		psel = &qc.Selects[sel.ParentID]
@@ -405,19 +407,19 @@ func (co *Compiler) addRelColumns(qc *QCode, sel *Select, rel sdata.DBRel) error
 		return nil
 
 	case sdata.RelOneToOne, sdata.RelOneToMany:
-		psel.addBaseCol(Column{Col: rel.Right.Col})
+		selAddBaseCol(psel, qcode.Column{Col: rel.Right.Col})
 		// Composite FK: add extra pair columns to parent's base columns
 		for _, pair := range rel.ExtraPairs {
-			psel.addBaseCol(Column{Col: pair.R})
+			selAddBaseCol(psel, qcode.Column{Col: pair.R})
 		}
 
 	case sdata.RelEmbedded:
-		psel.addBaseCol(Column{Col: rel.Right.Col})
+		selAddBaseCol(psel, qcode.Column{Col: rel.Right.Col})
 
 	case sdata.RelRemote:
-		f := Field{Type: FieldTypeCol, Col: rel.Right.Col, FieldName: rel.Left.Col.Name}
-		psel.addField(f)
-		sel.SkipRender = SkipTypeRemote
+		f := qcode.Field{Type: qcode.FieldTypeCol, Col: rel.Right.Col, FieldName: rel.Left.Col.Name}
+		selAddField(psel, f)
+		sel.SkipRender = qcode.SkipTypeRemote
 
 	case sdata.RelDatabaseJoin:
 		// Cross-database join: add the foreign key column to parent for ID extraction,
@@ -425,32 +427,32 @@ func (co *Compiler) addRelColumns(qc *QCode, sel *Select, rel sdata.DBRel) error
 		// Use a synthetic placeholder name (__%s_db_join) so it's unique and matches
 		// what databaseJoinFieldIds() searches for during result stitching.
 		placeholderName := fmt.Sprintf("__%s_db_join", sel.FieldName)
-		f := Field{Type: FieldTypeCol, Col: rel.Right.Col, FieldName: placeholderName}
-		psel.addField(f)
-		sel.SkipRender = SkipTypeDatabaseJoin
+		f := qcode.Field{Type: qcode.FieldTypeCol, Col: rel.Right.Col, FieldName: placeholderName}
+		selAddField(psel, f)
+		sel.SkipRender = qcode.SkipTypeDatabaseJoin
 		sel.Database = sel.Ti.Database
 
 	case sdata.RelPolymorphic:
 		typeCol := rel.Left.Col
 		typeCol.Name = rel.Left.Col.FKeyCol
 
-		psel.addBaseCol(Column{Col: rel.Left.Col})
-		psel.addBaseCol(Column{Col: typeCol})
+		selAddBaseCol(psel, qcode.Column{Col: rel.Left.Col})
+		selAddBaseCol(psel, qcode.Column{Col: typeCol})
 
 	case sdata.RelRecursive:
-		sel.addBaseCol(Column{Col: rel.Left.Col})
-		sel.addBaseCol(Column{Col: rel.Right.Col})
+		selAddBaseCol(sel, qcode.Column{Col: rel.Left.Col})
+		selAddBaseCol(sel, qcode.Column{Col: rel.Right.Col})
 	}
 	return nil
 }
 
-func (co *Compiler) orderByIDCol(sel *Select) error {
+func (co *Compiler) orderByIDCol(sel *qcode.Select) error {
 	if sel.Ti.PrimaryCol.Name == "" {
 		return fmt.Errorf("table requires primary key: %s", sel.Ti.Name)
 	}
 
 	for _, pkCol := range sel.Ti.PrimaryCols {
-		sel.addBaseCol(Column{Col: pkCol})
+		selAddBaseCol(sel, qcode.Column{Col: pkCol})
 
 		already := false
 		for _, ob := range sel.OrderBy {
@@ -460,64 +462,14 @@ func (co *Compiler) orderByIDCol(sel *Select) error {
 			}
 		}
 		if !already {
-			sel.OrderBy = append(sel.OrderBy, OrderBy{Col: pkCol, Order: sel.order})
+			sel.OrderBy = append(sel.OrderBy, qcode.OrderBy{Col: pkCol, Order: sel.Order})
 		}
 	}
 	return nil
 }
 
-func (sel *Select) addField(f Field) {
-	if f.Type == FieldTypeCol && sel.bcolExists(f.Col.Name) == -1 {
-		sel.BCols = append(sel.BCols, Column{Col: f.Col, FieldName: f.FieldName})
-	}
-	if sel.fieldExists(f.FieldName) == -1 {
-		sel.Fields = append(sel.Fields, f)
-	}
-}
-
-func (sel *Select) addBaseCol(col Column) {
-	if sel.bcolExists(col.Col.Name) == -1 {
-		sel.BCols = append(sel.BCols, col)
-	}
-}
-
-// removeCacheTrackingField strips the __gj_id column injected by
-// addCacheTrackingField. When aggregation functions are present the PK
-// must not appear in SELECT or GROUP BY — otherwise every group is
-// unique and counts are always 1. This applies to all database dialects.
-func (sel *Select) removeCacheTrackingField() {
-	for i := len(sel.BCols) - 1; i >= 0; i-- {
-		if sel.BCols[i].FieldName == "__gj_id" {
-			sel.BCols = append(sel.BCols[:i], sel.BCols[i+1:]...)
-		}
-	}
-	for i := len(sel.Fields) - 1; i >= 0; i-- {
-		if sel.Fields[i].FieldName == "__gj_id" {
-			sel.Fields = append(sel.Fields[:i], sel.Fields[i+1:]...)
-		}
-	}
-}
-
-func (sel *Select) fieldExists(name string) int {
-	for i, c := range sel.Fields {
-		if strings.EqualFold(c.FieldName, name) {
-			return i
-		}
-	}
-	return -1
-}
-
-func (sel *Select) bcolExists(name string) int {
-	for i, c := range sel.BCols {
-		if strings.EqualFold(c.Col.Name, name) {
-			return i
-		}
-	}
-	return -1
-}
-
 // addCacheTrackingField injects __gj_id field with primary key for cache row tracking
-func (co *Compiler) addCacheTrackingField(sel *Select) {
+func (co *Compiler) addCacheTrackingField(sel *qcode.Select) {
 	// Skip if table has no primary key
 	pk := sel.Ti.PrimaryCol
 	if pk.Name == "" {
@@ -534,17 +486,17 @@ func (co *Compiler) addCacheTrackingField(sel *Select) {
 	// For single PK, skip if PK column is already requested
 	if !sel.Ti.HasCompositePK() {
 		for _, f := range sel.Fields {
-			if f.Type == FieldTypeCol && strings.EqualFold(f.Col.Name, pk.Name) {
+			if f.Type == qcode.FieldTypeCol && strings.EqualFold(f.Col.Name, pk.Name) {
 				return
 			}
 		}
 	}
 
 	// Add the injected field (uses first PK column; cache_response.go extracts the value)
-	field := Field{
+	field := qcode.Field{
 		ID:        int32(len(sel.Fields)),
 		ParentID:  sel.ID,
-		Type:      FieldTypeCol,
+		Type:      qcode.FieldTypeCol,
 		Col:       pk,
 		FieldName: "__gj_id",
 	}
@@ -553,8 +505,60 @@ func (co *Compiler) addCacheTrackingField(sel *Select) {
 
 	// Also add all PK columns to base columns
 	for _, pkCol := range sel.Ti.PrimaryCols {
-		if sel.bcolExists(pkCol.Name) == -1 {
-			sel.BCols = append(sel.BCols, Column{Col: pkCol, FieldName: "__gj_id"})
+		if selBColExists(sel, pkCol.Name) == -1 {
+			sel.BCols = append(sel.BCols, qcode.Column{Col: pkCol, FieldName: "__gj_id"})
 		}
 	}
+}
+
+// Frontend helpers over the IR Select. They live here rather than as
+// methods because the IR type lives in core/qcode.
+func selAddField(sel *qcode.Select, f qcode.Field) {
+	if f.Type == qcode.FieldTypeCol && selBColExists(sel, f.Col.Name) == -1 {
+		sel.BCols = append(sel.BCols, qcode.Column{Col: f.Col, FieldName: f.FieldName})
+	}
+	if selFieldExists(sel, f.FieldName) == -1 {
+		sel.Fields = append(sel.Fields, f)
+	}
+}
+
+func selAddBaseCol(sel *qcode.Select, col qcode.Column) {
+	if selBColExists(sel, col.Col.Name) == -1 {
+		sel.BCols = append(sel.BCols, col)
+	}
+}
+
+// selRemoveCacheTrackingField strips the __gj_id column injected by
+// addCacheTrackingField. When aggregation functions are present the PK
+// must not appear in SELECT or GROUP BY — otherwise every group is
+// unique and counts are always 1. This applies to all database dialects.
+func selRemoveCacheTrackingField(sel *qcode.Select) {
+	for i := len(sel.BCols) - 1; i >= 0; i-- {
+		if sel.BCols[i].FieldName == "__gj_id" {
+			sel.BCols = append(sel.BCols[:i], sel.BCols[i+1:]...)
+		}
+	}
+	for i := len(sel.Fields) - 1; i >= 0; i-- {
+		if sel.Fields[i].FieldName == "__gj_id" {
+			sel.Fields = append(sel.Fields[:i], sel.Fields[i+1:]...)
+		}
+	}
+}
+
+func selFieldExists(sel *qcode.Select, name string) int {
+	for i, c := range sel.Fields {
+		if strings.EqualFold(c.FieldName, name) {
+			return i
+		}
+	}
+	return -1
+}
+
+func selBColExists(sel *qcode.Select, name string) int {
+	for i, c := range sel.BCols {
+		if strings.EqualFold(c.Col.Name, name) {
+			return i
+		}
+	}
+	return -1
 }

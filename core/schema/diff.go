@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
@@ -32,7 +32,7 @@ type SchemaOperation struct {
 // SchemaDiff computes the SQL statements needed to sync the database with the schema file
 func SchemaDiff(db *sql.DB, dbType string, schemaBytes []byte, blocklist []string, opts DiffOptions) ([]SchemaOperation, error) {
 	// Parse the schema file
-	ds, err := qcode.ParseSchema(schemaBytes)
+	ds, err := graphql.ParseSchema(schemaBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse schema: %w", err)
 	}
@@ -91,7 +91,7 @@ type TemporalColumn struct {
 // refresher find date-bearing columns without live schema discovery, which
 // stays accurate on engines like SQLite that store temporal values as TEXT.
 func SchemaDDLTemporalColumns(schemaBytes []byte) (map[string][]TemporalColumn, error) {
-	ds, err := qcode.ParseSchema(schemaBytes)
+	ds, err := graphql.ParseSchema(schemaBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse schema: %w", err)
 	}
@@ -118,7 +118,7 @@ func SchemaDDLTemporalColumns(schemaBytes []byte) (map[string][]TemporalColumn, 
 // a live database. It is intended for local simulators and generated fixtures;
 // live migration support is still gated by SupportsSchemaDDL.
 func GenerateSchemaSQL(dbType string, schemaBytes []byte, blocklist []string) ([]string, error) {
-	ds, err := qcode.ParseSchema(schemaBytes)
+	ds, err := graphql.ParseSchema(schemaBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse schema: %w", err)
 	}
@@ -470,7 +470,7 @@ func SchemaDiffMultiDB(
 	opts DiffOptions,
 ) (map[string][]SchemaOperation, error) {
 	// Parse the schema file
-	ds, err := qcode.ParseSchema(schemaBytes)
+	ds, err := graphql.ParseSchema(schemaBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse schema: %w", err)
 	}
@@ -572,7 +572,7 @@ func clusteringKeysEqual(a, b []string) bool {
 }
 
 // attachClusteringKeys assigns parsed @cluster directive data to the matching DBTable entries.
-func attachClusteringKeys(di *sdata.DBInfo, clusters []qcode.TableCluster, defaultSchema, dbType string) {
+func attachClusteringKeys(di *sdata.DBInfo, clusters []graphql.TableCluster, defaultSchema, dbType string) {
 	for _, ck := range clusters {
 		schema := ck.Schema
 		if schema == "" {

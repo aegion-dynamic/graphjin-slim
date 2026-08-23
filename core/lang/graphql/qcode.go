@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/util"
 )
@@ -23,488 +24,16 @@ const (
 
 var qualifiedGraphQLRootPattern = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\s*[({]`)
 
-type QType int8
-
-const (
-	QTUnknown      QType = iota // Unknown
-	QTQuery                     // Query
-	QTSubscription              // Subscription
-	QTMutation                  // Mutation
-	QTInsert                    // Insert
-	QTUpdate                    // Update
-	QTDelete                    // Delete
-	QTUpsert                    // Upsert
-)
-
-type SelType int8
-
-const (
-	SelTypeNone SelType = iota
-	SelTypeUnion
-	SelTypeMember
-)
-
-type SkipType int8
-
-const (
-	SkipTypeNone SkipType = iota
-	SkipTypeDrop
-	SkipTypeNulled
-	SkipTypeRemote
-	// SkipTypeDatabaseJoin indicates this select targets a different database
-	// and needs to be handled via cross-database join (similar to remote join
-	// but for in-process database calls rather than HTTP)
-	SkipTypeDatabaseJoin
-)
-
-type ColKey struct {
-	Name string
-	Base bool
-}
-
-type QCode struct {
-	Type      QType
-	SType     QType
-	Name      string
-	ActionVar string
-	ActionVal json.RawMessage
-	Vars      []Var
-	Selects   []Select
-	Consts    []Constraint
-	Roots     []int32
-	rootsA    [5]int32
-	Mutates   []Mutate
-	MUnions   map[string][]int32
-	Schema    *sdata.DBSchema
-	Remotes   int32
-	Cache     Cache
-	Typename  bool
-	Query     []byte
-	Fragments []Fragment
-	Warnings  []string // Non-fatal warnings (e.g., missing partition filter)
-	// InsertConflictAction is set for insert(..., on_conflict: get).
-	// It remains part of the insert operation rather than introducing a
-	// separate mutation type.
-	InsertConflictAction ConflictAction
-	// InsertConflictFallback is set by the SQL compiler when the selected
-	// backend needs the retryable select-after-insert fallback.
-	InsertConflictFallback bool
-	actionArg              graph.Arg
-	actionArgs                 map[string]graph.Arg
-}
-
-type Fragment struct {
-	Name  string
-	Value []byte
-}
-
-type Select struct {
-	Field
-	Type     SelType
-	Singular bool
-	Typename bool
-	Table    string
-	Schema   string
-	// Database is the target database for this select (multi-database support).
-	// Empty string means the default database.
-	Database   string
-	Fields     []Field
-	BCols      []Column
-	IArgs      []Arg
-	Where      Filter
-	OrderBy    []OrderBy
-	DistinctOn []sdata.DBColumn
-	GroupCols  bool
-	// GlobalAgg is true when this select uses aggregate functions
-	// without `distinct` — i.e. the entire selection collapses to a
-	// single row of global aggregates. Set in compileChildColumns
-	// when aggExists && len(DistinctOn) == 0 && this is the top-level
-	// select. Drives outer SELECT to skip __gj_id, BCols rendering to
-	// emit nothing, and LIMIT to be omitted (a single row is the entire
-	// result). Without this flag, the existing render path would emit
-	// `LIMIT 20` and produce 20 degenerate per-row rows of aggregates
-	// (the bug captured in broken.md).
-	GlobalAgg bool
-	Paging    Paging
-	Children  []int32
-	Ti        sdata.DBTable
-	Rel       sdata.DBRel
-	// ExtraArgs holds GraphQL field arguments that don't match a known
-	// qcode arg name. Populated only for selects whose Ti.Type=="remote".
-	ExtraArgs               map[string]string
-	Joins                   []Join
-	PartitionFilterRequired string
-	Unrestricted            bool
-	order                   Order
-	through                 string
-	throughKind             string
-	tc                      TConfig
-}
-
-type Validation struct {
-	Source string
-	Type   string
-}
-
-type Script struct {
-	Source string
-	Name   string
-}
-
-type TableInfo struct {
-	sdata.DBTable
-}
-
-type FieldType int8
-
-const (
-	FieldTypeTable FieldType = iota
-	FieldTypeCol
-	FieldTypeFunc
-)
-
-type Field struct {
-	ID          int32
-	ParentID    int32
-	Type        FieldType
-	Col         sdata.DBColumn
-	Func        sdata.DBFunction
-	WindowFunc  WindowFunc
-	FieldName   string
-	FieldFilter Filter
-	Args        []Arg
-	SkipRender  SkipType
-	// Window, when non-nil, marks this aggregate/function field as backend
-	// analytic-window IR. The SQL emitter wraps the function call with
-	// `OVER (PARTITION BY ... ORDER BY ... <frame>)`. Public GraphQL builds this
-	// through analytics directives like @running, @previous, and @rank.
-	Window *WindowSpec
-}
-
-type Column struct {
-	Col         sdata.DBColumn
-	FieldFilter Filter
-	FieldName   string
-}
-
-type Function struct {
-	Name string
-	// Col       sdata.DBColumn
-	Func       sdata.DBFunction
-	Args       []Arg
-	Agg        bool
-	WindowFunc WindowFunc
-}
-
-type Filter struct {
-	*Exp
-}
-
-type Exp struct {
-	Op    ExpOp
-	Joins []Join
-	Order
-	OrderBy bool
-
-	Left struct {
-		ID      int32
-		Table   string
-		Col     sdata.DBColumn
-		ColName string
-		Path    []string
-	}
-	Right struct {
-		ValType  ValType
-		Val      string
-		ID       int32
-		Table    string
-		Col      sdata.DBColumn
-		ColName  string
-		ListType ValType
-		ListVal  []string
-		Path     []string
-		RelPath  []sdata.DBRel // set when Right.Col lives on a related table
-	}
-	Geo       *GeoExp // GIS-specific expression data
-	Children  []*Exp
-	childrenA [5]*Exp
-
-	// Scalar-expression payloads (set only for the corresponding Op).
-	// These are unused for boolean/comparison ops; keeping them inline
-	// avoids allocating a separate struct per leaf node.
-	Lit      ExpLit    // OpLiteral
-	CaseArms []CaseArm // OpCase
-	Else     *Exp      // OpCase ELSE branch (optional)
-	CastType string    // OpCast — target SQL type
-	RelPath  []sdata.DBRel
-	//                     // OpColRef: populated when the column lives on a
-	//                     //           related table reached through 1+ FK hops
-	//                     //           (e.g. "product.standardcost" from a
-	//                     //           salesorderdetail query may be a direct
-	//                     //           hop or a chain through an association
-	//                     //           table). The renderer emits one nested
-	//                     //           correlated subquery per hop. Every hop
-	//                     //           must be RelOneToOne (scalar lookup);
-	//                     //           one-to-many dereference is rejected at
-	//                     //           compile time because a scalar expression
-	//                     //           can't consume a list.
-}
-
-// ExpLit is a literal scalar value used by OpLiteral leaves.
-type ExpLit struct {
-	Val     string
-	ValType ValType
-}
-
-// CaseArm is a single WHEN/THEN pair inside an OpCase node.
-// When is a boolean sub-tree (rendered via the existing renderExp);
-// Then is a scalar sub-tree (rendered via renderScalarExp).
-type CaseArm struct {
-	When *Exp
-	Then *Exp
-}
-
-type Join struct {
-	Filter *Exp
-	Rel    sdata.DBRel
-	Local  bool
-}
-
-type ArgType int8
-
-const (
-	ArgTypeVal ArgType = iota
-	ArgTypeVar
-	ArgTypeCol
-	ArgTypeExpr // scalar expression tree — Arg.Expr holds the *Exp root
-)
-
-type Arg struct {
-	Type  ArgType
-	DType string
-	Name  string
-	Val   string
-	Col   sdata.DBColumn
-	Expr  *Exp // populated when Type == ArgTypeExpr
-}
-
-type OrderBy struct {
-	KeyVar string
-	Key    string
-	Col    sdata.DBColumn
-	Var    string
-	Order  Order
-	Func   sdata.DBFunction
-	IsFunc bool
-	// Alias is set when the user ordered by a SELECT-list alias rather
-	// than a column name (e.g. order_by: { revenue: desc } where
-	// `revenue` is an expression aggregate field's alias). The validator
-	// confirms the alias resolves to a compiled field after
-	// compileChildColumns runs; the renderer emits a bare quoted alias
-	// (ORDER BY "revenue" DESC), which all 7 SQL dialects accept.
-	Alias string
-}
-
-type PagingType int8
-
-const (
-	PTOffset PagingType = iota
-	PTForward
-	PTBackward
-)
-
-type Paging struct {
-	Type      PagingType
-	LimitVar  string
-	Limit     int32
-	OffsetVar string
-	Offset    int32
-	Cursor    bool
-	CursorVar string // "cursor" or "<fieldname>_cursor" for named cursor pagination
-	Backward  bool   // true when the query uses last
-	NoLimit   bool
-}
-
-type Cache struct {
-	Header string
-}
-
-type Var struct {
-	Name string
-	Val  json.RawMessage
-}
-
-type ExpOp int8
-
-const (
-	OpNop ExpOp = iota
-	OpAnd
-	OpOr
-	OpNot
-	OpEquals
-	OpNotEquals
-	OpGreaterOrEquals
-	OpLesserOrEquals
-	OpGreaterThan
-	OpLesserThan
-	OpIn
-	OpNotIn
-	OpLike
-	OpNotLike
-	OpILike
-	OpNotILike
-	OpSimilar
-	OpNotSimilar
-	OpRegex
-	OpNotRegex
-	OpIRegex
-	OpNotIRegex
-	OpContains
-	OpContainedIn
-	OpHasInCommon
-	OpHasKey
-	OpHasKeyAny
-	OpHasKeyAll
-	OpIsNull
-	OpIsNotNull
-	OpTsQuery
-	OpFalse
-	OpNotDistinct
-	OpDistinct
-	OpEqualsTrue
-	OpNotEqualsTrue
-	OpSelectExists
-	OpJSONPath     // JSON path operator (->)
-	OpJSONPathText // JSON path text operator (->>)
-
-	// GIS/Spatial operators
-	OpGeoDistance   // ST_DWithin - distance-based filtering
-	OpGeoWithin     // ST_Within - geometry A within B
-	OpGeoContains   // ST_Contains - geometry A contains B
-	OpGeoIntersects // ST_Intersects - geometries intersect
-	OpGeoCoveredBy  // ST_CoveredBy - geometry A covered by B
-	OpGeoCovers     // ST_Covers - geometry A covers B
-	OpGeoTouches    // ST_Touches - geometries touch at boundary
-	OpGeoOverlaps   // ST_Overlaps - geometries overlap
-	OpGeoNear       // MongoDB $near / $nearSphere
-
-	// Scalar arithmetic operators — used inside aggregate expressions
-	// (e.g. SUM(unitprice * orderqty)). These never appear in WHERE
-	// predicates; the validator in qcode/expr.go rejects them outside
-	// expression trees. Keeping them in the same ExpOp enum lets the
-	// existing Children/Left/Right machinery and dialect rendering be
-	// reused. Discipline: arithmetic ops only have arithmetic children,
-	// boolean ops only have boolean children, with the bridge being
-	// CaseArm.When (boolean) → CaseArm.Then (scalar).
-	OpAdd      // a + b (variadic)
-	OpSub      // a - b (variadic; subtracts left-to-right)
-	OpMul      // a * b (variadic)
-	OpDiv      // a / b (binary)
-	OpMod      // a % b (binary)
-	OpNeg      // -a    (unary)
-	OpCoalesce // COALESCE(a, b, ...)
-	OpNullIf   // NULLIF(a, b)
-	OpCase     // CASE WHEN ... THEN ... ELSE ... END (uses CaseArms + Else)
-	OpCast     // CAST(a AS type) — uses CastType
-	OpLiteral  // numeric/string/bool literal — uses Lit
-	OpColRef   // column reference leaf — uses Left.Col
-
-	// Aggregate-of-expression ops — only legal at the top level of a
-	// non-aggregate's expr: argument, used for ratio-of-aggregates
-	// (e.g. div(expr: { num_: { sum: { col: ... } }, den: ... })).
-	OpAggSum
-	OpAggAvg
-	OpAggMin
-	OpAggMax
-	OpAggCount
-)
-
-type ValType int8
-
-const (
-	ValStr ValType = iota + 1
-	ValNum
-	ValBool
-	ValList
-	ValObj
-	ValVar
-	ValDBVar
-	ValSubQuery
-	ValPartitionBound // Renders as NOW() - INTERVAL N days (dialect-specific)
-	ValRef
-)
-
-// GeoUnit represents distance units for GIS operations
-type GeoUnit int8
-
-const (
-	GeoUnitMeters GeoUnit = iota
-	GeoUnitKilometers
-	GeoUnitMiles
-	GeoUnitFeet
-)
-
-// ToMeters converts a distance value to meters based on the unit
-func (u GeoUnit) ToMeters(val float64) float64 {
-	switch u {
-	case GeoUnitKilometers:
-		return val * 1000
-	case GeoUnitMiles:
-		return val * 1609.344
-	case GeoUnitFeet:
-		return val * 0.3048
-	default:
-		return val
-	}
-}
-
-// GeoExp holds GIS-specific expression data
-type GeoExp struct {
-	// Geometry specification (one of these will be set)
-	Point   []float64   // [longitude, latitude] for point
-	Polygon [][]float64 // Array of [lon, lat] pairs for polygon ring
-	GeoJSON []byte      // Full GeoJSON geometry object
-
-	// Operation parameters
-	Distance    float64 // Distance value for st_dwithin
-	DistanceVar string  // Variable name for distance if parameterized
-	Unit        GeoUnit // Distance unit (meters, km, miles, feet)
-	SRID        int     // Spatial Reference ID (default 4326 = WGS84)
-
-	// For MongoDB
-	MinDistance float64 // $minDistance for $near
-	Spherical   bool    // Use spherical calculations
-}
-
-type AggregrateOp int8
-
-const (
-	AgCount AggregrateOp = iota + 1
-	AgSum
-	AgAvg
-	AgMax
-	AgMin
-)
-
-type Order int8
-
-const (
-	OrderNone Order = iota
-	OrderAsc
-	OrderDesc
-	OrderAscNullsFirst
-	OrderAscNullsLast
-	OrderDescNullsFirst
-	OrderDescNullsLast
-)
-
-func (o Order) String() string {
-	return []string{"None", "ASC", "DESC", "ASC NULLS FIRST", "ASC NULLS LAST", "DESC NULLLS FIRST", "DESC NULLS LAST"}[o]
-}
-
 type Compiler struct {
 	c Config
 	s *sdata.DBSchema
+
+	// Per-compile scratch: mutation parse output and tree-building
+	// state that backends never observe.
+	actionArgs map[string]graph.Arg
+	actionArg  graph.Arg
+	rootsA     [5]int32
+	mutMeta    map[int32]*mutItem
 }
 
 func NewCompiler(s *sdata.DBSchema, c Config) (*Compiler, error) {
@@ -521,7 +50,7 @@ func (co *Compiler) Compile(
 	query []byte,
 	vmap map[string]json.RawMessage,
 	namespace string,
-) (qc *QCode, err error) {
+) (qc *qcode.QCode, err error) {
 	var op graph.Operation
 	op, err = graph.Parse(query)
 	if err != nil {
@@ -535,34 +64,34 @@ func (co *Compiler) Compile(
 		return nil, qualifiedErr
 	}
 
-	qc = &QCode{
+	qc = &qcode.QCode{
 		Name:      op.Name,
-		SType:     QTQuery,
+		SType:     qcode.QTQuery,
 		Schema:    co.s,
 		Query:     op.Query,
-		Fragments: make([]Fragment, len(op.Frags)),
-		Vars:      make([]Var, len(op.VarDef)),
+		Fragments: make([]qcode.Fragment, len(op.Frags)),
+		Vars:      make([]qcode.Var, len(op.VarDef)),
 	}
 
 	for i, f := range op.Frags {
-		qc.Fragments[i] = Fragment{Name: f.Name, Value: f.Value}
+		qc.Fragments[i] = qcode.Fragment{Name: f.Name, Value: f.Value}
 	}
 
 	var buf bytes.Buffer
 	for i, v := range op.VarDef {
 		graphNodeToJSON(v.Val, &buf)
-		qc.Vars[i] = Var{Name: v.Name, Val: buf.Bytes()}
+		qc.Vars[i] = qcode.Var{Name: v.Name, Val: buf.Bytes()}
 		buf.Reset()
 	}
 
-	qc.Roots = qc.rootsA[:0]
+	qc.Roots = co.rootsA[:0]
 	qc.Type = GetQType(op.Type)
 
 	if err = co.compileQuery(qc, &op); err != nil {
 		return
 	}
 
-	if qc.Type == QTMutation {
+	if qc.Type == qcode.QTMutation {
 		if err = co.compileMutation(qc, vmap); err != nil {
 			return
 		}
@@ -585,7 +114,7 @@ func qualifiedGraphQLRootError(query []byte, parseErr error) error {
 	return fmt.Errorf("invalid GraphQL root %q: %s", qualified, message)
 }
 
-func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation) error {
+func (co *Compiler) compileQuery(qc *qcode.QCode, op *graph.Operation) error {
 	var id int32
 
 	if len(op.Fields) == 0 {
@@ -601,7 +130,7 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation) error {
 		return err
 	}
 
-	qc.Selects = make([]Select, 0, 5)
+	qc.Selects = make([]qcode.Select, 0, 5)
 	st := util.NewStackInt32()
 
 	if len(op.Fields) == 0 {
@@ -643,8 +172,8 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation) error {
 			parentID = -1
 		}
 
-		s1 := Select{
-			Field: Field{ID: id, ParentID: parentID, Type: FieldTypeTable},
+		s1 := qcode.Select{
+			Field: qcode.Field{ID: id, ParentID: parentID, Type: qcode.FieldTypeTable},
 		}
 
 		sel := &s1
@@ -663,10 +192,10 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation) error {
 			return err
 		}
 
-		if parentID != -1 && int(parentID) < len(qc.Selects) && qc.Selects[parentID].SkipRender == SkipTypeDatabaseJoin {
+		if parentID != -1 && int(parentID) < len(qc.Selects) && qc.Selects[parentID].SkipRender == qcode.SkipTypeDatabaseJoin {
 			psel := &qc.Selects[parentID]
 			psel.Children = append(psel.Children, sel.ID)
-			sel.SkipRender = SkipTypeDatabaseJoin
+			sel.SkipRender = qcode.SkipTypeDatabaseJoin
 			sel.Database = psel.Database
 			sel.Table = name
 			sel.Ti = sdata.DBTable{Name: name, Database: psel.Database}
@@ -731,7 +260,7 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation) error {
 				}
 
 				// Set filter chain needed to make the cursor work
-				if sel.Paging.Type != PTOffset {
+				if sel.Paging.Type != qcode.PTOffset {
 					co.addSeekPredicate(sel)
 				}
 			}
@@ -770,7 +299,7 @@ func (co *Compiler) compileQuery(qc *QCode, op *graph.Operation) error {
 // Semantically the query is ambiguous — many join-key values per group —
 // so silent SQL emission would be wrong even if it executed. The right
 // shape for "metric by dimension" is to root at the dimension table.
-func validateGroupByJoinShape(qc *QCode) error {
+func validateGroupByJoinShape(qc *qcode.QCode) error {
 	for i := range qc.Selects {
 		child := &qc.Selects[i]
 		if child.ParentID == -1 {
@@ -823,11 +352,11 @@ func validateGroupByJoinShape(qc *QCode) error {
 func (co *Compiler) addRelInfo(
 	name string,
 	op *graph.Operation,
-	qc *QCode,
-	sel *Select,
+	qc *qcode.QCode,
+	sel *qcode.Select,
 	field graph.Field,
 ) error {
-	var psel *Select
+	var psel *qcode.Select
 	var childF, parentF graph.Field
 	var err error
 
@@ -843,7 +372,7 @@ func (co *Compiler) addRelInfo(
 
 	switch field.Type {
 	case graph.FieldUnion:
-		sel.Type = SelTypeUnion
+		sel.Type = qcode.SelTypeUnion
 		if psel == nil {
 			return fmt.Errorf("union types are only valid with polymorphic relationships")
 		}
@@ -853,7 +382,7 @@ func (co *Compiler) addRelInfo(
 		// if sel.Table != sel.Table {
 		// 	return fmt.Errorf("inline fragment: 'on %s' should be 'on %s'", sel.Table, sel.Table)
 		// }
-		sel.Type = SelTypeMember
+		sel.Type = qcode.SelTypeMember
 		sel.Singular = psel.Singular
 
 		childF = parentF
@@ -867,13 +396,13 @@ func (co *Compiler) addRelInfo(
 		childName := co.ParseName(childF.Name)
 
 		var path []sdata.TPath
-		if sel.throughKind == "column" {
-			path, err = co.FindPathByColumn(childName, parentName, sel.through)
+		if sel.ThroughKind == "column" {
+			path, err = co.FindPathByColumn(childName, parentName, sel.Through)
 		} else {
-			path, err = co.FindPath(childName, parentName, sel.through)
+			path, err = co.FindPath(childName, parentName, sel.Through)
 		}
 		if err != nil {
-			return graphError(err, childName, parentName, sel.through)
+			return graphError(err, childName, parentName, sel.Through)
 		}
 		sel.Rel = sdata.PathToRel(path[0])
 
@@ -901,7 +430,7 @@ func (co *Compiler) addRelInfo(
 			} else {
 				pid = -1
 			}
-			sel.Joins = append(sel.Joins, Join{
+			sel.Joins = append(sel.Joins, qcode.Join{
 				Rel:    rel,
 				Filter: buildFilter(rel, pid),
 			})
@@ -924,7 +453,7 @@ func (co *Compiler) addRelInfo(
 
 	if sel.ParentID == -1 && sel.Ti.Type == "remote" && sel.Ti.PrimaryCol.FKeyTable == "" {
 		sel.Rel = sdata.DBRel{Type: sdata.RelRemote}
-		sel.SkipRender = SkipTypeRemote
+		sel.SkipRender = qcode.SkipTypeRemote
 	}
 
 	if sel.Ti.Blocked {
@@ -932,7 +461,7 @@ func (co *Compiler) addRelInfo(
 	}
 
 	sel.Table = sel.Ti.Name
-	sel.tc = co.getTConfig(sel.Ti.Schema, sel.Ti.Name)
+	sel.TC = co.getTConfig(sel.Ti.Schema, sel.Ti.Name)
 
 	if sel.Rel.Type == sdata.RelRemote {
 		sel.Table = name
@@ -944,7 +473,7 @@ func (co *Compiler) addRelInfo(
 	return nil
 }
 
-func (co *Compiler) setRelFilters(qc *QCode, sel *Select) {
+func (co *Compiler) setRelFilters(qc *qcode.QCode, sel *qcode.Select) {
 	rel := sel.Rel
 	pid := sel.ParentID
 
@@ -961,28 +490,28 @@ func (co *Compiler) setRelFilters(qc *QCode, sel *Select) {
 
 	case sdata.RelPolymorphic:
 		pid = qc.Selects[sel.ParentID].ParentID
-		ex := newExpOp(OpAnd)
+		ex := newExpOp(qcode.OpAnd)
 
-		ex1 := newExpOp(OpEquals)
+		ex1 := newExpOp(qcode.OpEquals)
 		ex1.Left.Table = sel.Ti.Name
 		ex1.Left.Col = rel.Right.Col
 		ex1.Right.ID = pid
 		ex1.Right.Col = rel.Left.Col
 
-		ex2 := newExpOp(OpEquals)
+		ex2 := newExpOp(qcode.OpEquals)
 		ex2.Left.ID = pid
 		ex2.Left.Col.Table = rel.Left.Col.Table
 		ex2.Left.Col.Name = rel.Left.Col.FKeyCol
-		ex2.Right.ValType = ValStr
+		ex2.Right.ValType = qcode.ValStr
 		ex2.Right.Val = sel.Ti.Name
 
-		ex.Children = []*Exp{ex1, ex2}
+		ex.Children = []*qcode.Exp{ex1, ex2}
 		addAndFilter(&sel.Where, ex)
 
 	case sdata.RelRecursive:
 		rcte := "__rcte_" + rel.Right.Ti.Name
-		ex := newExpOp(OpAnd)
-		ex1 := newExpOp(OpIsNotNull)
+		ex := newExpOp(qcode.OpAnd)
+		ex1 := newExpOp(qcode.OpIsNotNull)
 		ex2 := newExp()
 		ex3 := newExp()
 
@@ -993,37 +522,37 @@ func (co *Compiler) setRelFilters(qc *QCode, sel *Select) {
 			ex1.Left.Col = rel.Left.Col
 			switch {
 			case !rel.Left.Col.Array && rel.Right.Col.Array:
-				ex2.Op = OpNotIn
+				ex2.Op = qcode.OpNotIn
 				ex2.Left.Table = rcte
 				ex2.Left.Col = rel.Left.Col
 				ex2.Right.Table = rcte
 				ex2.Right.Col = rel.Right.Col
 
-				ex3.Op = OpIn
+				ex3.Op = qcode.OpIn
 				ex3.Left.Table = rcte
 				ex3.Left.Col = rel.Left.Col
 				ex3.Right.Col = rel.Right.Col
 
 			case rel.Left.Col.Array && !rel.Right.Col.Array:
-				ex2.Op = OpNotIn
+				ex2.Op = qcode.OpNotIn
 				ex2.Left.Table = rcte
 				ex2.Left.Col = rel.Right.Col
 				ex2.Right.Table = rcte
 				ex2.Right.Col = rel.Left.Col
 
-				ex3.Op = OpIn
+				ex3.Op = qcode.OpIn
 				ex3.Left.Col = rel.Right.Col
 				ex3.Right.Table = rcte
 				ex3.Right.Col = rel.Left.Col
 
 			default:
-				ex2.Op = OpNotEquals
+				ex2.Op = qcode.OpNotEquals
 				ex2.Left.Table = rcte
 				ex2.Left.Col = rel.Left.Col
 				ex2.Right.Table = rcte
 				ex2.Right.Col = rel.Right.Col
 
-				ex3.Op = OpEquals
+				ex3.Op = qcode.OpEquals
 				ex3.Left.Col = rel.Right.Col
 				ex3.Right.Table = rcte
 				ex3.Right.Col = rel.Left.Col
@@ -1033,38 +562,38 @@ func (co *Compiler) setRelFilters(qc *QCode, sel *Select) {
 			ex1.Left.Col = rel.Left.Col
 			switch {
 			case !rel.Left.Col.Array && rel.Right.Col.Array:
-				ex2.Op = OpNotIn
+				ex2.Op = qcode.OpNotIn
 				ex2.Left.Col = rel.Left.Col
 				ex2.Right.Col = rel.Right.Col
 
-				ex3.Op = OpIn
+				ex3.Op = qcode.OpIn
 				ex3.Left.Col = rel.Left.Col
 				ex3.Right.Table = rcte
 				ex3.Right.Col = rel.Right.Col
 
 			case rel.Left.Col.Array && !rel.Right.Col.Array:
-				ex2.Op = OpNotIn
+				ex2.Op = qcode.OpNotIn
 				ex2.Left.Col = rel.Right.Col
 				ex2.Right.Col = rel.Left.Col
 
-				ex3.Op = OpIn
+				ex3.Op = qcode.OpIn
 				ex3.Left.Table = rcte
 				ex3.Left.Col = rel.Right.Col
 				ex3.Right.Col = rel.Left.Col
 
 			default:
-				ex2.Op = OpNotEquals
+				ex2.Op = qcode.OpNotEquals
 				ex2.Left.Col = rel.Left.Col
 				ex2.Right.Col = rel.Right.Col
 
-				ex3.Op = OpEquals
+				ex3.Op = qcode.OpEquals
 				ex3.Left.Col = rel.Left.Col
 				ex3.Right.Table = rcte
 				ex3.Right.Col = rel.Right.Col
 			}
 		}
 
-		ex.Children = []*Exp{ex1, ex2, ex3}
+		ex.Children = []*qcode.Exp{ex1, ex2, ex3}
 		addAndFilter(&sel.Where, ex)
 	}
 }
@@ -1120,23 +649,23 @@ func (co *Compiler) FindPathByColumn(from, to, col string) ([]sdata.TPath, error
 	return co.s.FindPathByColumn(from, to, col)
 }
 
-func buildSingleColFilter(leftCol, rightCol sdata.DBColumn, pid int32) *Exp {
+func buildSingleColFilter(leftCol, rightCol sdata.DBColumn, pid int32) *qcode.Exp {
 	ex := newExp()
 	switch {
 	case !leftCol.Array && rightCol.Array:
-		ex.Op = OpIn
+		ex.Op = qcode.OpIn
 		ex.Left.Col = leftCol
 		ex.Right.ID = pid
 		ex.Right.Col = rightCol
 
 	case leftCol.Array && !rightCol.Array:
-		ex.Op = OpIn
+		ex.Op = qcode.OpIn
 		ex.Left.ID = pid
 		ex.Left.Col = rightCol
 		ex.Right.Col = leftCol
 
 	default:
-		ex.Op = OpEquals
+		ex.Op = qcode.OpEquals
 		ex.Left.Col = leftCol
 		ex.Right.ID = pid
 		ex.Right.Col = rightCol
@@ -1144,7 +673,7 @@ func buildSingleColFilter(leftCol, rightCol sdata.DBColumn, pid int32) *Exp {
 	return ex
 }
 
-func buildFilter(rel sdata.DBRel, pid int32) *Exp {
+func buildFilter(rel sdata.DBRel, pid int32) *qcode.Exp {
 	switch rel.Type {
 	case sdata.RelOneToOne, sdata.RelOneToMany:
 		primary := buildSingleColFilter(rel.Left.Col, rel.Right.Col, pid)
@@ -1152,7 +681,7 @@ func buildFilter(rel sdata.DBRel, pid int32) *Exp {
 			return primary
 		}
 		// Composite FK: AND all column pairs together
-		and := newExpOp(OpAnd)
+		and := newExpOp(qcode.OpAnd)
 		and.Children = append(and.Children, primary)
 		for _, pair := range rel.ExtraPairs {
 			and.Children = append(and.Children, buildSingleColFilter(pair.L, pair.R, pid))
@@ -1160,7 +689,7 @@ func buildFilter(rel sdata.DBRel, pid int32) *Exp {
 		return and
 
 	case sdata.RelEmbedded:
-		ex := newExpOp(OpEquals)
+		ex := newExpOp(qcode.OpEquals)
 		ex.Left.Col = rel.Right.Col
 		ex.Right.ID = pid
 		ex.Right.Col = rel.Right.Col
@@ -1171,7 +700,7 @@ func buildFilter(rel sdata.DBRel, pid int32) *Exp {
 	}
 }
 
-func (co *Compiler) setSingular(fieldName string, sel *Select) {
+func (co *Compiler) setSingular(fieldName string, sel *qcode.Select) {
 	if sel.Singular {
 		return
 	}
@@ -1187,7 +716,7 @@ func (co *Compiler) setSingular(fieldName string, sel *Select) {
 	}
 }
 
-func (co *Compiler) setLimit(qc *QCode, sel *Select) {
+func (co *Compiler) setLimit(qc *qcode.QCode, sel *qcode.Select) {
 	if sel.Paging.Limit != 0 || sel.Paging.NoLimit {
 		return
 	}
@@ -1211,15 +740,15 @@ func (co *Compiler) setLimit(qc *QCode, sel *Select) {
 //   OR ((A = X) AND (B = Y) AND (C > Z))
 //   OR ((A = X) AND (B = Y) AND (C = Z)
 
-func (co *Compiler) addSeekPredicate(sel *Select) {
-	var or, and *Exp
+func (co *Compiler) addSeekPredicate(sel *qcode.Select) {
+	var or, and *qcode.Exp
 	obLen := len(sel.OrderBy)
 
 	if obLen != 0 {
 		ob := sel.OrderBy[0]
-		or = newExpOp(OpOr)
+		or = newExpOp(qcode.OpOr)
 
-		isnull := newExpOp(OpIsNull)
+		isnull := newExpOp(qcode.OpIsNull)
 		isnull.Left.Table = "__cur"
 		isnull.Left.Col = ob.Col
 
@@ -1227,12 +756,12 @@ func (co *Compiler) addSeekPredicate(sel *Select) {
 			isnull.Left.ColName = ob.Col.Name + "_" + ob.Key
 		}
 
-		or.Children = []*Exp{isnull}
+		or.Children = []*qcode.Exp{isnull}
 	}
 
 	for i := 0; i < obLen; i++ {
 		if i != 0 {
-			and = newExpOp(OpAnd)
+			and = newExpOp(qcode.OpAnd)
 		}
 
 		for n, ob := range sel.OrderBy {
@@ -1251,31 +780,31 @@ func (co *Compiler) addSeekPredicate(sel *Select) {
 
 			switch {
 			case i > 0 && n != i:
-				f.Op = OpEquals
-			case ob.Order == OrderDesc ||
-				ob.Order == OrderDescNullsFirst || ob.Order == OrderDescNullsLast:
-				f.Op = OpLesserThan
-			case ob.Order == OrderAsc ||
-				ob.Order == OrderAscNullsLast || ob.Order == OrderAscNullsFirst:
-				f.Op = OpGreaterThan
+				f.Op = qcode.OpEquals
+			case ob.Order == qcode.OrderDesc ||
+				ob.Order == qcode.OrderDescNullsFirst || ob.Order == qcode.OrderDescNullsLast:
+				f.Op = qcode.OpLesserThan
+			case ob.Order == qcode.OrderAsc ||
+				ob.Order == qcode.OrderAscNullsLast || ob.Order == qcode.OrderAscNullsFirst:
+				f.Op = qcode.OpGreaterThan
 			default:
-				f.Op = OpGreaterThan
+				f.Op = qcode.OpGreaterThan
 			}
 
 			// could be null needs to be handled
 			if !ob.Col.NotNull {
-				isnull1 := newExpOp(OpIsNull)
+				isnull1 := newExpOp(qcode.OpIsNull)
 				isnull1.Left.Table = "__cur"
 				isnull1.Left.Col = ob.Col
 
-				isnull2 := newExpOp(OpIsNull)
+				isnull2 := newExpOp(qcode.OpIsNull)
 				isnull2.Left.Col = ob.Col
 
 				if ob.Key != "" {
 					isnull1.Left.ColName = ob.Col.Name + "_" + ob.Key
 				}
 
-				or1 := newExpOp(OpOr)
+				or1 := newExpOp(qcode.OpOr)
 				or1.Children = append(or.Children, isnull1, isnull2, f)
 
 				// now that f is added to the above or1 we can set f to or1
@@ -1296,7 +825,7 @@ func (co *Compiler) addSeekPredicate(sel *Select) {
 	addAndFilter(&sel.Where, or)
 }
 
-func (co *Compiler) validateSelect(sel *Select) error {
+func (co *Compiler) validateSelect(sel *qcode.Select) error {
 	if sel.Rel.Type == sdata.RelRecursive {
 		v, ok := sel.GetInternalArg("find")
 		if !ok {
@@ -1309,10 +838,8 @@ func (co *Compiler) validateSelect(sel *Select) error {
 	return nil
 }
 
-
-
-func (co *Compiler) checkPartitionFilter(qc *QCode, sel *Select) {
-	if qc.Type != QTQuery && qc.Type != QTSubscription {
+func (co *Compiler) checkPartitionFilter(qc *qcode.QCode, sel *qcode.Select) {
+	if qc.Type != qcode.QTQuery && qc.Type != qcode.QTSubscription {
 		return
 	}
 
@@ -1324,7 +851,7 @@ func (co *Compiler) checkPartitionFilter(qc *QCode, sel *Select) {
 	if sel.Ti.PartitionKey == "" {
 		return
 	}
-	if HasFilterOnColumn(sel.Where.Exp, sel.Ti.PartitionKey) {
+	if qcode.HasFilterOnColumn(sel.Where.Exp, sel.Ti.PartitionKey) {
 		return
 	}
 
@@ -1338,9 +865,9 @@ func (co *Compiler) checkPartitionFilter(qc *QCode, sel *Select) {
 		}
 		col := sel.Ti.Columns[cid]
 
-		ex := &Exp{Op: OpGreaterOrEquals}
+		ex := &qcode.Exp{Op: qcode.OpGreaterOrEquals}
 		ex.Left.Col = col
-		ex.Right.ValType = ValPartitionBound
+		ex.Right.ValType = qcode.ValPartitionBound
 		ex.Right.Val = strconv.Itoa(sel.Ti.PartitionRangeDays)
 		addAndFilter(&sel.Where, ex)
 	} else {
@@ -1350,13 +877,13 @@ func (co *Compiler) checkPartitionFilter(qc *QCode, sel *Select) {
 	}
 }
 
-func (co *Compiler) enforcePartitionFilterOLAP(sel *Select) {
+func (co *Compiler) enforcePartitionFilterOLAP(sel *qcode.Select) {
 	if sel.Ti.PartitionNone {
 		return
 	}
 
 	if sel.Ti.PartitionKey != "" {
-		if HasFilterOnColumn(sel.Where.Exp, sel.Ti.PartitionKey) {
+		if qcode.HasFilterOnColumn(sel.Where.Exp, sel.Ti.PartitionKey) {
 			return
 		}
 		sel.PartitionFilterRequired = fmt.Sprintf(
@@ -1366,7 +893,7 @@ func (co *Compiler) enforcePartitionFilterOLAP(sel *Select) {
 	}
 
 	if sel.Ti.ImplicitPartitionKey != "" {
-		if HasFilterOnColumn(sel.Where.Exp, sel.Ti.ImplicitPartitionKey) || sel.Unrestricted {
+		if qcode.HasFilterOnColumn(sel.Where.Exp, sel.Ti.ImplicitPartitionKey) || sel.Unrestricted {
 			return
 		}
 		sel.PartitionFilterRequired = fmt.Sprintf(
@@ -1375,24 +902,7 @@ func (co *Compiler) enforcePartitionFilterOLAP(sel *Select) {
 	}
 }
 
-// HasFilterOnColumn walks the expression tree and returns true if any
-// comparison references the given column name.
-func HasFilterOnColumn(ex *Exp, colName string) bool {
-	if ex == nil {
-		return false
-	}
-	if ex.Left.Col.Name == colName {
-		return true
-	}
-	for _, child := range ex.Children {
-		if HasFilterOnColumn(child, colName) {
-			return true
-		}
-	}
-	return false
-}
-
-func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation) error {
+func (co *Compiler) setMutationType(qc *qcode.QCode, op *graph.Operation) error {
 	var err error
 
 	validateActionArg := func(arg graph.Arg) error {
@@ -1416,29 +926,29 @@ func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation) error {
 		return errors.New(`mutations must contains one of the following arguments (insert, update, upsert or delete)`)
 	}
 
-	qc.actionArgs = make(map[string]graph.Arg, len(rootFields))
+	co.actionArgs = make(map[string]graph.Arg, len(rootFields))
 
 	for ri, rf := range rootFields {
-		var fieldType QType
+		var fieldType qcode.QType
 		var actionArg graph.Arg
-		var conflictAction ConflictAction
+		var conflictAction qcode.ConflictAction
 
 		for _, arg := range rf.Args {
 			switch arg.Name {
 			case "insert":
-				fieldType = QTInsert
+				fieldType = qcode.QTInsert
 				actionArg = arg
 				err = validateActionArg(arg)
 			case "update":
-				fieldType = QTUpdate
+				fieldType = qcode.QTUpdate
 				actionArg = arg
 				err = validateActionArg(arg)
 			case "upsert":
-				fieldType = QTUpsert
+				fieldType = qcode.QTUpsert
 				actionArg = arg
 				err = validateActionArg(arg)
 			case "delete":
-				fieldType = QTDelete
+				fieldType = qcode.QTDelete
 				if ifNotArg(arg, graph.NodeBool) || ifNotArgVal(arg, "true") {
 					err = errors.New("value for 'delete' must be 'true'")
 				}
@@ -1451,7 +961,7 @@ func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation) error {
 					err = fmt.Errorf("unsupported on_conflict action %q; valid action: get", arg.Val.Val)
 					break
 				}
-				conflictAction = ConflictGet
+				conflictAction = qcode.ConflictGet
 			}
 
 			if err != nil {
@@ -1459,10 +969,10 @@ func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation) error {
 			}
 		}
 
-		if fieldType == QTUnknown {
+		if fieldType == qcode.QTUnknown {
 			return errors.New(`mutations must contains one of the following arguments (insert, update, upsert or delete)`)
 		}
-		if conflictAction != ConflictNone && fieldType != QTInsert {
+		if conflictAction != qcode.ConflictNone && fieldType != qcode.QTInsert {
 			return errors.New("on_conflict is only valid with insert")
 		}
 
@@ -1471,12 +981,12 @@ func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation) error {
 			if actionArg.Val != nil {
 				qc.ActionVar = actionArg.Val.Val
 			}
-			qc.actionArg = actionArg
+			co.actionArg = actionArg
 		} else if fieldType != qc.SType {
 			return errors.New("all root mutations must be of the same type (insert, update, upsert or delete)")
 		}
-		if conflictAction != ConflictNone {
-			if qc.InsertConflictAction != ConflictNone {
+		if conflictAction != qcode.ConflictNone {
+			if qc.InsertConflictAction != qcode.ConflictNone {
 				return errors.New("on_conflict: get supports exactly one root insert")
 			}
 			qc.InsertConflictAction = conflictAction
@@ -1487,18 +997,18 @@ func (co *Compiler) setMutationType(qc *QCode, op *graph.Operation) error {
 		if key == "" {
 			key = rf.Name
 		}
-		qc.actionArgs[key] = actionArg
+		co.actionArgs[key] = actionArg
 	}
-	if qc.InsertConflictAction != ConflictNone && len(rootFields) != 1 {
+	if qc.InsertConflictAction != qcode.ConflictNone && len(rootFields) != 1 {
 		return errors.New("on_conflict: get supports exactly one root insert")
 	}
 
 	return nil
 }
 
-func (co *Compiler) compileArgFilter(qc *QCode, sel *Select,
+func (co *Compiler) compileArgFilter(qc *qcode.QCode, sel *qcode.Select,
 	selID int32, arg graph.Arg,
-) (ex *Exp, err error) {
+) (ex *qcode.Exp, err error) {
 	st := util.NewStackInf()
 
 	if arg.Val.Type != graph.NodeObj {
@@ -1518,7 +1028,7 @@ func (co *Compiler) compileArgFilter(qc *QCode, sel *Select,
 	return
 }
 
-func (co *Compiler) validateUserFilter(qc *QCode, sel *Select, ex *Exp) error {
+func (co *Compiler) validateUserFilter(qc *qcode.QCode, sel *qcode.Select, ex *qcode.Exp) error {
 	if ex == nil {
 		return nil
 	}
@@ -1526,7 +1036,7 @@ func (co *Compiler) validateUserFilter(qc *QCode, sel *Select, ex *Exp) error {
 	if err := co.validateUserFilterColumn(qc, sel, ex.Left.Col); err != nil {
 		return err
 	}
-	if ex.Right.ValType == ValRef {
+	if ex.Right.ValType == qcode.ValRef {
 		if err := co.validateUserFilterColumn(qc, sel, ex.Right.Col); err != nil {
 			return err
 		}
@@ -1548,8 +1058,8 @@ func (co *Compiler) validateUserFilter(qc *QCode, sel *Select, ex *Exp) error {
 }
 
 func (co *Compiler) validateUserFilterColumn(
-	qc *QCode,
-	sel *Select,
+	qc *qcode.QCode,
+	sel *qcode.Select,
 	col sdata.DBColumn,
 ) error {
 	if col.Name == "" {
@@ -1561,7 +1071,7 @@ func (co *Compiler) validateUserFilterColumn(
 	return nil
 }
 
-func addAndFilterLast(fil *Filter, ex *Exp) {
+func addAndFilterLast(fil *qcode.Filter, ex *qcode.Exp) {
 	if fil.Exp == nil {
 		fil.Exp = ex
 		return
@@ -1571,15 +1081,15 @@ func addAndFilterLast(fil *Filter, ex *Exp) {
 
 	// add a new `and` exp and hook the above saved exp pointer a child
 	// we don't want to modify an exp object thats common (from filter config)
-	fil.Exp = newExpOp(OpAnd)
-	fil.Exp.Children = fil.Exp.childrenA[:2]
+	fil.Exp = newExpOp(qcode.OpAnd)
+	fil.Exp.SetPooledChildren(2)
 
 	// here we append the filter to the last child
 	fil.Exp.Children[0] = ow
 	fil.Exp.Children[1] = ex
 }
 
-func addAndFilter(fil *Filter, ex *Exp) {
+func addAndFilter(fil *qcode.Filter, ex *qcode.Exp) {
 	if fil.Exp == nil {
 		fil.Exp = ex
 		return
@@ -1589,15 +1099,15 @@ func addAndFilter(fil *Filter, ex *Exp) {
 
 	// add a new `and` exp and hook the above saved exp pointer a child
 	// we don't want to modify an exp object thats common (from filter config)
-	fil.Exp = newExpOp(OpAnd)
-	fil.Exp.Children = fil.Exp.childrenA[:2]
+	fil.Exp = newExpOp(qcode.OpAnd)
+	fil.Exp.SetPooledChildren(2)
 	fil.Exp.Children[0] = ex
 	fil.Exp.Children[1] = ow
 }
 
-func addNotFilter(fil *Filter, ex *Exp) {
-	ex1 := newExpOp(OpNot)
-	ex1.Children = ex1.childrenA[:1]
+func addNotFilter(fil *qcode.Filter, ex *qcode.Exp) {
+	ex1 := newExpOp(qcode.OpNot)
+	ex1.SetPooledChildren(1)
 	ex1.Children[0] = ex
 
 	if fil.Exp == nil {
@@ -1609,13 +1119,11 @@ func addNotFilter(fil *Filter, ex *Exp) {
 
 	// add a new `and` exp and hook the above saved exp pointer a child
 	// we don't want to modify an exp object thats common (from filter config)
-	fil.Exp = newExpOp(OpAnd)
-	fil.Exp.Children = fil.Exp.childrenA[:2]
+	fil.Exp = newExpOp(qcode.OpAnd)
+	fil.Exp.SetPooledChildren(2)
 	fil.Exp.Children[0] = ex1
 	fil.Exp.Children[1] = ow
 }
-
-
 
 func getArg(args []graph.Arg, name string, validTypes ...graph.ParserType,
 ) (arg graph.Arg, err error) {
@@ -1744,28 +1252,4 @@ func argErr(arg graph.Arg, ty string) error {
 
 func dbArgErr(name, ty, db string) error {
 	return fmt.Errorf("%s: value for argument '%s' must be a %s", db, name, ty)
-}
-
-func (sel *Select) addIArg(arg Arg) {
-	sel.IArgs = append(sel.IArgs, arg)
-}
-
-func (sel *Select) GetInternalArg(name string) (Arg, bool) {
-	var arg Arg
-	for _, v := range sel.IArgs {
-		if v.Name == name {
-			return v, true
-		}
-	}
-	return arg, false
-}
-
-// IsGeoOp returns true if the operator is a GIS/spatial operator
-func IsGeoOp(op ExpOp) bool {
-	switch op {
-	case OpGeoDistance, OpGeoWithin, OpGeoContains, OpGeoIntersects,
-		OpGeoCoveredBy, OpGeoCovers, OpGeoTouches, OpGeoOverlaps, OpGeoNear:
-		return true
-	}
-	return false
 }

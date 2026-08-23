@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -76,7 +76,7 @@ func (gj *graphjinEngine) discoverDatabase(ctx *dbContext) error {
 			if schemaPath == LegacySchemaGraphQLFile && gj.log != nil {
 				gj.log.Printf("%s is deprecated; rename it to %s", LegacySchemaGraphQLFile, SchemaDDLFile)
 			}
-			ds, err := qcode.ParseSchema(b)
+			ds, err := graphql.ParseSchema(b)
 			if err != nil {
 				return fmt.Errorf("failed to parse %s: %w", schemaPath, err)
 			}
@@ -187,7 +187,7 @@ func (gj *graphjinEngine) loadRuntimeSchemaDDL(ctx *dbContext) (*sdata.DBInfo, e
 	if err != nil {
 		return nil, err
 	}
-	ds, err := qcode.ParseSchema(b)
+	ds, err := graphql.ParseSchema(b)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +349,7 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 	}
 
 	// Create QCode compiler for this database
-	qcc := qcode.Config{
+	qcc := graphql.Config{
 		TConfig:             gj.tmap,
 		DefaultLimit:        gj.conf.DefaultLimit,
 		AnalyticsMode:       gj.conf.EffectiveAnalyticsMode(ctx.name),
@@ -360,7 +360,7 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 		EnableCacheTracking: false,
 	}
 
-	ctx.qcodeCompiler, err = qcode.NewCompiler(ctx.schema, qcc)
+	ctx.qcodeCompiler, err = graphql.NewCompiler(ctx.schema, qcc)
 	if err != nil {
 		return fmt.Errorf("database %s: qcode compiler failed: %w", ctx.name, err)
 	}

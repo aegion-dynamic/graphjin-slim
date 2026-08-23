@@ -1,6 +1,8 @@
 package graphql_test
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"strings"
 	"testing"
@@ -62,7 +64,7 @@ func TestTopLevelRemoteIsMarkedAsRemote(t *testing.T) {
 	if sel.Rel.Type != sdata.RelRemote {
 		t.Errorf("Rel.Type = %v, want RelRemote", sel.Rel.Type)
 	}
-	if sel.SkipRender != graphql.SkipTypeRemote {
+	if sel.SkipRender != qcode.SkipTypeRemote {
 		t.Errorf("SkipRender = %v, want SkipTypeRemote", sel.SkipRender)
 	}
 	if got := sel.ExtraArgs["actorId"]; got != "u-7" {

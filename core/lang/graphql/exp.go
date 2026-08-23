@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +23,7 @@ type aexpst struct {
 }
 
 type aexp struct {
-	exp  *Exp
+	exp  *qcode.Exp
 	ti   sdata.DBTable
 	node *graph.Node
 	path []string
@@ -32,7 +34,7 @@ func (co *Compiler) compileBaseExpNode(edge string,
 	st *util.StackInf,
 	node *graph.Node,
 	savePath bool,
-) (*Exp, bool, error) {
+) (*qcode.Exp, bool, error) {
 	return co.compileExpNode(edge, ti, st, node, savePath, -1)
 }
 
@@ -43,7 +45,7 @@ func (co *Compiler) compileExpNode(
 	node *graph.Node,
 	savePath bool,
 	selID int32,
-) (*Exp, bool, error) {
+) (*qcode.Exp, bool, error) {
 	if node == nil || len(node.Children) == 0 {
 		return nil, false, errors.New("invalid argument value")
 	}
@@ -58,7 +60,7 @@ func (co *Compiler) compileExpNode(
 		savePath: savePath,
 	}
 
-	var root *Exp
+	var root *qcode.Exp
 
 	st.Push(aexp{
 		ti:   ti,
@@ -86,7 +88,7 @@ func (co *Compiler) compileExpNode(
 			continue
 		}
 
-		if ex.Right.ValType == ValVar {
+		if ex.Right.ValType == qcode.ValVar {
 			v := ex.Right.Val
 			needsUser = (v == "user_id" || v == "userID" || v == "userId" ||
 				v == "user_id_raw" || v == "userIDRaw" || v == "userIdRaw" ||
@@ -98,8 +100,8 @@ func (co *Compiler) compileExpNode(
 			root = ex
 		case av.exp == nil:
 			tmp := root
-			root = newExpOp(OpAnd)
-			root.Children = []*Exp{tmp, ex}
+			root = newExpOp(qcode.OpAnd)
+			root.Children = []*qcode.Exp{tmp, ex}
 		default:
 			av.exp.Children = append(av.exp.Children, ex)
 		}
@@ -108,22 +110,18 @@ func (co *Compiler) compileExpNode(
 	return root, needsUser, nil
 }
 
-func newExp() *Exp {
-	ex := &Exp{Op: OpNop}
-	ex.Left.ID = -1
-	ex.Right.ID = -1
-	ex.Children = ex.childrenA[:0]
-	return ex
+func newExp() *qcode.Exp {
+	return qcode.NewExp()
 }
 
-func newExpOp(op ExpOp) *Exp {
+func newExpOp(op qcode.ExpOp) *qcode.Exp {
 	ex := newExp()
 	ex.Op = op
 	return ex
 }
 
-func (ast *aexpst) parseNode(av aexp, node *graph.Node, selID int32) (*Exp, error) {
-	var ex *Exp
+func (ast *aexpst) parseNode(av aexp, node *graph.Node, selID int32) (*qcode.Exp, error) {
+	var ex *qcode.Exp
 	var err error
 
 	name := node.Name
@@ -136,7 +134,7 @@ func (ast *aexpst) parseNode(av aexp, node *graph.Node, selID int32) (*Exp, erro
 	switch {
 	case av.exp == nil:
 		ex = newExp()
-	case av.exp.Op != OpNop:
+	case av.exp.Op != qcode.OpNop:
 		ex = newExp()
 	default:
 		ex = av.exp
@@ -200,7 +198,7 @@ func (ast *aexpst) parseNode(av aexp, node *graph.Node, selID int32) (*Exp, erro
 			ex.Right.Path = append(ex.Right.Path, vn.Name)
 		}
 
-		if ex.Right.ValType == ValRef {
+		if ex.Right.ValType == qcode.ValRef {
 			return ex, nil
 		}
 
@@ -218,9 +216,9 @@ func (ast *aexpst) parseNode(av aexp, node *graph.Node, selID int32) (*Exp, erro
 		}
 		setListVal(ex, node)
 		if ex.Left.Col.Array {
-			ex.Op = OpHasInCommon
+			ex.Op = qcode.OpHasInCommon
 		} else {
-			ex.Op = OpIn
+			ex.Op = qcode.OpIn
 		}
 
 	// { column: value }
@@ -229,13 +227,13 @@ func (ast *aexpst) parseNode(av aexp, node *graph.Node, selID int32) (*Exp, erro
 			return nil, err
 		}
 		if ex.Left.Col.Array {
-			ex.Op = OpHasInCommon
+			ex.Op = qcode.OpHasInCommon
 			setListVal(ex, node)
 		} else {
 			if ex.Right.ValType, err = getExpType(node); err != nil {
 				return nil, err
 			}
-			ex.Op = OpEquals
+			ex.Op = qcode.OpEquals
 			ex.Right.Val = node.Val
 		}
 	}
@@ -243,7 +241,7 @@ func (ast *aexpst) parseNode(av aexp, node *graph.Node, selID int32) (*Exp, erro
 	return ex, nil
 }
 
-func (ast *aexpst) processBoolOps(av aexp, ex *Exp, node, anode *graph.Node) (bool, error) {
+func (ast *aexpst) processBoolOps(av aexp, ex *qcode.Exp, node, anode *graph.Node) (bool, error) {
 	var name string
 
 	if node.Name != "" && node.Name[0] == '_' {
@@ -277,7 +275,7 @@ func (ast *aexpst) processBoolOps(av aexp, ex *Exp, node, anode *graph.Node) (bo
 			return false, fmt.Errorf("expression does not need an 'and' operator: %s",
 				av.ti.Name)
 		}
-		ex.Op = OpAnd
+		ex.Op = qcode.OpAnd
 		ast.pushChildren(av, ex, node)
 		return true, nil
 
@@ -289,7 +287,7 @@ func (ast *aexpst) processBoolOps(av aexp, ex *Exp, node, anode *graph.Node) (bo
 			return false, fmt.Errorf("expression does not need an 'or' operator: %s",
 				av.ti.Name)
 		}
-		ex.Op = OpOr
+		ex.Op = qcode.OpOr
 		ast.pushChildren(av, ex, node)
 		return true, nil
 
@@ -297,14 +295,14 @@ func (ast *aexpst) processBoolOps(av aexp, ex *Exp, node, anode *graph.Node) (bo
 		if len(node.Children) == 0 {
 			return false, errors.New("missing expression after 'not' operator")
 		}
-		ex.Op = OpNot
+		ex.Op = qcode.OpNot
 		ast.pushChildren(av, ex, node)
 		return true, nil
 	}
 	return false, nil
 }
 
-func (ast *aexpst) processOpAndVal(av aexp, ex *Exp, node *graph.Node) (bool, error) {
+func (ast *aexpst) processOpAndVal(av aexp, ex *qcode.Exp, node *graph.Node) (bool, error) {
 	var name string
 
 	if node.Name != "" && node.Name[0] == '_' {
@@ -328,110 +326,110 @@ func (ast *aexpst) processOpAndVal(av aexp, ex *Exp, node *graph.Node) (bool, er
 
 	switch name {
 	case "eq", "equals":
-		ex.Op = OpEquals
+		ex.Op = qcode.OpEquals
 		ex.Right.Val = node.Val
 	case "neq", "notEquals", "not_equals":
-		ex.Op = OpNotEquals
+		ex.Op = qcode.OpNotEquals
 		ex.Right.Val = node.Val
 	case "gt", "greaterThan", "greater_than":
-		ex.Op = OpGreaterThan
+		ex.Op = qcode.OpGreaterThan
 		ex.Right.Val = node.Val
 	case "lt", "lesserThan", "lesser_than":
-		ex.Op = OpLesserThan
+		ex.Op = qcode.OpLesserThan
 		ex.Right.Val = node.Val
 	case "gte", "gteq", "greaterOrEquals", "greater_or_equals":
-		ex.Op = OpGreaterOrEquals
+		ex.Op = qcode.OpGreaterOrEquals
 		ex.Right.Val = node.Val
 	case "lte", "lteq", "lesserOrEquals", "lesser_or_equals":
-		ex.Op = OpLesserOrEquals
+		ex.Op = qcode.OpLesserOrEquals
 		ex.Right.Val = node.Val
 	case "in":
 		if ex.Left.Col.Array {
-			ex.Op = OpHasInCommon
+			ex.Op = qcode.OpHasInCommon
 		} else {
-			ex.Op = OpIn
+			ex.Op = qcode.OpIn
 		}
 		setListVal(ex, node)
 	case "nin", "notIn", "not_in":
-		ex.Op = OpNotIn
+		ex.Op = qcode.OpNotIn
 		setListVal(ex, node)
 	case "like":
-		ex.Op = OpLike
+		ex.Op = qcode.OpLike
 		ex.Right.Val = node.Val
 	case "nlike", "notLike", "not_like":
-		ex.Op = OpNotLike
+		ex.Op = qcode.OpNotLike
 		ex.Right.Val = node.Val
 	case "ilike", "iLike":
-		ex.Op = OpILike
+		ex.Op = qcode.OpILike
 		ex.Right.Val = node.Val
 	case "nilike", "notILike", "not_ilike":
-		ex.Op = OpNotILike
+		ex.Op = qcode.OpNotILike
 		ex.Right.Val = node.Val
 	case "similar":
-		ex.Op = OpSimilar
+		ex.Op = qcode.OpSimilar
 		ex.Right.Val = node.Val
 	case "nsimilar", "notSimiliar", "not_similar":
-		ex.Op = OpNotSimilar
+		ex.Op = qcode.OpNotSimilar
 		ex.Right.Val = node.Val
 	case "regex":
-		ex.Op = OpRegex
+		ex.Op = qcode.OpRegex
 		ex.Right.Val = node.Val
 	case "nregex", "notRegex", "not_regex":
-		ex.Op = OpNotRegex
+		ex.Op = qcode.OpNotRegex
 		ex.Right.Val = node.Val
 	case "iregex":
-		ex.Op = OpIRegex
+		ex.Op = qcode.OpIRegex
 		ex.Right.Val = node.Val
 	case "niregex", "notIRegex", "not_iregex":
-		ex.Op = OpNotIRegex
+		ex.Op = qcode.OpNotIRegex
 		ex.Right.Val = node.Val
 	case "contains":
-		ex.Op = OpContains
+		ex.Op = qcode.OpContains
 		setListVal(ex, node)
 	case "containedIn", "contained_in":
-		ex.Op = OpContainedIn
+		ex.Op = qcode.OpContainedIn
 		setListVal(ex, node)
 	case "hasInCommon", "has_in_common":
-		ex.Op = OpHasInCommon
+		ex.Op = qcode.OpHasInCommon
 		setListVal(ex, node)
 	case "hasKey", "has_key":
-		ex.Op = OpHasKey
+		ex.Op = qcode.OpHasKey
 		ex.Right.Val = node.Val
 	case "hasKeyAny", "has_key_any":
-		ex.Op = OpHasKeyAny
+		ex.Op = qcode.OpHasKeyAny
 		setListVal(ex, node)
 	case "hasKeyAll", "has_key_all":
-		ex.Op = OpHasKeyAll
+		ex.Op = qcode.OpHasKeyAll
 		setListVal(ex, node)
 	case "isNull", "is_null":
-		ex.Op = OpIsNull
+		ex.Op = qcode.OpIsNull
 		ex.Right.Val = node.Val
 	case "notDistinct", "ndis", "not_distinct":
-		ex.Op = OpNotDistinct
+		ex.Op = qcode.OpNotDistinct
 		ex.Right.Val = node.Val
 	case "dis", "distinct":
-		ex.Op = OpDistinct
+		ex.Op = qcode.OpDistinct
 		ex.Right.Val = node.Val
 
 	// GIS/Spatial operators
 	case "st_dwithin", "stDWithin", "st_d_within", "dwithin":
-		return ast.processGeoOp(ex, node, OpGeoDistance)
+		return ast.processGeoOp(ex, node, qcode.OpGeoDistance)
 	case "st_within", "stWithin", "within":
-		return ast.processGeoOp(ex, node, OpGeoWithin)
+		return ast.processGeoOp(ex, node, qcode.OpGeoWithin)
 	case "st_contains", "stContains", "geoContains":
-		return ast.processGeoOp(ex, node, OpGeoContains)
+		return ast.processGeoOp(ex, node, qcode.OpGeoContains)
 	case "st_intersects", "stIntersects", "intersects":
-		return ast.processGeoOp(ex, node, OpGeoIntersects)
+		return ast.processGeoOp(ex, node, qcode.OpGeoIntersects)
 	case "st_coveredby", "stCoveredBy", "coveredBy", "covered_by":
-		return ast.processGeoOp(ex, node, OpGeoCoveredBy)
+		return ast.processGeoOp(ex, node, qcode.OpGeoCoveredBy)
 	case "st_covers", "stCovers", "covers":
-		return ast.processGeoOp(ex, node, OpGeoCovers)
+		return ast.processGeoOp(ex, node, qcode.OpGeoCovers)
 	case "st_touches", "stTouches", "touches":
-		return ast.processGeoOp(ex, node, OpGeoTouches)
+		return ast.processGeoOp(ex, node, qcode.OpGeoTouches)
 	case "st_overlaps", "stOverlaps", "overlaps":
-		return ast.processGeoOp(ex, node, OpGeoOverlaps)
+		return ast.processGeoOp(ex, node, qcode.OpGeoOverlaps)
 	case "near", "geoNear":
-		return ast.processGeoOp(ex, node, OpGeoNear)
+		return ast.processGeoOp(ex, node, qcode.OpGeoNear)
 
 	default:
 		return false, nil
@@ -483,50 +481,50 @@ func isColRefOperand(node *graph.Node) bool {
 }
 
 // colRefOpFor returns the ExpOp for ops that accept a column-ref operand.
-func colRefOpFor(name string) (ExpOp, bool) {
+func colRefOpFor(name string) (qcode.ExpOp, bool) {
 	switch name {
 	case "eq", "equals":
-		return OpEquals, true
+		return qcode.OpEquals, true
 	case "neq", "notEquals", "not_equals":
-		return OpNotEquals, true
+		return qcode.OpNotEquals, true
 	case "gt", "greaterThan", "greater_than":
-		return OpGreaterThan, true
+		return qcode.OpGreaterThan, true
 	case "lt", "lesserThan", "lesser_than":
-		return OpLesserThan, true
+		return qcode.OpLesserThan, true
 	case "gte", "gteq", "greaterOrEquals", "greater_or_equals":
-		return OpGreaterOrEquals, true
+		return qcode.OpGreaterOrEquals, true
 	case "lte", "lteq", "lesserOrEquals", "lesser_or_equals":
-		return OpLesserOrEquals, true
+		return qcode.OpLesserOrEquals, true
 	case "notDistinct", "ndis", "not_distinct":
-		return OpNotDistinct, true
+		return qcode.OpNotDistinct, true
 	case "dis", "distinct":
-		return OpDistinct, true
+		return qcode.OpDistinct, true
 	case "like":
-		return OpLike, true
+		return qcode.OpLike, true
 	case "nlike", "notLike", "not_like":
-		return OpNotLike, true
+		return qcode.OpNotLike, true
 	case "ilike", "iLike":
-		return OpILike, true
+		return qcode.OpILike, true
 	case "nilike", "notILike", "not_ilike":
-		return OpNotILike, true
+		return qcode.OpNotILike, true
 	case "similar":
-		return OpSimilar, true
+		return qcode.OpSimilar, true
 	case "nsimilar", "notSimiliar", "not_similar":
-		return OpNotSimilar, true
+		return qcode.OpNotSimilar, true
 	case "regex":
-		return OpRegex, true
+		return qcode.OpRegex, true
 	case "nregex", "notRegex", "not_regex":
-		return OpNotRegex, true
+		return qcode.OpNotRegex, true
 	case "iregex":
-		return OpIRegex, true
+		return qcode.OpIRegex, true
 	case "niregex", "notIRegex", "not_iregex":
-		return OpNotIRegex, true
+		return qcode.OpNotIRegex, true
 	}
 	return 0, false
 }
 
 // processColRefOperand handles { <op>: { col: "<name>" } } in WHERE.
-func (ast *aexpst) processColRefOperand(ex *Exp, opName string, node *graph.Node) (bool, error) {
+func (ast *aexpst) processColRefOperand(ex *qcode.Exp, opName string, node *graph.Node) (bool, error) {
 	if !isColRefOperand(node) {
 		return false, nil
 	}
@@ -540,31 +538,31 @@ func (ast *aexpst) processColRefOperand(ex *Exp, opName string, node *graph.Node
 		return false, fmt.Errorf("[Where] %w", err)
 	}
 	ex.Op = op
-	ex.Right.ValType = ValRef
+	ex.Right.ValType = qcode.ValRef
 	ex.Right.Col = refExp.Left.Col
 	ex.Right.Table = refExp.Left.Table
 	ex.Right.RelPath = refExp.RelPath
 	return true, nil
 }
 
-func getExpType(node *graph.Node) (ValType, error) {
+func getExpType(node *graph.Node) (qcode.ValType, error) {
 	switch node.Type {
 	case graph.NodeStr:
-		return ValStr, nil
+		return qcode.ValStr, nil
 	case graph.NodeNum:
-		return ValNum, nil
+		return qcode.ValNum, nil
 	case graph.NodeBool:
-		return ValBool, nil
+		return qcode.ValBool, nil
 	case graph.NodeList:
-		return ValList, nil
+		return qcode.ValList, nil
 	case graph.NodeVar:
-		return ValVar, nil
+		return qcode.ValVar, nil
 	default:
 		return -1, fmt.Errorf("[Where] invalid values for: %s", node.Name)
 	}
 }
 
-func setListVal(ex *Exp, node *graph.Node) {
+func setListVal(ex *qcode.Exp, node *graph.Node) {
 	var t graph.ParserType
 
 	if len(node.Children) != 0 {
@@ -575,34 +573,34 @@ func setListVal(ex *Exp, node *graph.Node) {
 
 	switch t {
 	case graph.NodeStr:
-		ex.Right.ListType = ValStr
+		ex.Right.ListType = qcode.ValStr
 	case graph.NodeNum:
-		ex.Right.ListType = ValNum
+		ex.Right.ListType = qcode.ValNum
 	case graph.NodeBool:
-		ex.Right.ListType = ValBool
+		ex.Right.ListType = qcode.ValBool
 	default:
 		ex.Right.Val = node.Val
 		return
 	}
 
 	for i := range node.Children {
-		ex.Right.ValType = ValList
+		ex.Right.ValType = qcode.ValList
 		ex.Right.ListVal = append(ex.Right.ListVal, node.Children[i].Val)
 	}
 
 	if len(node.Children) == 0 {
-		ex.Right.ValType = ValList
+		ex.Right.ValType = qcode.ValList
 		ex.Right.ListVal = append(ex.Right.ListVal, node.Val)
 	}
 }
 
 // processGeoOp parses GIS operator with nested parameters like:
 // st_dwithin: { point: [-122.4, 37.7], distance: 1000 }
-func (ast *aexpst) processGeoOp(ex *Exp, node *graph.Node, op ExpOp) (bool, error) {
+func (ast *aexpst) processGeoOp(ex *qcode.Exp, node *graph.Node, op qcode.ExpOp) (bool, error) {
 	ex.Op = op
-	ex.Geo = &GeoExp{
+	ex.Geo = &qcode.GeoExp{
 		SRID: 4326, // Default to WGS84
-		Unit: GeoUnitMeters,
+		Unit: qcode.GeoUnitMeters,
 	}
 
 	// GIS operators expect an object with parameters
@@ -663,7 +661,7 @@ func (ast *aexpst) processGeoOp(ex *Exp, node *graph.Node, op ExpOp) (bool, erro
 }
 
 // parseGeoPoint parses a point from [longitude, latitude] array or variable
-func (ast *aexpst) parseGeoPoint(geo *GeoExp, node *graph.Node) error {
+func (ast *aexpst) parseGeoPoint(geo *qcode.GeoExp, node *graph.Node) error {
 	// Handle variable reference
 	if node.Type == graph.NodeVar {
 		geo.GeoJSON = []byte(fmt.Sprintf(`{"$var":"%s"}`, node.Val))
@@ -690,7 +688,7 @@ func (ast *aexpst) parseGeoPoint(geo *GeoExp, node *graph.Node) error {
 }
 
 // parseGeoPolygon parses a polygon from array of [lon, lat] coordinate pairs
-func (ast *aexpst) parseGeoPolygon(geo *GeoExp, node *graph.Node) error {
+func (ast *aexpst) parseGeoPolygon(geo *qcode.GeoExp, node *graph.Node) error {
 	// Handle variable reference
 	if node.Type == graph.NodeVar {
 		geo.GeoJSON = []byte(fmt.Sprintf(`{"$var":"%s"}`, node.Val))
@@ -724,7 +722,7 @@ func (ast *aexpst) parseGeoPolygon(geo *GeoExp, node *graph.Node) error {
 }
 
 // parseGeoJSON parses a GeoJSON geometry object
-func (ast *aexpst) parseGeoJSON(geo *GeoExp, node *graph.Node) error {
+func (ast *aexpst) parseGeoJSON(geo *qcode.GeoExp, node *graph.Node) error {
 	// Handle variable reference
 	if node.Type == graph.NodeVar {
 		geo.GeoJSON = []byte(fmt.Sprintf(`{"$var":"%s"}`, node.Val))
@@ -796,20 +794,20 @@ func graphNodeToValue(node *graph.Node) (interface{}, error) {
 }
 
 // parseGeoUnit converts a string to GeoUnit
-func parseGeoUnit(val string) GeoUnit {
+func parseGeoUnit(val string) qcode.GeoUnit {
 	switch strings.ToLower(val) {
 	case "kilometers", "km":
-		return GeoUnitKilometers
+		return qcode.GeoUnitKilometers
 	case "miles", "mi":
-		return GeoUnitMiles
+		return qcode.GeoUnitMiles
 	case "feet", "ft":
-		return GeoUnitFeet
+		return qcode.GeoUnitFeet
 	default:
-		return GeoUnitMeters
+		return qcode.GeoUnitMeters
 	}
 }
 
-func (ast *aexpst) processColumn(av aexp, ex *Exp, node *graph.Node, selID int32) (bool, error) {
+func (ast *aexpst) processColumn(av aexp, ex *qcode.Exp, node *graph.Node, selID int32) (bool, error) {
 	nn := ast.co.ParseName(node.Name)
 
 	// Check for JSON path operators in column name (e.g., "validity_period->>issue_date")
@@ -878,7 +876,7 @@ func (ast *aexpst) processColumn(av aexp, ex *Exp, node *graph.Node, selID int32
 	return true, err
 }
 
-func (ast *aexpst) processJSONPath(av aexp, ex *Exp, node *graph.Node, selID int32) (bool, error) {
+func (ast *aexpst) processJSONPath(av aexp, ex *qcode.Exp, node *graph.Node, selID int32) (bool, error) {
 	// Check if this is a JSON/JSONB column with nested path
 	nn := ast.co.ParseName(node.Name)
 	col, err := av.ti.GetColumn(nn)
@@ -929,7 +927,7 @@ func (ast *aexpst) processJSONPath(av aexp, ex *Exp, node *graph.Node, selID int
 				return false, fmt.Errorf("[Where] unknown operator in JSON path: %s", nextNode.Name)
 			}
 
-			if ex.Right.ValType == ValRef {
+			if ex.Right.ValType == qcode.ValRef {
 				return true, nil
 			}
 
@@ -982,8 +980,8 @@ func (ast *aexpst) isOperator(name string) (bool, error) {
 	return false, nil
 }
 
-func (ast *aexpst) processNestedTable(av aexp, ex *Exp, node *graph.Node) (bool, error) {
-	var joins []Join
+func (ast *aexpst) processNestedTable(av aexp, ex *qcode.Exp, node *graph.Node) (bool, error) {
+	var joins []qcode.Join
 	var err error
 
 	ti := av.ti
@@ -1040,7 +1038,7 @@ func (ast *aexpst) processNestedTable(av aexp, ex *Exp, node *graph.Node) (bool,
 
 		for i := len(path) - 1; i >= 0; i-- {
 			rel := sdata.PathToRel(path[i])
-			joins = append(joins, Join{
+			joins = append(joins, qcode.Join{
 				Rel:    rel,
 				Filter: buildFilter(rel, -1),
 			})
@@ -1052,7 +1050,7 @@ func (ast *aexpst) processNestedTable(av aexp, ex *Exp, node *graph.Node) (bool,
 	}
 
 	if len(joins) != 0 {
-		ex.Op = OpSelectExists
+		ex.Op = qcode.OpSelectExists
 		ex.Joins = joins
 		ast.pushChildren(av, ex, ln)
 		return true, nil
@@ -1060,7 +1058,7 @@ func (ast *aexpst) processNestedTable(av aexp, ex *Exp, node *graph.Node) (bool,
 	return false, nil
 }
 
-func (ast *aexpst) pushChildren(av aexp, ex *Exp, node *graph.Node) {
+func (ast *aexpst) pushChildren(av aexp, ex *qcode.Exp, node *graph.Node) {
 	var path []string
 	var ti sdata.DBTable
 

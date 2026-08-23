@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+
 	"fmt"
 	"strings"
 
@@ -8,8 +10,8 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
-func (co *Compiler) isFunction(sel *Select, name string, f graph.Field) (
-	fn Function, isFunc bool, err error,
+func (co *Compiler) isFunction(sel *qcode.Select, name string, f graph.Field) (
+	fn qcode.Function, isFunc bool, err error,
 ) {
 	// New path: any field carrying an `expr:` argument is treated as a
 	// scalar-expression aggregate (`<aggregate>(expr: ...)`) regardless
@@ -56,7 +58,7 @@ func (co *Compiler) isFunction(sel *Select, name string, f graph.Field) (
 	case strings.HasPrefix(name, "search_headline_"):
 		isFunc = true
 		fn.Name = "search_headline"
-		fn.Args = []Arg{{Type: ArgTypeCol}}
+		fn.Args = []qcode.Arg{{Type: qcode.ArgTypeCol}}
 		fn.Args[0].Col, err = sel.Ti.GetColumn(name[(len(fn.Name) + 1):])
 		if err != nil {
 			return
@@ -72,7 +74,7 @@ func (co *Compiler) isFunction(sel *Select, name string, f graph.Field) (
 			fn.Func = fi.Func
 			fn.Agg = fi.Agg
 			if fi.Col.Name != "" {
-				fn.Args = []Arg{{Type: ArgTypeCol, Col: fi.Col}}
+				fn.Args = []qcode.Arg{{Type: qcode.ArgTypeCol, Col: fi.Col}}
 			}
 			isFunc = true
 		} else {
@@ -87,26 +89,26 @@ func (co *Compiler) isFunction(sel *Select, name string, f graph.Field) (
 	return
 }
 
-func (co *Compiler) compileWindowFunction(sel *Select, name string) (
-	fn Function, isFunc bool, err error,
+func (co *Compiler) compileWindowFunction(sel *qcode.Select, name string) (
+	fn qcode.Function, isFunc bool, err error,
 ) {
 	switch name {
 	case "row_number":
-		return newWindowFunction(name, "bigint", WindowFuncRowNumber), true, nil
+		return newWindowFunction(name, "bigint", qcode.WindowFuncRowNumber), true, nil
 	case "rank":
-		return newWindowFunction(name, "bigint", WindowFuncRank), true, nil
+		return newWindowFunction(name, "bigint", qcode.WindowFuncRank), true, nil
 	case "dense_rank":
-		return newWindowFunction(name, "bigint", WindowFuncDenseRank), true, nil
+		return newWindowFunction(name, "bigint", qcode.WindowFuncDenseRank), true, nil
 	}
 
 	prefixes := []struct {
 		prefix string
-		wf     WindowFunc
+		wf     qcode.WindowFunc
 	}{
-		{"first_value_", WindowFuncFirstValue},
-		{"last_value_", WindowFuncLastValue},
-		{"lag_", WindowFuncLag},
-		{"lead_", WindowFuncLead},
+		{"first_value_", qcode.WindowFuncFirstValue},
+		{"last_value_", qcode.WindowFuncLastValue},
+		{"lag_", qcode.WindowFuncLag},
+		{"lead_", qcode.WindowFuncLead},
 	}
 	for _, p := range prefixes {
 		if !strings.HasPrefix(name, p.prefix) {
@@ -121,15 +123,15 @@ func (co *Compiler) compileWindowFunction(sel *Select, name string) (
 			return fn, true, fmt.Errorf("analytics function %q is internal; use GraphJin analytics directives on a column field: %w", strings.TrimSuffix(p.prefix, "_"), err)
 		}
 		fn = newWindowFunction(strings.TrimSuffix(p.prefix, "_"), col.Type, p.wf)
-		fn.Args = []Arg{{Type: ArgTypeCol, Col: col}}
+		fn.Args = []qcode.Arg{{Type: qcode.ArgTypeCol, Col: col}}
 		return fn, true, nil
 	}
 
 	return fn, false, nil
 }
 
-func newWindowFunction(name, typ string, wf WindowFunc) Function {
-	return Function{
+func newWindowFunction(name, typ string, wf qcode.WindowFunc) qcode.Function {
+	return qcode.Function{
 		Name:       name,
 		WindowFunc: wf,
 		Func: sdata.DBFunction{
@@ -148,8 +150,8 @@ func newWindowFunction(name, typ string, wf WindowFunc) Function {
 //
 // MongoDB doesn't support arithmetic in aggregation pipelines (v2 scope);
 // this path errors clearly when the active dialect is mongodb.
-func (co *Compiler) compileExprFunction(sel *Select, name string, exprArg graph.Arg) (
-	fn Function, isFunc bool, err error,
+func (co *Compiler) compileExprFunction(sel *qcode.Select, name string, exprArg graph.Arg) (
+	fn qcode.Function, isFunc bool, err error,
 ) {
 	if co.s.DBType() == "mongodb" {
 		err = fmt.Errorf("expression aggregates are not supported on MongoDB (deferred to a future release)")
@@ -190,7 +192,7 @@ func (co *Compiler) compileExprFunction(sel *Select, name string, exprArg graph.
 		fn.Agg = true // treated as aggregate for GROUP BY purposes
 	}
 
-	fn.Args = []Arg{{Type: ArgTypeExpr, Expr: exprRoot}}
+	fn.Args = []qcode.Arg{{Type: qcode.ArgTypeExpr, Expr: exprRoot}}
 	isFunc = true
 	return
 }
@@ -198,12 +200,12 @@ func (co *Compiler) compileExprFunction(sel *Select, name string, exprArg graph.
 // exprContainsAgg reports whether the expression tree includes any
 // aggregate-of-expression op (OpAggSum/OpAggAvg/...). Used to decide
 // between wrap-in-aggregate and bare-expression compilation paths.
-func exprContainsAgg(ex *Exp) bool {
+func exprContainsAgg(ex *qcode.Exp) bool {
 	if ex == nil {
 		return false
 	}
 	switch ex.Op {
-	case OpAggSum, OpAggAvg, OpAggMin, OpAggMax, OpAggCount:
+	case qcode.OpAggSum, qcode.OpAggAvg, qcode.OpAggMin, qcode.OpAggMax, qcode.OpAggCount:
 		return true
 	}
 	for _, c := range ex.Children {
@@ -244,8 +246,8 @@ var columnAggregateNames = map[string]struct{}{
 // Function shape the prefix form `<aggregate>_<col>` produces, so everything
 // downstream — GROUP BY, limit suppression, role column checks, SQL rendering —
 // is origin-blind.
-func (co *Compiler) compileColumnAggFunction(sel *Select, name string, colArg graph.Arg) (
-	fn Function, isFunc bool, err error,
+func (co *Compiler) compileColumnAggFunction(sel *qcode.Select, name string, colArg graph.Arg) (
+	fn qcode.Function, isFunc bool, err error,
 ) {
 	if _, ok := columnAggregateNames[name]; !ok {
 		return fn, false, nil
@@ -265,7 +267,7 @@ func (co *Compiler) compileColumnAggFunction(sel *Select, name string, colArg gr
 	fn.Name = name
 	fn.Func = dbFn
 	fn.Agg = true
-	fn.Args = []Arg{{Type: ArgTypeCol, Col: col}}
+	fn.Args = []qcode.Arg{{Type: qcode.ArgTypeCol, Col: col}}
 	return fn, true, nil
 }
 
@@ -276,7 +278,7 @@ type funcInfo struct {
 	Agg  bool
 }
 
-func (co *Compiler) isFunctionEx(sel *Select, name string, f graph.Field) (
+func (co *Compiler) isFunctionEx(sel *qcode.Select, name string, f graph.Field) (
 	fi funcInfo, isFunc bool, err error,
 ) {
 	for k, v := range co.s.GetFunctions() {

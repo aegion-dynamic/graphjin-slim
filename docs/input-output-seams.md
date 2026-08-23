@@ -443,14 +443,21 @@ grep-audited to zero leftover references.
 
 ## 11. Migration plan
 
-**Status as of this writing:** Phases 0–3 and 5–8 are complete. Phase 4's
-full IR/lowering split is deliberately deferred: qcode lowers source
-through the graph AST across ~7,700 lines, and physically untangling
-types from lowering logic carries regression risk that its interface
-benefit does not yet justify — the engine already routes every request
-through `langadapter.Language`, so the boundary is enforced at the seam
-where it matters. The parser import allowlist in CI documents exactly
-which packages still touch it.
+**Status as of this writing:** all phases are complete. The full
+IR/lowering split (formerly Phase 4) has landed: `core/qcode` is now a
+pure IR package — types and pure methods only, importing nothing but
+`sdata` — while `core/lang/graphql` owns the entire frontend: the
+compiler, parser-driven lowering, validation-registry registration, and
+per-database language binding. Backend packages (`sqlgen`, `dialect`,
+`dbjoin`) consume real `qcode` definitions directly; no alias shim
+remains. Frontend-only scratch state (parsed payload nodes, tree
+building) lives on `graphql.Compiler`, and mutation payloads cross into
+the backend exclusively through neutral IR fields (`Mutate.ColVals`,
+`IsJSON`, `Array`). CI enforces qcode's protocol-freedom and the
+parser's frontend confinement; the remaining transitional `graph`
+imports outside `core/lang/graphql` (allow-list metadata extraction,
+dbjoin's legacy fan-out encoding, openapi parameter docs) are documented
+allowlist entries slated for their own capability seams.
 
 Each phase ships green and independently revertible.
 
@@ -460,7 +467,7 @@ Each phase ships green and independently revertible.
 | **1** | Rename `psql` → `sqlgen`, zero behavior change, docs updated | `grep -ri psql` clean (excluding legit "postgres"); tests green |
 | **2** | `langadapter` + `format` registries; first `Language` impl wraps today's `qcode.Compiler` untouched; JSON formatter wraps current rendering | Registries live; no callers changed yet; tests green |
 | **3** | Neutral `gj.Query(lang, …)`; engine + allow drop direct parsing via `FastInfoer`; allow-list `lang` field | Engine compiles without importing `graph` |
-| **4** | Extract GraphQL frontend into `lang/graphql`; qcode loses its `graph` import | Deferred (see note above); CI audit documents the transitional allowlist |
+| **4** | Extract GraphQL frontend into `lang/graphql`; qcode loses its `graph` import | Done: `core/qcode` is pure IR (imports only `sdata`); frontend fully owns parsing and lowering |
 | **5** | Runtime edges: dbjoin via `SubqueryBuilder`; introspection delegated as `SchemaDescriber` capability | Done: joins resolve through the language; introspection gated to graphql requests |
 | **6** | Output seam activation: formatter registry selected in serv; envelope owned by formatters | Done: byte-identical JSON verified by encoder-equivalence test |
 | **7** | Surfaces: `/api/v1/languages` discovery; webui discovery fallback; `ColumnGraphQLType` → `ColumnScalarType` | Done: no hardcoded language endpoints outside adapters |

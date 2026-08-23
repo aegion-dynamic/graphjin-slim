@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	_ "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"strings"
 	"testing"
 

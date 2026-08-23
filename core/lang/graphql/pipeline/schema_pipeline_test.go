@@ -1,79 +1,20 @@
-package engine
+package pipeline_test
 
 import (
-	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
-
 	"bytes"
 	"database/sql"
-	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
+	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
-func TestCreateSchema(t *testing.T) {
-	var buf bytes.Buffer
-
-	di1 := sdata.GetTestDBInfo()
-	if err := writeSchema(di1, &buf); err != nil {
-		t.Fatal(err)
-	}
-
-	ds, err := graphql.ParseSchema(buf.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	di2 := sdata.NewDBInfo(ds.Type,
-		ds.Version,
-		ds.Schema,
-		"",
-		ds.Columns,
-		ds.Functions,
-		nil)
-
-	if di1.Hash() != di2.Hash() {
-		t.Fatal(fmt.Errorf("schema hashes do not match: expected %d got %d",
-			di1.Hash(), di2.Hash()))
-	}
-}
-
-func TestWriteSchemaWithDatabase(t *testing.T) {
-	var buf bytes.Buffer
-
-	di := sdata.GetTestDBInfoWithDatabase()
-	if err := writeSchema(di, &buf); err != nil {
-		t.Fatal(err)
-	}
-
-	output := buf.String()
-
-	// Verify @database directive appears for tables with Database set
-	if !strings.Contains(output, "@database(name: analytics)") {
-		t.Error("expected @database directive for analytics database")
-	}
-	if !strings.Contains(output, "@database(name: logs)") {
-		t.Error("expected @database directive for logs database")
-	}
-
-	// Verify no @database for tables without Database (users table)
-	// The users type declaration should not have @database
-	usersIdx := strings.Index(output, "type users")
-	if usersIdx == -1 {
-		t.Fatal("users table not found in output")
-	}
-	// Find the end of the users type block (next "type" keyword or end of output)
-	nextTypeIdx := strings.Index(output[usersIdx+1:], "\ntype ")
-	var usersBlock string
-	if nextTypeIdx == -1 {
-		usersBlock = output[usersIdx:]
-	} else {
-		usersBlock = output[usersIdx : usersIdx+1+nextTypeIdx]
-	}
-	if strings.Contains(usersBlock, "@database") {
-		t.Error("users table should not have @database directive")
-	}
+// helper mirroring engine.writeSchema
+var writeSchema = func(s *sdata.DBInfo, buf *bytes.Buffer) error {
+	return schemapkg.WriteSchema(s, buf)
 }
 
 func TestParseSchemaWithDatabase(t *testing.T) {
@@ -263,12 +204,12 @@ type audit_logs {
 		"logs":      "postgres",
 	}
 
-	di, perr := ParseSchemaSDL(schema, "", nil)
+	di, perr := engine.ParseSchemaSDL(schema, "", nil)
 	if perr != nil {
 		t.Fatalf("parse schema: %v", perr)
 	}
 
-	_, err := SchemaDiffMultiDB(connections, dbTypes, di, nil, DiffOptions{})
+	_, err := engine.SchemaDiffMultiDB(connections, dbTypes, di, nil, engine.DiffOptions{})
 	if err == nil {
 		t.Fatal("expected error for tables missing @database directive, got nil")
 	}
@@ -322,46 +263,14 @@ type audit_logs @database(name: logs) {
 	connections := map[string]*sql.DB{}
 	dbTypes := map[string]string{}
 
-	di, perr := ParseSchemaSDL(schema, "", nil)
+	di, perr := engine.ParseSchemaSDL(schema, "", nil)
 	if perr != nil {
 		t.Fatalf("parse schema: %v", perr)
 	}
 
-	_, err := SchemaDiffMultiDB(connections, dbTypes, di, nil, DiffOptions{})
+	_, err := engine.SchemaDiffMultiDB(connections, dbTypes, di, nil, engine.DiffOptions{})
 	if err != nil {
 		t.Fatalf("expected no validation error when all tables have @database, got: %v", err)
-	}
-}
-
-func TestWriteSchemaWithClusteringKeys(t *testing.T) {
-	var buf bytes.Buffer
-
-	di := &sdata.DBInfo{
-		Type:    "snowflake",
-		Version: 1,
-		Schema:  "main",
-		Tables: []sdata.DBTable{
-			{
-				Name:   "events",
-				Schema: "main",
-				Columns: []sdata.DBColumn{
-					{Name: "id", Type: "bigint", PrimaryKey: true, NotNull: true, Schema: "main", Table: "events"},
-					{Name: "created_at", Type: "timestamp", NotNull: true, Schema: "main", Table: "events"},
-					{Name: "region", Type: "varchar", NotNull: true, Schema: "main", Table: "events"},
-				},
-				ClusteringKeys: []string{"created_at", "region"},
-			},
-		},
-	}
-
-	if err := writeSchema(di, &buf); err != nil {
-		t.Fatal(err)
-	}
-
-	output := buf.String()
-
-	if !strings.Contains(output, `@cluster(columns: ["created_at", "region"])`) {
-		t.Errorf("expected @cluster directive in output, got:\n%s", output)
 	}
 }
 

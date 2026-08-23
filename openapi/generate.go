@@ -8,8 +8,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
@@ -46,7 +45,15 @@ func Generate(inputs core.OpenAPIInputs, cfg Config) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-	qcc, err := graphql.NewCompiler(dbSchema, graphql.Config{})
+	d, lerr := langadapter.Lookup(langadapter.DefaultLanguageName)
+	if lerr != nil {
+		return nil, lerr
+	}
+	cf, ok := d.(langadapter.CompilerFactory)
+	if !ok {
+		return nil, fmt.Errorf("openapi: language %q provides no compiler factory", langadapter.DefaultLanguageName)
+	}
+	qcc, err := cf.NewCompiler(dbSchema, langadapter.CompileConfig{DBSchema: dbSchema.DBSchema()})
 	if err != nil {
 		return nil, fmt.Errorf("openapi: failed to build compiler: %w", err)
 	}
@@ -198,46 +205,41 @@ type queryAnalysis struct {
 
 // analyzeQuery parses and compiles one saved query to extract HTTP methods,
 // parameters, and a response schema.
-func analyzeQuery(qcc *graphql.Compiler, item allow.Item) (*queryAnalysis, bool) {
-	op, err := graph.Parse(item.Query)
+func analyzeQuery(qcc langadapter.Language, item allow.Item) (*queryAnalysis, bool) {
+	qc, err := qcc.Compile(item.Query, nil, langadapter.CompileOptions{Namespace: item.Namespace})
 	if err != nil {
 		return nil, false
 	}
-	qc, err := qcc.Compile(item.Query, nil, item.Namespace)
-	if err != nil {
-		return nil, false
+	var params []Parameter
+	if pd, ok := qcc.(langadapter.ParameterDescriber); ok {
+		ps, perr := pd.QueryParameters(item.Query)
+		if perr == nil {
+			params = parametersFrom(ps)
+		}
 	}
 	return &queryAnalysis{
 		name:           item.Name,
 		httpMethods:    httpMethodsFor(qc.Type, qc.SType),
-		parameters:     extractParameters(op.VarDef),
+		parameters:     params,
 		responseSchema: responseSchemaFromQCode(qc),
 	}, true
 }
 
-// extractParameters converts GraphQL variable definitions to query parameters.
-// Variable declarations use GraphJin's own syntax ($id = ID); the type name
-// is carried in the value node's Val field.
-func extractParameters(varDefs []graph.VarDef) []Parameter {
+// parametersFrom maps seam-level parameter metadata onto OpenAPI
+// parameters. Variable declarations use the frontend's own syntax; the
+// type label arrives already normalized by the language.
+func parametersFrom(ps []langadapter.Parameter) []Parameter {
 	var params []Parameter
-	for _, varDef := range varDefs {
-		typeName := "String"
-		required := false
-		if varDef.Val != nil {
-			if t := strings.TrimSuffix(varDef.Val.Val, "!"); t != "" {
-				typeName = t
-			} else if varDef.Val.Name != "" {
-				typeName = varDef.Val.Name
-			}
-			required = varDef.Val.Type == graph.NodeLabel &&
-				len(varDef.Val.Children) > 0 &&
-				varDef.Val.Children[0].Type == graph.NodeLabel
+	for _, p := range ps {
+		typeName := p.Type
+		if typeName == "" {
+			typeName = "String"
 		}
 		params = append(params, Parameter{
-			Name:        varDef.Name,
+			Name:        p.Name,
 			In:          "query",
-			Description: fmt.Sprintf("GraphQL variable: %s", varDef.Name),
-			Required:    required,
+			Description: fmt.Sprintf("Variable: %s", p.Name),
+			Required:    p.Required,
 			Schema:      graphQLTypeToSchema(typeName),
 		})
 	}
@@ -347,7 +349,7 @@ func httpMethodsFor(opType, subType qcode.QType) []string {
 
 // generatePathItem creates the OpenAPI path item for a saved query. The
 // second return value is false when the query could not be analyzed.
-func generatePathItem(qcc *graphql.Compiler, item allow.Item) (PathItem, bool) {
+func generatePathItem(qcc langadapter.Language, item allow.Item) (PathItem, bool) {
 	a, ok := analyzeQuery(qcc, item)
 	if !ok {
 		return PathItem{}, false

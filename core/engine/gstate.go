@@ -16,8 +16,8 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 )
 
 type gstate struct {
@@ -230,7 +230,7 @@ func (s *gstate) compileForDatabase(st stmt, vars map[string]json.RawMessage, db
 // database's language and SQL generator. Compilation routes through the
 // request's query language; SQL generation stays language-neutral.
 func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, dbCtx *dbContext, dbName string) (err error) {
-	lang := dbCtx.languages()[s.r.lang]
+	lang := dbCtx.languages(s.gj)[s.r.lang]
 	if lang == nil {
 		return fmt.Errorf("database %s: no query language %q", dbCtx.name, s.r.lang)
 	}

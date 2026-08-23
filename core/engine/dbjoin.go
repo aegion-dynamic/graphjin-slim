@@ -11,6 +11,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/dbjoin"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/jsn"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 )
 
@@ -181,7 +182,22 @@ func (s *gstate) executeDatabaseJoinQuery(
 ) ([]byte, error) {
 	selects := s.cs.st.qc.Selects
 	fkCol := sel.Rel.Left.Col
-	subQuery := dbjoin.BuildChildGraphQLQuery(sel, selects, fkCol, parentID)
+
+	// Child work is serialized by the request's own language when it can;
+	// the GraphQL text protocol remains the built-in fallback.
+	var subQuery []byte
+	if lang := dbCtx.languages(s.gj)[s.r.lang]; lang != nil {
+		if sb, ok := lang.(langadapter.SubqueryBuilder); ok {
+			var err error
+			subQuery, err = sb.BuildChildQuery(sel, selects, fkCol, parentID)
+			if err != nil {
+				return nil, fmt.Errorf("child query build failed: %w", err)
+			}
+		}
+	}
+	if subQuery == nil {
+		subQuery = dbjoin.BuildChildGraphQLQuery(sel, selects, fkCol, parentID)
+	}
 
 	qc, err := dbCtx.qcodeCompiler.Compile(subQuery, nil, s.r.namespace)
 	if err != nil {

@@ -22,10 +22,10 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/watcher"
 )
 
@@ -59,15 +59,15 @@ const (
 // dbContext holds per-database state for multi-database support.
 // Each database gets its own connection pool, schema discovery, and SQL compiler.
 type dbContext struct {
-	name          string          // Database name (key in Config.Databases)
-	db            *sql.DB         // Connection pool for this database
-	dbtype        string          // Database type (postgres, mysql, sqlite, etc.)
-	dbinfo        *sdata.DBInfo   // Raw schema metadata
-	schema        *sdata.DBSchema // Processed schema with relationships
-	qcodeCompiler *qcode.Compiler // GraphQL to QCode compiler (validates against this DB's schema)
-	sqlgenCompiler  *sqlgen.Compiler  // QCode to SQL compiler (generates this DB's dialect)
-	langsMu       sync.Mutex                      // guards langs
-	langs         map[string]langadapter.Language // query languages, built lazily
+	name           string                          // Database name (key in Config.Databases)
+	db             *sql.DB                         // Connection pool for this database
+	dbtype         string                          // Database type (postgres, mysql, sqlite, etc.)
+	dbinfo         *sdata.DBInfo                   // Raw schema metadata
+	schema         *sdata.DBSchema                 // Processed schema with relationships
+	qcodeCompiler  *qcode.Compiler                 // GraphQL to QCode compiler (validates against this DB's schema)
+	sqlgenCompiler *sqlgen.Compiler                // QCode to SQL compiler (generates this DB's dialect)
+	langsMu        sync.Mutex                      // guards langs
+	langs          map[string]langadapter.Language // query languages, built lazily
 }
 
 // GraphJin struct is an instance of the GraphJin engine it holds all the required information like
@@ -791,7 +791,7 @@ func (gj *graphjinEngine) query(c context.Context, r GraphqlReq) (
 		name:      r.name,
 	}
 
-	if !gj.prodSec && r.name == "IntrospectionQuery" {
+	if !gj.prodSec && r.lang == "graphql" && r.name == "IntrospectionQuery" {
 		resp.res.Data, err = gj.getIntroResult()
 		return
 	}
@@ -1226,13 +1226,13 @@ func cloneDBContextForReload(ctx *dbContext) *dbContext {
 		return nil
 	}
 	return &dbContext{
-		name:          ctx.name,
-		db:            ctx.db,
-		dbtype:        ctx.dbtype,
-		dbinfo:        ctx.dbinfo,
-		schema:        ctx.schema,
-		qcodeCompiler: ctx.qcodeCompiler,
-		sqlgenCompiler:  ctx.sqlgenCompiler,
+		name:           ctx.name,
+		db:             ctx.db,
+		dbtype:         ctx.dbtype,
+		dbinfo:         ctx.dbinfo,
+		schema:         ctx.schema,
+		qcodeCompiler:  ctx.qcodeCompiler,
+		sqlgenCompiler: ctx.sqlgenCompiler,
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 // CompileOptions carries per-request compilation settings.
@@ -49,6 +50,24 @@ type Language interface {
 // allow-list use this instead of importing any parser directly.
 type FastInfoer interface {
 	FastInfo(query []byte) (Info, error)
+}
+
+// SchemaDescriber serves protocol-specific schema metadata, such as
+// GraphQL introspection documents. Engines delegate to it when the
+// incoming request asks for schema description instead of data.
+type SchemaDescriber interface {
+	// DescribeSchema returns a self-contained metadata document for the
+	// databases visible to the engine. ns may be empty for the default.
+	DescribeSchema(ns string) (json.RawMessage, error)
+}
+
+// SubqueryBuilder constructs child work for cross-database joins in the
+// language's own medium: serialized source text, URLs, or any other
+// encoding the same Language can consume on the remote side. Without it,
+// joins fall back to the built-in GraphQL text protocol.
+type SubqueryBuilder interface {
+	BuildChildQuery(sel *qcode.Select, selects []qcode.Select,
+		fkCol sdata.DBColumn, parentID []byte) ([]byte, error)
 }
 
 var (

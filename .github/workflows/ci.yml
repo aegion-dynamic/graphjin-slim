@@ -31,7 +31,7 @@ jobs:
       - name: Build
         run: |
           set -euo pipefail
-          for m in core serv openapi webui tests; do
+          for m in core graphql serv openapi webui tests; do
               (cd "$m" && go build ./...)
           done
 
@@ -39,6 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           go test ./core/...
+          (cd graphql && go test ./...)
           (cd serv && go test ./...)
           (cd openapi && go test ./...)
 
@@ -60,6 +61,11 @@ jobs:
           echo "== IR (qcode) must be protocol-free and seam-free"
           if grep -rln 'core/v3/graph"\|core/v3/langadapter\|core/v3/format"' --include='*.go' core/qcode; then
               echo "::error::qcode must stay language- and format-neutral"; exit 1
+          fi
+
+          echo "== core must not import the graphql language module"
+          if grep -rln 'graphjin-slim/graphql/v3' --include='*.go' core; then
+              echo "::error::core gained a dependency on the optional graphql frontend"; exit 1
           fi
 
           echo "== the graphql frontend owns the parser"

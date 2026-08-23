@@ -1,10 +1,11 @@
 # Architecture
 
-GraphJin Slim is a two-module Go workspace:
+GraphJin Slim is a multi-module Go workspace:
 
 ```text
-core/   GraphQL compiler and runtime library
-serv/   Embeddable HTTP service built on core
+core/       IR, seams, backends, execution runtime (zero query languages)
+graphql/    the GraphQL frontend as an optional, self-registering module
+serv/       Embeddable HTTP service built on core
 ```
 
 The module paths are intentionally stable:
@@ -83,13 +84,15 @@ Database-specific SQL rendering for Postgres and SQLite.
 
 ### `core/langadapter`
 
-The input seam: query languages register factories globally, instances
-bind per-database to a qcode compiler, and everything lowers into the
-shared qcode IR. Registry semantics mirror `core/dbadapter`. The
-built-in graphql language lives in the engine until its frontend is
-fully extracted; optional capabilities (`FastInfoer`,
-`SchemaDescriber`, `SubqueryBuilder`) let languages own parsing
-metadata, schema description, and cross-DB fan-out encoding.
+The input seam: query languages register descriptors globally, bind
+per-database through `CompilerFactory`, and lower everything into the
+shared qcode IR. Registry semantics mirror `core/dbadapter`. Optional
+capabilities (`FastInfoer`, `SchemaDescriber`, `SubqueryBuilder`,
+`ParameterDescriber`, `SchemaParser`) let languages own parsing
+metadata, schema description, cross-DB fan-out encoding, parameter
+docs, and schema-SDL parsing. Core ships zero languages: the GraphQL
+frontend lives in its own module (`graphql/`) and self-registers when
+blank-imported, exactly like the database engines.
 
 ### `core/format`
 

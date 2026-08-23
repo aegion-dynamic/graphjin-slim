@@ -4,7 +4,7 @@ go 1.26.6
 
 require (
 	github.com/aegion-dynamic/graphjin-slim/openapi/v3 v3.0.0-00010101000000-000000000000
-	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.34.0
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.35.1
 	github.com/aegion-dynamic/graphjin-slim/sqlite/v3 v3.34.1
 	github.com/uptrace/bun v1.2.11
 	github.com/uptrace/bun/dialect/sqlitedialect v1.2.11
@@ -12,7 +12,7 @@ require (
 
 require (
 	github.com/Code-Hex/dd v1.1.0 // indirect
-	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.34.0 // indirect
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.35.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a // indirect

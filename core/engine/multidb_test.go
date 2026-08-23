@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strconv"
+
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"reflect"
 	"testing"
 
@@ -1443,7 +1446,22 @@ func TestAddForeignKeySameDBUnchanged(t *testing.T) {
 // output on repeated calls with a multi-database engine.
 // This validates that all map iterations (databases, types, enums, aliases,
 // roles, validators) are deterministic.
+
+// stubDescriber satisfies DescribeFactory deterministically so intro
+// tests run without any frontend module registered.
+type stubDescriber struct{}
+
+func (stubDescriber) Name() string { return "graphql" }
+
+func (stubDescriber) DescribeSchema(opts langadapter.DescribeOptions) (json.RawMessage, error) {
+	return json.RawMessage(`{"stub":true,"schemas":` +
+		strconv.Itoa(len(opts.Schemas)) + `,"camel":` +
+		strconv.FormatBool(opts.CamelCase) + `}`), nil
+}
+
 func TestIntroQueryDeterministic(t *testing.T) {
+	langadapter.Register(stubDescriber{})
+
 	di := sdata.GetTestDBInfo()
 	schema, err := sdata.NewDBSchema(di, nil)
 	if err != nil {

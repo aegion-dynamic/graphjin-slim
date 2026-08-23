@@ -179,16 +179,16 @@ Independent of any new input language:
 Full symmetry: **N input languages × M database engines × K output formats**,
 meeting at the same IR and runtime. Adding an axis never touches the other two.
 
-Package layout changes:
+Package layout — final state:
 
 ```text
-core/langadapter/        new — Language interface + registry (mirror of dbadapter)
-core/format/             new — Formatter interface + output registry
-core/lang/graphql/       new — GraphQL frontend: owns graph parser, qcode lowering,
-                              introspection, envelope conventions
-core/qcode/              trimmed — IR types + shared lowering utilities;
-                              no graph import
-core/sqlgen/             renamed from core/psql (incl. bench/, tests/)
+graphql/                 its own module — the GraphQL frontend: parser,
+                         lowering, validation registry; self-registers via
+                         langadapter and is blank-imported like an engine
+core/langadapter/        the input seam + registry (mirror of dbadapter)
+core/format/             the output seam + registry (JSON built in)
+core/qcode/              pure IR — types, enums, pure methods; imports only sdata
+core/sqlgen/             SQL generation for every dialect (renamed from psql)
 ```
 
 ---

@@ -52,6 +52,7 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+	coreformat "github.com/aegion-dynamic/graphjin-slim/core/v3/format"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/etags"
 	httpapi "github.com/aegion-dynamic/graphjin-slim/serv/v3/http"
@@ -1423,6 +1424,29 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
 }
 
 // responseHandler handles the response from the GraphQL API
+// formatNameFromRequest resolves the output formatter: explicit
+// ?format= wins, then an Accept header naming a registered format,
+// defaulting to the built-in json.
+func formatNameFromRequest(r *http.Request) string {
+	if f := r.URL.Query().Get("format"); f != "" {
+		return f
+	}
+	for _, entry := range strings.Split(r.Header.Get("Accept"), ",") {
+		mt := strings.TrimSpace(strings.Split(entry, ";")[0])
+		switch mt {
+		case "application/json":
+			return "json"
+		case "":
+			continue
+		default:
+			if _, lerr := coreformat.Lookup(mt); lerr == nil {
+				return mt
+			}
+		}
+	}
+	return "json"
+}
+
 func (s *graphjinService) responseHandler(ct context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -1447,7 +1471,18 @@ func (s *graphjinService) responseHandler(ct context.Context,
 		w.Header().Set("ETag", hex.EncodeToString(res.Hash[:]))
 	}
 
-	if err := json.NewEncoder(w).Encode(res); err != nil {
+	fname := formatNameFromRequest(r)
+	f, ferr := coreformat.Lookup(fname)
+	if ferr != nil {
+		renderErr(w, ferr)
+		return
+	}
+	if ct := f.ContentType(); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	}
+
+	payload := coreformat.Payload{Data: res.Data, Result: res}
+	if err := f.Format(w, payload); err != nil {
 		renderErr(w, err)
 		return
 	}

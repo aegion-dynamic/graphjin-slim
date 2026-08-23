@@ -22,6 +22,12 @@ import (
 type Payload struct {
 	// Data is the response document as produced by execution.
 	Data json.RawMessage
+
+	// Result optionally carries the full engine result object. Formatters
+	// that own an envelope marshal this whole object (matching how the
+	// service historically encoded responses); formatters that emit raw
+	// documents use Data instead.
+	Result any
 }
 
 // Formatter renders an execution payload into a wire representation,
@@ -31,17 +37,25 @@ type Formatter interface {
 	// Name matches configuration and content negotiation ("json").
 	Name() string
 
+	// ContentType returns the value to set in the Content-Type header.
+	ContentType() string
+
 	// Format writes the complete wire representation for the payload.
 	Format(w io.Writer, p Payload) error
 }
 
-// JSON is the built-in formatter: it writes the data document verbatim,
-// matching GraphJin's historical byte-for-byte output.
+// JSON is the built-in formatter. When given a full result object it
+// encodes that object exactly as the service always has (same encoder,
+// same escaping, trailing newline included); byte-for-byte compatible.
 type JSON struct{}
 
-func (JSON) Name() string { return "json" }
+func (JSON) Name() string        { return "json" }
+func (JSON) ContentType() string { return "application/json" }
 
 func (JSON) Format(w io.Writer, p Payload) error {
+	if p.Result != nil {
+		return json.NewEncoder(w).Encode(p.Result)
+	}
 	_, err := w.Write(p.Data)
 	return err
 }

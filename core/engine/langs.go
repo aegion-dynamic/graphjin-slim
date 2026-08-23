@@ -1,76 +1,22 @@
 package engine
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
-// graphqlLang adapts the current fused qcode compiler to the
-// langadapter.Language contract. The Phase 4 extraction moves this into
-// core/lang/graphql together with the parser; nothing else changes.
-type graphqlLang struct {
-	c  *graphql.Compiler
-	gj *graphjinEngine // engine-level services (schema description)
-}
-
-// graphqlDescriptor registers the built-in language with the global
-// registry so discovery and configuration can resolve "graphql".
-type graphqlDescriptor struct{}
-
-func (graphqlDescriptor) Name() string { return "graphql" }
-
-func (l graphqlLang) DescribeSchema(ns string) (json.RawMessage, error) {
-	if l.gj == nil {
-		return nil, fmt.Errorf("introspection unavailable: no engine bound")
-	}
-	return l.gj.getIntroResult()
-}
-
-// BuildChildQuery serializes cross-database child work as GraphQL source,
-// the wire protocol today's remote side already consumes.
-func (l graphqlLang) BuildChildQuery(sel *qcode.Select, selects []qcode.Select,
-	fkCol sdata.DBColumn, parentID []byte,
-) ([]byte, error) {
-	return buildChildGraphQLQuery(sel, selects, fkCol, parentID), nil
-}
-
-func init() { langadapter.Register(graphqlDescriptor{}) }
-
-func (l graphqlLang) Name() string { return "graphql" }
-
-func (l graphqlLang) Compile(query []byte, vars map[string]json.RawMessage,
-	opts langadapter.CompileOptions,
-) (*qcode.QCode, error) {
-	return l.c.Compile(query, vars, opts.Namespace)
-}
-
-// FastInfo extracts the operation kind and name without full compilation.
-func (l graphqlLang) FastInfo(query []byte) (langadapter.Info, error) {
-	h, err := graph.FastParseBytes(query)
-	if err != nil {
-		return langadapter.Info{}, err
-	}
-	return langadapter.Info{Operation: h.Operation, Name: h.Name}, nil
-}
-
-// languages returns the query languages available for this database,
-// built lazily around its compilers. Safe for concurrent use.
+// languages returns the query languages bound to this database. They are
+// constructed eagerly at context creation via the input seam; this
+// lazy path only serves contexts created before binding existed.
 func (db *dbContext) languages(gj *graphjinEngine) map[string]langadapter.Language {
 	db.langsMu.Lock()
 	defer db.langsMu.Unlock()
-	if db.langs == nil {
-		db.langs = map[string]langadapter.Language{}
-		if db.qcodeCompiler != nil {
-			// gj may be nil when a context is not yet bound to an engine;
-			// such languages serve compilation only.
-			db.langs["graphql"] = graphqlLang{c: db.qcodeCompiler, gj: gj}
+	if db.langs == nil && db.schema != nil && gj != nil {
+		langs, err := gj.newLanguages(db)
+		if err == nil {
+			db.langs = langs
 		}
 	}
 	return db.langs
@@ -79,6 +25,9 @@ func (db *dbContext) languages(gj *graphjinEngine) map[string]langadapter.Langua
 // GetLanguage resolves a query language for the named database. An empty
 // dbName selects the primary database.
 func (gj *graphjinEngine) GetLanguage(dbName, langName string) (langadapter.Language, error) {
+	if langName == "" {
+		langName = langadapter.DefaultLanguageName
+	}
 	if dbName == "" {
 		dbName = gj.defaultDB
 	}

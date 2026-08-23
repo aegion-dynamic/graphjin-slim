@@ -21,7 +21,6 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
@@ -65,7 +64,6 @@ type dbContext struct {
 	dbtype         string                          // Database type (postgres, mysql, sqlite, etc.)
 	dbinfo         *sdata.DBInfo                   // Raw schema metadata
 	schema         *sdata.DBSchema                 // Processed schema with relationships
-	qcodeCompiler  *graphql.Compiler               // GraphQL to QCode compiler (validates against this DB's schema)
 	sqlgenCompiler *sqlgen.Compiler                // QCode to SQL compiler (generates this DB's dialect)
 	langsMu        sync.Mutex                      // guards langs
 	langs          map[string]langadapter.Language // query languages, built lazily
@@ -1086,7 +1084,7 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 		}
 		target.dbinfo = nil
 		target.schema = nil
-		target.qcodeCompiler = nil
+		target.langs = nil
 		target.sqlgenCompiler = nil
 		if err := gj.discoverDatabase(target); err != nil {
 			return err
@@ -1187,7 +1185,7 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 	}
 	target.dbinfo = nil
 	target.schema = nil
-	target.qcodeCompiler = nil
+	target.langs = nil
 	target.sqlgenCompiler = nil
 
 	if err := gj.discoverDatabase(target); err != nil {
@@ -1232,7 +1230,7 @@ func cloneDBContextForReload(ctx *dbContext) *dbContext {
 		dbtype:         ctx.dbtype,
 		dbinfo:         ctx.dbinfo,
 		schema:         ctx.schema,
-		qcodeCompiler:  ctx.qcodeCompiler,
+		langs:          ctx.langs,
 		sqlgenCompiler: ctx.sqlgenCompiler,
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
-	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
@@ -30,14 +29,12 @@ type SchemaOperation struct {
 }
 
 // SchemaDiff computes the SQL statements needed to sync the database with the schema file
-func SchemaDiff(db *sql.DB, dbType string, schemaBytes []byte, blocklist []string, opts DiffOptions) ([]SchemaOperation, error) {
-	// Parse the schema file
-	ds, err := graphql.ParseSchema(schemaBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse schema: %w", err)
-	}
+// SchemaDiff compares the live database against the expected IR schema.
+// The expected DBInfo comes from a frontend SDL parser (see
+// langadapter.SchemaParser); this package never parses frontend text.
+func SchemaDiff(db *sql.DB, dbType string, expected *sdata.DBInfo, blocklist []string, opts DiffOptions) ([]SchemaOperation, error) {
 	if strings.TrimSpace(dbType) == "" {
-		dbType = ds.Type
+		dbType = expected.Type
 	}
 	if strings.TrimSpace(dbType) == "" {
 		dbType = "postgres"
@@ -46,34 +43,11 @@ func SchemaDiff(db *sql.DB, dbType string, schemaBytes []byte, blocklist []strin
 		return nil, fmt.Errorf("schema DDL is not supported for database type %q", dbType)
 	}
 
-	// Determine schema based on dbType when not specified via @schema directive
-	schema := ds.Schema
-	if schema == "" {
-		schema = defaultSchemaForDBType(dbType)
-	}
-
-	// Convert parsed schema to DBInfo (expected state)
-	// Always use dbType parameter, not ds.Type from schema file
-	expected := sdata.NewDBInfo(
-		dbType,
-		ds.Version,
-		schema,
-		"", // dbName - not needed for diff
-		ds.Columns,
-		ds.Functions,
-		blocklist,
-	)
-
-	// Attach clustering keys from schema DDL to expected tables
-	attachClusteringKeys(expected, ds.ClusteringKeys, schema, dbType)
-
-	// Get current database schema
 	current, err := introspection.GetDBInfo(context.Background(), db, dbType, blocklist)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover database schema: %w", err)
 	}
 
-	// Compute the diff
 	ops := computeDiff(current, expected, opts)
 	return ops, nil
 }
@@ -90,40 +64,43 @@ type TemporalColumn struct {
 // interval columns are excluded. It lets tooling such as the demo data
 // refresher find date-bearing columns without live schema discovery, which
 // stays accurate on engines like SQLite that store temporal values as TEXT.
-func SchemaDDLTemporalColumns(schemaBytes []byte) (map[string][]TemporalColumn, error) {
-	ds, err := graphql.ParseSchema(schemaBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse schema: %w", err)
-	}
+// TemporalColumns returns the date and timestamp columns of each table,
+// keyed by table name. Time-of-day and interval columns are excluded. It
+// lets tooling such as the demo data refresher find date-bearing columns
+// without live schema discovery, which stays accurate on engines like
+// SQLite that store temporal values as TEXT.
+func TemporalColumns(di *sdata.DBInfo) map[string][]TemporalColumn {
 	tables := make(map[string][]TemporalColumn)
-	for _, col := range ds.Columns {
-		var dateOnly bool
-		switch strings.ToLower(strings.TrimSpace(col.Type)) {
-		case "date":
-			dateOnly = true
-		case "timestamp", "timestamp with time zone", "timestamptz",
-			"timestamp without time zone", "datetime":
-		default:
-			continue
+	for _, t := range di.Tables {
+		for _, col := range t.Columns {
+			var dateOnly bool
+			switch strings.ToLower(strings.TrimSpace(col.Type)) {
+			case "date":
+				dateOnly = true
+			case "timestamp", "timestamp with time zone", "timestamptz",
+				"timestamp without time zone", "datetime":
+			default:
+				continue
+			}
+			tables[t.Name] = append(tables[t.Name], TemporalColumn{
+				Name:     col.Name,
+				DateOnly: dateOnly,
+			})
 		}
-		tables[col.Table] = append(tables[col.Table], TemporalColumn{
-			Name:     col.Name,
-			DateOnly: dateOnly,
-		})
 	}
-	return tables, nil
+	return tables
 }
 
 // GenerateSchemaSQL renders executable DDL from GraphJin DDL without discovering
 // a live database. It is intended for local simulators and generated fixtures;
 // live migration support is still gated by SupportsSchemaDDL.
-func GenerateSchemaSQL(dbType string, schemaBytes []byte, blocklist []string) ([]string, error) {
-	ds, err := graphql.ParseSchema(schemaBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse schema: %w", err)
-	}
+// GenerateSchemaSQLFromSchema renders executable DDL from an expected IR
+// schema without discovering a live database. It is intended for local
+// simulators and generated fixtures; live migration support is still
+// gated by SupportsSchemaDDL.
+func GenerateSchemaSQLFromSchema(dbType string, di *sdata.DBInfo) ([]string, error) {
 	if strings.TrimSpace(dbType) == "" {
-		dbType = ds.Type
+		dbType = di.Type
 	}
 	if strings.TrimSpace(dbType) == "" {
 		dbType = "postgres"
@@ -132,23 +109,8 @@ func GenerateSchemaSQL(dbType string, schemaBytes []byte, blocklist []string) ([
 		return nil, fmt.Errorf("schema DDL rendering is not available for database type %q", dbType)
 	}
 
-	schema := ds.Schema
-	if schema == "" {
-		schema = defaultSchemaForDBType(dbType)
-	}
-	expected := sdata.NewDBInfo(
-		dbType,
-		ds.Version,
-		schema,
-		"",
-		ds.Columns,
-		ds.Functions,
-		blocklist,
-	)
-	attachClusteringKeys(expected, ds.ClusteringKeys, schema, dbType)
-
 	current := &sdata.DBInfo{Type: dbType}
-	return GenerateDiffSQL(computeDiff(current, expected, DiffOptions{})), nil
+	return GenerateDiffSQL(computeDiff(current, di, DiffOptions{})), nil
 }
 
 // DefaultSchemaForDBType returns the default schema name for a database type
@@ -465,32 +427,24 @@ func GenerateDiffSQL(ops []SchemaOperation) []string {
 func SchemaDiffMultiDB(
 	connections map[string]*sql.DB,
 	dbTypes map[string]string,
-	schemaBytes []byte,
+	expected *sdata.DBInfo,
 	blocklist []string,
 	opts DiffOptions,
 ) (map[string][]SchemaOperation, error) {
-	// Parse the schema file
-	ds, err := graphql.ParseSchema(schemaBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse schema: %w", err)
-	}
-
 	// Validate that all tables have a @database directive
 	missingTables := make(map[string]bool)
-	for _, col := range ds.Columns {
-		if col.Database == "" {
-			missingTables[col.Table] = true
+	for _, t := range expected.Tables {
+		if t.Database == "" {
+			missingTables[t.Name] = true
 		}
 	}
 	if len(missingTables) > 0 {
-		// Collect missing table names sorted for deterministic output
 		names := make([]string, 0, len(missingTables))
 		for name := range missingTables {
 			names = append(names, name)
 		}
 		sort.Strings(names)
 
-		// Collect available database names sorted
 		dbNames := make([]string, 0, len(connections))
 		for name := range connections {
 			dbNames = append(dbNames, name)
@@ -505,52 +459,46 @@ func SchemaDiffMultiDB(
 		)
 	}
 
-	// Group columns by database (from @database directive)
-	columnsByDB := make(map[string][]sdata.DBColumn)
-
-	for _, col := range ds.Columns {
-		columnsByDB[col.Database] = append(columnsByDB[col.Database], col)
+	// Group tables by their @database target
+	tablesByDB := make(map[string][]sdata.DBTable)
+	for _, t := range expected.Tables {
+		tablesByDB[t.Database] = append(tablesByDB[t.Database], t)
 	}
 
 	results := make(map[string][]SchemaOperation)
 
-	// Run diff for each database
 	for dbName, dbConn := range connections {
 		dbType, ok := dbTypes[dbName]
 		if !ok {
 			continue
 		}
-
-		// Skip sources without live DDL support.
 		if !SupportsSchemaDDL(dbType) {
 			continue
 		}
 
-		cols := columnsByDB[dbName]
-		if len(cols) == 0 {
+		tables := tablesByDB[dbName]
+		if len(tables) == 0 {
 			continue
 		}
 
-		// Determine schema for this database type
-		schema := ds.Schema
+		schema := expected.Schema
 		if schema == "" {
 			schema = defaultSchemaForDBType(dbType)
 		}
 
-		// Create expected DBInfo for this database
-		expected := sdata.NewDBInfo(dbType, ds.Version, schema, "", cols, nil, blocklist)
+		var cols []sdata.DBColumn
+		di := sdata.NewDBInfo(dbType, expected.Version, schema, "", cols, nil, blocklist)
+		for _, t := range tables {
+			ti := t
+			di.AddTable(ti)
+		}
 
-		// Attach clustering keys for tables in this database
-		attachClusteringKeys(expected, ds.ClusteringKeys, schema, dbType)
-
-		// Get current database schema
 		current, err := introspection.GetDBInfo(context.Background(), dbConn, dbType, blocklist)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get schema for %s: %w", dbName, err)
 		}
 
-		// Compute diff
-		ops := computeDiff(current, expected, opts)
+		ops := computeDiff(current, di, opts)
 		if len(ops) > 0 {
 			results[dbName] = ops
 		}
@@ -569,17 +517,4 @@ func clusteringKeysEqual(a, b []string) bool {
 		}
 	}
 	return true
-}
-
-// attachClusteringKeys assigns parsed @cluster directive data to the matching DBTable entries.
-func attachClusteringKeys(di *sdata.DBInfo, clusters []graphql.TableCluster, defaultSchema, dbType string) {
-	for _, ck := range clusters {
-		schema := ck.Schema
-		if schema == "" {
-			schema = defaultSchema
-		}
-		if t, err := di.GetTable(schema, ck.Table); err == nil {
-			t.ClusteringKeys = ck.Keys
-		}
-	}
 }

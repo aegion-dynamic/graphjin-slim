@@ -3,7 +3,6 @@ package engine
 import (
 	"sort"
 
-	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 )
@@ -42,7 +41,8 @@ func NewTestGraphJin(databaseSchemas map[string]string) (*GraphJin, error) {
 			return nil, err
 		}
 
-		qcc, err := graphql.NewCompiler(schema, graphql.Config{DBSchema: schema.DBSchema()})
+		tmpctx := &dbContext{name: name, schema: schema}
+		langs, err := engine.newLanguages(tmpctx)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func NewTestGraphJin(databaseSchemas map[string]string) (*GraphJin, error) {
 		engine.databases[name] = &dbContext{
 			name:           name,
 			schema:         schema,
-			qcodeCompiler:  qcc,
+			langs:          langs,
 			sqlgenCompiler: psc,
 		}
 		if engine.defaultDB == "" {

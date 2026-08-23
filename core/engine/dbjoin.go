@@ -199,7 +199,11 @@ func (s *gstate) executeDatabaseJoinQuery(
 		subQuery = dbjoin.BuildChildGraphQLQuery(sel, selects, fkCol, parentID)
 	}
 
-	qc, err := dbCtx.qcodeCompiler.Compile(subQuery, nil, s.r.namespace)
+	lang := dbCtx.languages(s.gj)[s.r.lang]
+	if lang == nil {
+		return nil, fmt.Errorf("database %s: no language %q for remote join", dbCtx.name, s.r.lang)
+	}
+	qc, err := lang.Compile(subQuery, nil, langadapter.CompileOptions{Namespace: s.r.namespace})
 	if err != nil {
 		return nil, fmt.Errorf("qcode compile failed: %w", err)
 	}
@@ -348,7 +352,11 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 		vars = s.vmap
 	}
 
-	qc, err := dbCtx.qcodeCompiler.Compile(subQuery, vars, s.r.namespace)
+	lang := dbCtx.languages(s.gj)[s.r.lang]
+	if lang == nil {
+		return nil, fmt.Errorf("database %s: no language %q for remote join", dbName, s.r.lang)
+	}
+	qc, err := lang.Compile(subQuery, vars, langadapter.CompileOptions{Namespace: s.r.namespace})
 	if err != nil {
 		return nil, fmt.Errorf("qcode compile failed for %s: %w", dbName, err)
 	}

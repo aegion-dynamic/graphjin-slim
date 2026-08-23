@@ -263,7 +263,12 @@ type audit_logs {
 		"logs":      "postgres",
 	}
 
-	_, err := SchemaDiffMultiDB(connections, dbTypes, schema, nil, DiffOptions{})
+	di, perr := ParseSchemaSDL(schema, "", nil)
+	if perr != nil {
+		t.Fatalf("parse schema: %v", perr)
+	}
+
+	_, err := SchemaDiffMultiDB(connections, dbTypes, di, nil, DiffOptions{})
 	if err == nil {
 		t.Fatal("expected error for tables missing @database directive, got nil")
 	}
@@ -317,7 +322,12 @@ type audit_logs @database(name: logs) {
 	connections := map[string]*sql.DB{}
 	dbTypes := map[string]string{}
 
-	_, err := SchemaDiffMultiDB(connections, dbTypes, schema, nil, DiffOptions{})
+	di, perr := ParseSchemaSDL(schema, "", nil)
+	if perr != nil {
+		t.Fatalf("parse schema: %v", perr)
+	}
+
+	_, err := SchemaDiffMultiDB(connections, dbTypes, di, nil, DiffOptions{})
 	if err != nil {
 		t.Fatalf("expected no validation error when all tables have @database, got: %v", err)
 	}

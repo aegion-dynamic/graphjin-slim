@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
-	graphql "github.com/aegion-dynamic/graphjin-slim/core/v3/lang/graphql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"golang.org/x/sync/errgroup"
@@ -76,12 +76,11 @@ func (gj *graphjinEngine) discoverDatabase(ctx *dbContext) error {
 			if schemaPath == LegacySchemaGraphQLFile && gj.log != nil {
 				gj.log.Printf("%s is deprecated; rename it to %s", LegacySchemaGraphQLFile, SchemaDDLFile)
 			}
-			ds, err := graphql.ParseSchema(b)
+			di, err := gj.parseSchemaSDL(b, ctx.dbtype)
 			if err != nil {
 				return fmt.Errorf("failed to parse %s: %w", schemaPath, err)
 			}
-			ctx.dbinfo = sdata.NewDBInfo(ds.Type, ds.Version, ds.Schema, "",
-				ds.Columns, ds.Functions, gj.conf.Blocklist)
+			ctx.dbinfo = di
 		}
 	}
 
@@ -187,22 +186,7 @@ func (gj *graphjinEngine) loadRuntimeSchemaDDL(ctx *dbContext) (*sdata.DBInfo, e
 	if err != nil {
 		return nil, err
 	}
-	ds, err := graphql.ParseSchema(b)
-	if err != nil {
-		return nil, err
-	}
-	dbType := strings.TrimSpace(ctx.dbtype)
-	if dbType == "" {
-		dbType = strings.TrimSpace(ds.Type)
-	}
-	if dbType == "" {
-		dbType = "postgres"
-	}
-	schema := ds.Schema
-	if schema == "" {
-		schema = defaultSchemaForDBType(dbType)
-	}
-	return sdata.NewDBInfo(dbType, ds.Version, schema, "", ds.Columns, ds.Functions, gj.conf.Blocklist), nil
+	return gj.parseSchemaSDL(b, ctx.dbtype)
 }
 
 func (gj *graphjinEngine) writeRuntimeSchemaDDL(ctx *dbContext) error {
@@ -348,21 +332,10 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 		return fmt.Errorf("database %s: schema creation failed: %w", ctx.name, err)
 	}
 
-	// Create QCode compiler for this database
-	qcc := graphql.Config{
-		TConfig:             gj.tmap,
-		DefaultLimit:        gj.conf.DefaultLimit,
-		AnalyticsMode:       gj.conf.EffectiveAnalyticsMode(ctx.name),
-		DisableAgg:          gj.conf.DisableAgg,
-		DisableFuncs:        gj.conf.DisableFuncs,
-		EnableCamelcase:     gj.conf.EnableCamelcase,
-		DBSchema:            ctx.schema.DBSchema(),
-		EnableCacheTracking: false,
-	}
-
-	ctx.qcodeCompiler, err = graphql.NewCompiler(ctx.schema, qcc)
+	// Bind query languages for this database via the input seam
+	ctx.langs, err = gj.newLanguages(ctx)
 	if err != nil {
-		return fmt.Errorf("database %s: qcode compiler failed: %w", ctx.name, err)
+		return fmt.Errorf("database %s: language binding failed: %w", ctx.name, err)
 	}
 
 	// Create SQL compiler for this database's dialect
@@ -567,4 +540,50 @@ func OptionSetDatabases(connections map[string]*sql.DB) Option {
 
 		return nil
 	}
+}
+
+// parseSchemaSDL parses frontend-authored schema definition text into
+// neutral database metadata via the registered language's parser.
+func (gj *graphjinEngine) parseSchemaSDL(b []byte, dbType string) (*sdata.DBInfo, error) {
+	d, err := langadapter.Lookup(langadapter.DefaultLanguageName)
+	if err != nil {
+		return nil, err
+	}
+	sp, ok := d.(langadapter.SchemaParser)
+	if !ok {
+		return nil, fmt.Errorf("language %q does not parse schema definitions", d.Name())
+	}
+	return sp.ParseSchemaSDL(b, dbType, gj.conf.Blocklist)
+}
+
+// newLanguages binds every configured query language to the given
+// database context through the input seam.
+func (gj *graphjinEngine) newLanguages(ctx *dbContext) (map[string]langadapter.Language, error) {
+	d, err := langadapter.Lookup(langadapter.DefaultLanguageName)
+	if err != nil {
+		return nil, err
+	}
+	cf, ok := d.(langadapter.CompilerFactory)
+	if !ok {
+		return nil, fmt.Errorf("language %q provides no compiler factory", d.Name())
+	}
+	cfg := langadapter.CompileConfig{
+		DBSchema: ctx.schema.DBSchema(),
+	}
+	if gj.conf != nil {
+		cfg.Vars = gj.conf.Vars
+		cfg.DefaultLimit = gj.conf.DefaultLimit
+		cfg.AnalyticsMode = gj.conf.EffectiveAnalyticsMode(ctx.name)
+		cfg.DisableAgg = gj.conf.DisableAgg
+		cfg.DisableFuncs = gj.conf.DisableFuncs
+		cfg.EnableCamelcase = gj.conf.EnableCamelcase
+	}
+	if gj.tmap != nil {
+		cfg.TConfig = gj.tmap
+	}
+	l, err := cf.NewCompiler(ctx.schema, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]langadapter.Language{l.Name(): l}, nil
 }

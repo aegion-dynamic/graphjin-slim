@@ -129,6 +129,13 @@ jobs:
                   MAJOR=$FLOOR_MAJOR; MINOR=$FLOOR_MINOR; PATCH=$FLOOR_PATCH
               fi
 
+              # Burned versions: briefly published by accident on 2026-08-23
+              # (workflow bug) and deleted; proxy.golang.org may have cached
+              # them, so never reuse. Skip forward instead.
+              while [[ "$MAJOR.$MINOR.$PATCH" == "4.0.0" ]]; do
+                  PATCH=$((PATCH + 1))
+              done
+
               VERSION="$MAJOR.$MINOR.$PATCH"
               echo "next version: $MAJOR.$MINOR.$PATCH ($LEVEL bump from $STABLE)"
           fi

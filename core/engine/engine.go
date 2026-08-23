@@ -21,6 +21,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
@@ -65,6 +66,8 @@ type dbContext struct {
 	schema        *sdata.DBSchema // Processed schema with relationships
 	qcodeCompiler *qcode.Compiler // GraphQL to QCode compiler (validates against this DB's schema)
 	sqlgenCompiler  *sqlgen.Compiler  // QCode to SQL compiler (generates this DB's dialect)
+	langsMu       sync.Mutex                      // guards langs
+	langs         map[string]langadapter.Language // query languages, built lazily
 }
 
 // GraphJin struct is an instance of the GraphJin engine it holds all the required information like

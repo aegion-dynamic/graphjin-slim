@@ -115,7 +115,7 @@ func (s *gstate) debugLogStmt() {
 }
 
 // Saved the query qcode to the allow list
-func (gj *graphjinEngine) saveToAllowList(ctx context.Context, qc *qcode.QCode, ns string) (err error) {
+func (gj *graphjinEngine) saveToAllowList(ctx context.Context, qc *qcode.QCode, ns, lang string) (err error) {
 	if qc == nil || gj.conf.DisableAllowList {
 		return nil
 	}
@@ -123,6 +123,7 @@ func (gj *graphjinEngine) saveToAllowList(ctx context.Context, qc *qcode.QCode, 
 	item := allow.Item{
 		Namespace: ns,
 		Name:      qc.Name,
+		Lang:      lang,
 		Query:     qc.Query,
 		Fragments: make([]allow.Fragment, len(qc.Fragments)),
 	}

@@ -513,20 +513,30 @@ func (rc *RequestConfig) GetNamespace() (string, bool) {
 	return "", false
 }
 
-// GraphQL function is our main function it takes a GraphQL query compiles it
-// to SQL and executes returning the resulting JSON.
+// Query is the language-neutral main entry point: it takes a query written
+// in any registered query language, compiles it to SQL and executes it,
+// returning the resulting JSON.
 //
 // In production mode the compiling happens only once and from there on the compiled queries
 // are directly executed.
 //
 // In developer mode all named queries are saved into the queries folder and in production mode only
 // queries from these saved queries can be used.
-func (g *GraphJin) GraphQL(c context.Context,
+func (g *GraphJin) Query(c context.Context,
+	langName string,
 	query string,
 	vars json.RawMessage,
 	rc *RequestConfig,
 ) (res *Result, err error) {
+	if langName == "" {
+		langName = "graphql"
+	}
 	gj, err := g.getEngine()
+	if err != nil {
+		return
+	}
+
+	lang, err := gj.GetLanguage("", langName)
 	if err != nil {
 		return
 	}
@@ -537,9 +547,9 @@ func (g *GraphJin) GraphQL(c context.Context,
 	var queryBytes []byte
 	var inCache bool
 
-	// get query from apq cache if apq key exists
+	// get query from apq cache if apq key exists; keys are per-language
 	if rc != nil && rc.APQKey != "" {
-		queryBytes, inCache = gj.cache.Get(APQ_PX + rc.APQKey)
+		queryBytes, inCache = gj.cache.Get(APQ_PX + langName + ":" + rc.APQKey)
 	}
 
 	// query not found in apq cache so use original query
@@ -547,20 +557,24 @@ func (g *GraphJin) GraphQL(c context.Context,
 		queryBytes = []byte(query)
 	}
 
-	// fast extract name and query type from query
-	h, err := graph.FastParseBytes(queryBytes)
-	if err != nil {
-		return
+	// fast extract name and query type via the language's own parser hook
+	var info langadapter.Info
+	if fi, ok := lang.(langadapter.FastInfoer); ok {
+		info, err = fi.FastInfo(queryBytes)
+		if err != nil {
+			return
+		}
 	}
-	r := gj.newGraphqlReq(rc, h.Operation, h.Name, queryBytes, vars)
+	r := gj.newGraphqlReq(rc, info.Operation, info.Name, queryBytes, vars)
+	r.lang = langName
 
 	// if production security enabled then get query and metadata
 	// from allow list
 	if gj.prodSec {
 		var item allow.Item
-		item, err = gj.allowList.GetByName(h.Name, true)
+		item, err = gj.allowList.GetByName(info.Name, true)
 		if err != nil {
-			err = fmt.Errorf("%w: %s", err, h.Name)
+			err = fmt.Errorf("%w: %s", err, info.Name)
 			return
 		}
 		r.Set(item)
@@ -575,17 +589,27 @@ func (g *GraphJin) GraphQL(c context.Context,
 
 	// save to apq cache is apq key exists and not already in cache
 	if !inCache && rc != nil && rc.APQKey != "" {
-		gj.cache.Set((APQ_PX + rc.APQKey), r.query)
+		gj.cache.Set((APQ_PX + langName + ":" + rc.APQKey), r.query)
 	}
 
 	// Development learning saves named queries to the allow list. Agentic mode
 	// keeps dynamic authoring enabled but does not mint permanent query entries.
 	if gj.learn && r.name != "" && r.name != "IntrospectionQuery" {
-		if err = gj.saveToAllowList(c, resp.qc, resp.res.namespace); err != nil {
+		if err = gj.saveToAllowList(c, resp.qc, resp.res.namespace, r.lang); err != nil {
 			return
 		}
 	}
 	return
+}
+
+// GraphQL is the GraphQL-specific entry point. It delegates to Query with
+// the built-in graphql language; behavior is unchanged.
+func (g *GraphJin) GraphQL(c context.Context,
+	query string,
+	vars json.RawMessage,
+	rc *RequestConfig,
+) (res *Result, err error) {
+	return g.Query(c, "graphql", query, vars, rc)
 }
 
 // GraphQLTx is similiar to the GraphQL function except that it can be used
@@ -700,6 +724,7 @@ type GraphqlReq struct {
 	namespace     string
 	operation     qcode.QType
 	name          string
+	lang          string
 	query         []byte
 	vars          json.RawMessage
 	aschema       map[string]json.RawMessage
@@ -711,7 +736,8 @@ type GraphqlResponse struct {
 	qc  *qcode.QCode
 }
 
-// newGraphqlReq creates a new GraphQL request
+// newGraphqlReq creates a new request for the named query language,
+// defaulting to the built-in graphql language.
 func (gj *graphjinEngine) newGraphqlReq(rc *RequestConfig,
 	op string,
 	name string,
@@ -721,6 +747,7 @@ func (gj *graphjinEngine) newGraphqlReq(rc *RequestConfig,
 	r = GraphqlReq{
 		operation: qcode.GetQTypeByName(op),
 		name:      name,
+		lang:      "graphql",
 		query:     query,
 		vars:      vars,
 	}
@@ -736,13 +763,16 @@ func (gj *graphjinEngine) newGraphqlReq(rc *RequestConfig,
 	return
 }
 
-// Set is used to set the namespace, operation type, name and query for the GraphQL request
+// Set is used to set the namespace, operation type, name and query for the request
 func (r *GraphqlReq) Set(item allow.Item) {
 	r.namespace = item.Namespace
 	r.operation = qcode.GetQTypeByName(item.Operation)
 	r.name = item.Name
 	r.query = item.Query
 	r.aschema = item.ActionJSON
+	if item.Lang != "" {
+		r.lang = item.Lang
+	}
 }
 
 // GraphQL function is our main function it takes a GraphQL query compiles it

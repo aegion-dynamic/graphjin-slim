@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 )
@@ -32,6 +33,15 @@ func (l graphqlLang) Compile(query []byte, vars map[string]json.RawMessage,
 	opts langadapter.CompileOptions,
 ) (*qcode.QCode, error) {
 	return l.c.Compile(query, vars, opts.Namespace)
+}
+
+// FastInfo extracts the operation kind and name without full compilation.
+func (l graphqlLang) FastInfo(query []byte) (langadapter.Info, error) {
+	h, err := graph.FastParseBytes(query)
+	if err != nil {
+		return langadapter.Info{}, err
+	}
+	return langadapter.Info{Operation: h.Operation, Name: h.Name}, nil
 }
 
 // languages returns the query languages available for this database,

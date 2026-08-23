@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/langadapter"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 )
@@ -217,26 +218,32 @@ func (s *gstate) compileQuery() (err error) {
 
 	// Default path: compile with default (primary) database's compilers
 	pdb := s.gj.primaryDB()
-	return s.compileWithCompilers(st, vars, pdb.qcodeCompiler, pdb.sqlgenCompiler, "")
+	return s.compileWithCompilers(st, vars, pdb, "")
 }
 
 // compileForDatabase compiles the query using a specific database's compilers.
 func (s *gstate) compileForDatabase(st stmt, vars map[string]json.RawMessage, dbCtx *dbContext) (err error) {
-	s.database = dbCtx.name
-	return s.compileWithCompilers(st, vars, dbCtx.qcodeCompiler, dbCtx.sqlgenCompiler, dbCtx.name)
+	return s.compileWithCompilers(st, vars, dbCtx, dbCtx.name)
 }
 
-// compileWithCompilers performs the actual compilation with the given compilers.
-func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, qcc *qcode.Compiler, pc *sqlgen.Compiler, dbName string) (err error) {
-	if st.qc, err = qcc.Compile(
+// compileWithCompilers performs the actual compilation with the given
+// database's language and SQL generator. Compilation routes through the
+// request's query language; SQL generation stays language-neutral.
+func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, dbCtx *dbContext, dbName string) (err error) {
+	lang := dbCtx.languages()[s.r.lang]
+	if lang == nil {
+		return fmt.Errorf("database %s: no query language %q", dbCtx.name, s.r.lang)
+	}
+
+	if st.qc, err = lang.Compile(
 		s.r.query,
 		vars,
-		s.r.namespace); err != nil {
+		langadapter.CompileOptions{Namespace: s.r.namespace}); err != nil {
 		return
 	}
 
 	var w bytes.Buffer
-	if st.md, err = pc.Compile(&w, st.qc); err != nil {
+	if st.md, err = dbCtx.sqlgenCompiler.Compile(&w, st.qc); err != nil {
 		return
 	}
 

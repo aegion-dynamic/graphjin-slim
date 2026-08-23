@@ -36,6 +36,7 @@ type Item struct {
 	Namespace  string
 	Operation  string
 	Name       string
+	Lang       string // query language the query is written in; empty means graphql
 	ActionJSON map[string]json.RawMessage
 	Query      []byte
 	Fragments  []Fragment
@@ -176,6 +177,7 @@ func (al *List) get(queryPath, name, ext string, useCache bool) (item Item, err 
 	item.Operation = h.Operation
 	item.Name = queryName
 	item.Query = query
+	item.Lang = "graphql"
 
 	if len(vars) != 0 {
 		if err = json.Unmarshal(vars, &item.ActionJSON); err != nil {

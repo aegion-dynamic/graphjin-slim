@@ -166,6 +166,7 @@ func routesHandler(s1 *HttpService, mux Mux, ns *string) (Mux, error) {
 		REST:    s1.apiV1Rest(ns, nil),
 	}
 	h.Queries = s1.queriesHandler(ns)
+	h.Languages = s1.languagesHandler()
 	// Mounted modules contribute their routes generically; the service never
 	// knows which product surfaces exist.
 	h.ModuleRoutes = s.moduleRoutes()
@@ -1424,6 +1425,38 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
 }
 
 // responseHandler handles the response from the GraphQL API
+// languagesHandler reports which query languages and output formats are
+// installed, so clients never hardcode endpoints.
+func (s1 *HttpService) languagesHandler() http.Handler {
+	h := func(w http.ResponseWriter, r *http.Request) {
+		s := s1.Load().(*graphjinService)
+		if err := s.checkGraphJinInitialized(); err != nil {
+			renderErr(w, err)
+			return
+		}
+		db := r.URL.Query().Get("db")
+		names, err := s.gj.ListLanguages(db)
+		if err != nil {
+			renderErr(w, err)
+			return
+		}
+		inputs := make([]map[string]string, 0, len(names))
+		for _, n := range names {
+			endpoint := "/api/v1/" + n
+			if n == "graphql" {
+				endpoint = httpapi.GraphQLPath // historical canonical path
+			}
+			inputs = append(inputs, map[string]string{"name": n, "endpoint": endpoint})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"inputs":  inputs,
+			"outputs": coreformat.Names(),
+		})
+	}
+	return http.HandlerFunc(h)
+}
+
 // formatNameFromRequest resolves the output formatter: explicit
 // ?format= wins, then an Accept header naming a registered format,
 // defaulting to the built-in json.

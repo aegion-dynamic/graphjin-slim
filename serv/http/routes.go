@@ -21,12 +21,14 @@ type Handlers struct {
 	REST         stdhttp.Handler
 	ModuleRoutes []module.Route
 	Queries      stdhttp.Handler
+	Languages    stdhttp.Handler
 }
 
 const (
-	GraphQLPath = "/api/v1/graphql"
-	RESTPath    = "/api/v1/rest/"
-	QueriesPath = "/api/v1/queries"
+	GraphQLPath   = "/api/v1/graphql"
+	RESTPath      = "/api/v1/rest/"
+	QueriesPath   = "/api/v1/queries"
+	LanguagesPath = "/api/v1/languages"
 )
 
 // Register installs the standard GraphJin endpoints followed by any routes
@@ -42,6 +44,9 @@ func Register(mux Mux, handlers Handlers) Mux {
 	mux.Handle(RESTPath, handlers.REST)
 	if handlers.Queries != nil {
 		mux.Handle(QueriesPath, handlers.Queries)
+	}
+	if handlers.Languages != nil {
+		mux.Handle(LanguagesPath, handlers.Languages)
 	}
 	for _, r := range handlers.ModuleRoutes {
 		if r.Path == "" || r.Handler == nil {

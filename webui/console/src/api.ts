@@ -1,8 +1,39 @@
 // Saved-query management API + GraphQL client helpers.
+//
+// The GraphQL endpoint resolves in priority order: the ?endpoint= query
+// parameter, then the /api/v1/languages discovery document, then the
+// historical default. Discovery keeps this console working unchanged
+// when servers register additional query languages.
+
+const FALLBACK_ENDPOINT = "/api/v1/graphql"
+
+let discoveredEndpoint: string | null = null
+let discoveryStarted = false
+
+/** Kick off endpoint discovery once; never throws. */
+export function discoverEndpoint(): void {
+  if (discoveryStarted) return
+  discoveryStarted = true
+  const explicit = new URLSearchParams(window.location.search).get("endpoint")
+  if (explicit && explicit.startsWith("/")) {
+    discoveredEndpoint = explicit
+    return
+  }
+  fetch("/api/v1/languages")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((body: { inputs?: { name: string; endpoint: string }[] } | null) => {
+      const gql = body?.inputs?.find((l) => l.name === "graphql" && l.endpoint?.startsWith("/"))
+      discoveredEndpoint = gql?.endpoint ?? FALLBACK_ENDPOINT
+    })
+    .catch(() => {
+      discoveredEndpoint = FALLBACK_ENDPOINT
+    })
+}
 
 export function graphqlEndpoint(): string {
-  const ep = new URLSearchParams(window.location.search).get("endpoint")
-  return ep && ep.startsWith("/") ? ep : "/api/v1/graphql"
+  if (discoveredEndpoint) return discoveredEndpoint
+  discoverEndpoint()
+  return discoveredEndpoint ?? FALLBACK_ENDPOINT
 }
 
 export interface GQLResponse<T> {

@@ -114,3 +114,13 @@ func (gj *graphjinEngine) ListLanguages(dbName string) []string {
 	sort.Strings(names)
 	return names
 }
+
+// ListLanguages lists the query languages available on the named
+// database (an empty name selects the primary database).
+func (g *GraphJin) ListLanguages(dbName string) ([]string, error) {
+	gj, err := g.getEngine()
+	if err != nil {
+		return nil, err
+	}
+	return gj.ListLanguages(dbName), nil
+}

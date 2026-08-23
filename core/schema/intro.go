@@ -1168,8 +1168,10 @@ func getTypeFromColumn(col sdata.DBColumn) (gqlType string) {
 	return
 }
 
-// ColumnGraphQLType returns the GraphQL scalar name for a DB column type.
-func ColumnGraphQLType(t string) (gqlType string, list bool) {
+// ColumnScalarType returns the language-neutral scalar name for a DB
+// column type, plus whether the column is a list. Language frontends
+// apply their own naming on top (e.g. GraphQL scalars).
+func ColumnScalarType(t string) (scalar string, list bool) {
 	return getType(t)
 }
 

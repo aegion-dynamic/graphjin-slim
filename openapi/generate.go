@@ -245,7 +245,7 @@ func extractParameters(varDefs []graph.VarDef) []Parameter {
 
 // graphQLTypeToSchema maps a GraphQL scalar type to an OpenAPI schema.
 func graphQLTypeToSchema(graphQLType string) Schema {
-	gqlType, isList := schema.ColumnGraphQLType(graphQLType)
+	gqlType, isList := schema.ColumnScalarType(graphQLType)
 
 	baseType, format := "string", ""
 	description := ""
@@ -423,7 +423,7 @@ func columnToSchema(col sdata.DBColumn) Schema {
 		format = "uuid"
 		description = "Primary key"
 	} else {
-		gqlType, _ := schema.ColumnGraphQLType(col.Type)
+		gqlType, _ := schema.ColumnScalarType(col.Type)
 		sqlType := strings.ToLower(col.Type)
 
 		switch gqlType {

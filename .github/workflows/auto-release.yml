@@ -1,19 +1,22 @@
 name: Auto Release
 
-# Releases are OPT-IN: master pushes never release by themselves.
+# Releases are OPT-IN: master pushes never release by themselves, and no
+# build work happens unless a release was actually requested.
 #
-# Put a marker on the tip commit of a push:
+# Put a marker in the SUBJECT LINE of the tip commit:
 #
 #   [release]        -> patch bump
 #   [release minor]  -> minor bump
 #   [release major]  -> major bump
 #
-# Any other message (feat:, fix:, docs:, chores, whatever) lands on master
-# with no version change — commit freely without worrying about releases.
+# Only the subject line is scanned — never the body — so documenting or
+# mentioning these markers in prose cannot trigger anything. Any other
+# commit (feat:, fix:, docs:, chores) lands on master with no version
+# change and skips the entire pipeline after one cheap git call.
 #
 # Manual cuts go through workflow_dispatch: pass an exact `version`
 # (e.g. 4.0.0) or pick a `level`; with neither it falls back to reading
-# the [release ...] marker from the current tip.
+# the marker from the current tip's subject.
 #
 # A requested release bumps internal go.mod requires (release.sh), commits
 # that, creates one tag per module plus a root tag, and publishes the
@@ -50,25 +53,11 @@ jobs:
   auto-release:
     runs-on: ubuntu-latest
     steps:
+      # Checkout + decide run always, and they are all that runs when no
+      # release is requested: a plain push costs one clone and one grep.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: 'serv/go.mod'
-
-      # preflight: prove the committed tree compiles before versioning it.
-      # Native deps are provisioned here so CI never depends on a developer
-      # machine: SQLCipher needs a C toolchain + OpenSSL headers/libraries
-      # (dynamic libcrypto.so.3 at runtime).
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev
-
-      - name: Verify modules compile
-        run: go build ./core/... ./serv/...
 
       - name: Decide whether to release
         id: decide
@@ -78,14 +67,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          MSG="$(git log -1 --format=%B)"
+          # SUBJECT LINE ONLY (%s). The body is never scanned: writing the
+          # markers in prose (docs, explanations) must stay harmless.
+          SUBJECT="$(git log -1 --format=%s)"
 
-          # Opt-in detection from the tip commit message.
+          # Prefix-anchored: the marker must OPEN the subject. A sentence
+          # merely containing the words cannot trigger a release.
           LEVEL=""
-          case "$MSG" in
-              *"[release major]"*)  LEVEL="major";;
-              *"[release minor]"*)  LEVEL="minor";;
-              *"[release]"*|*"[release patch]"*) LEVEL="patch";;
+          case "$SUBJECT" in
+              "[release major]"*)  LEVEL="major";;
+              "[release minor]"*)  LEVEL="minor";;
+              "[release]"*|"[release patch]"*) LEVEL="patch";;
           esac
 
           RELEASE=false
@@ -105,14 +97,12 @@ jobs:
           elif [[ -n "$LEVEL" ]]; then
               RELEASE=true
           else
-              echo "::notice::No [release] marker on tip commit; nothing to release."
+              echo "::notice::No release marker in tip subject '$SUBJECT'; skipping."
           fi
 
           if [[ "$RELEASE" == "true" && -z "$VERSION" ]]; then
-              # Compute next version from the latest stable tag.
               STABLE=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
               if [[ -z "$STABLE" ]]; then
-                  # fall back to any version-ish tag (e.g. v3.0.0-pre) stripped of suffixes
                   STABLE=$(git tag -l --sort=-v:refname | grep -E '^v[0-9]+' | head -n1 | sed 's/-.*//' || true)
               fi
               [[ -n "$STABLE" ]] || STABLE="v0.1.0"
@@ -145,6 +135,27 @@ jobs:
 
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Everything below runs ONLY for an explicitly requested release.
+
+      - uses: actions/setup-go@v5
+        if: steps.decide.outputs.release == 'true'
+        with:
+          go-version-file: 'serv/go.mod'
+
+      # preflight: prove the committed tree compiles before versioning it.
+      # Native deps are provisioned here so CI never depends on a developer
+      # machine: SQLCipher needs a C toolchain + OpenSSL headers/libraries
+      # (dynamic libcrypto.so.3 at runtime).
+      - name: Install native build dependencies
+        if: steps.decide.outputs.release == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev
+
+      - name: Verify modules compile
+        if: steps.decide.outputs.release == 'true'
+        run: go build ./core/... ./serv/...
 
       - name: Bump internal go.mod requires
         if: steps.decide.outputs.release == 'true'

@@ -1,5 +1,5 @@
 //nolint:errcheck
-package psql
+package sqlgen
 
 import (
 	"fmt"

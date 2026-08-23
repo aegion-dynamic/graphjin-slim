@@ -1,11 +1,11 @@
-package psql_test
+package sqlgen_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
@@ -35,10 +35,10 @@ func TestSQLiteGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := psql.Config{
+	conf := sqlgen.Config{
 		DBType: "sqlite",
 	}
-	co := psql.NewCompiler(conf)
+	co := sqlgen.NewCompiler(conf)
 
 	var w bytes.Buffer
 	_, err = co.Compile(&w, qc)
@@ -80,10 +80,10 @@ func TestSQLiteEmptySelection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := psql.Config{
+	conf := sqlgen.Config{
 		DBType: "sqlite",
 	}
-	co := psql.NewCompiler(conf)
+	co := sqlgen.NewCompiler(conf)
 
 	var w bytes.Buffer
 	_, err = co.Compile(&w, qc)

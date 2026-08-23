@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 )
 
@@ -54,7 +54,7 @@ type cstate struct {
 
 type stmt struct {
 	qc  *qcode.QCode
-	md  psql.Metadata
+	md  sqlgen.Metadata
 	sql string
 }
 
@@ -217,17 +217,17 @@ func (s *gstate) compileQuery() (err error) {
 
 	// Default path: compile with default (primary) database's compilers
 	pdb := s.gj.primaryDB()
-	return s.compileWithCompilers(st, vars, pdb.qcodeCompiler, pdb.psqlCompiler, "")
+	return s.compileWithCompilers(st, vars, pdb.qcodeCompiler, pdb.sqlgenCompiler, "")
 }
 
 // compileForDatabase compiles the query using a specific database's compilers.
 func (s *gstate) compileForDatabase(st stmt, vars map[string]json.RawMessage, dbCtx *dbContext) (err error) {
 	s.database = dbCtx.name
-	return s.compileWithCompilers(st, vars, dbCtx.qcodeCompiler, dbCtx.psqlCompiler, dbCtx.name)
+	return s.compileWithCompilers(st, vars, dbCtx.qcodeCompiler, dbCtx.sqlgenCompiler, dbCtx.name)
 }
 
 // compileWithCompilers performs the actual compilation with the given compilers.
-func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, qcc *qcode.Compiler, pc *psql.Compiler, dbName string) (err error) {
+func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, qcc *qcode.Compiler, pc *sqlgen.Compiler, dbName string) (err error) {
 	if st.qc, err = qcc.Compile(
 		s.r.query,
 		vars,
@@ -303,9 +303,9 @@ func (s *gstate) getTargetDBCtx() *dbContext {
 	return ctx
 }
 
-// getTargetPsqlCompiler returns the psql compiler for the target database.
-func (s *gstate) getTargetPsqlCompiler() *psql.Compiler {
-	return s.getTargetDBCtx().psqlCompiler
+// getTargetSQLGenCompiler returns the sqlgen compiler for the target database.
+func (s *gstate) getTargetSQLGenCompiler() *sqlgen.Compiler {
+	return s.getTargetDBCtx().sqlgenCompiler
 }
 
 // getTargetDB returns the *sql.DB for the target database.
@@ -562,7 +562,7 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 	}
 
 	// Use Dialect to check for multi-statement scripts (e.g., SQLite)
-	dialect := s.getTargetPsqlCompiler().GetDialect()
+	dialect := s.getTargetSQLGenCompiler().GetDialect()
 	parts := dialect.SplitQuery(cs.st.sql)
 
 	if len(parts) > 1 {
@@ -879,14 +879,14 @@ func wrapScriptError(stmtIdx int, stmt string, usesQueryPath bool, err error) er
 }
 
 func (s *gstate) argList(c context.Context) (args args, err error) {
-	args, err = s.gj.argList(c, s.cs.st.md, s.vmap, s.r.requestconfig, false, s.getTargetPsqlCompiler())
+	args, err = s.gj.argList(c, s.cs.st.md, s.vmap, s.r.requestconfig, false, s.getTargetSQLGenCompiler())
 	return
 }
 
 func (s *gstate) argListForSub(c context.Context,
 	vmap map[string]json.RawMessage,
 ) (args args, err error) {
-	args, err = s.gj.argList(c, s.cs.st.md, vmap, s.r.requestconfig, true, s.getTargetPsqlCompiler())
+	args, err = s.gj.argList(c, s.cs.st.md, vmap, s.r.requestconfig, true, s.getTargetSQLGenCompiler())
 	return
 }
 

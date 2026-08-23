@@ -189,7 +189,7 @@ func (s *gstate) executeDatabaseJoinQuery(
 	}
 
 	var sqlBuf bytes.Buffer
-	md, err := dbCtx.psqlCompiler.Compile(&sqlBuf, qc)
+	md, err := dbCtx.sqlgenCompiler.Compile(&sqlBuf, qc)
 	if err != nil {
 		return nil, fmt.Errorf("sql compile failed: %w", err)
 	}
@@ -200,7 +200,7 @@ func (s *gstate) executeDatabaseJoinQuery(
 	}
 	defer conn.Close()
 
-	args, err := s.gj.argList(ctx, md, nil, s.r.requestconfig, false, dbCtx.psqlCompiler)
+	args, err := s.gj.argList(ctx, md, nil, s.r.requestconfig, false, dbCtx.sqlgenCompiler)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build args: %w", err)
 	}
@@ -338,7 +338,7 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 	}
 
 	var sqlBuf bytes.Buffer
-	md, err := dbCtx.psqlCompiler.Compile(&sqlBuf, qc)
+	md, err := dbCtx.sqlgenCompiler.Compile(&sqlBuf, qc)
 	if err != nil {
 		return nil, fmt.Errorf("sql compile failed for %s: %w", dbName, err)
 	}
@@ -349,7 +349,7 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 	}
 	defer conn.Close()
 
-	args, err := s.gj.argList(ctx, md, vars, s.r.requestconfig, false, dbCtx.psqlCompiler)
+	args, err := s.gj.argList(ctx, md, vars, s.r.requestconfig, false, dbCtx.sqlgenCompiler)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build args for %s: %w", dbName, err)
 	}

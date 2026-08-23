@@ -182,7 +182,7 @@ func TestExprNonNumericRejected(t *testing.T) {
 
 // TestExprRelCol verifies dot-notation relationship-qualified column
 // references compile to an OpColRef carrying a non-nil Rel. The SQL
-// renderer (psql/expr.go) emits this as a correlated scalar subquery.
+// renderer (sqlgen/expr.go) emits this as a correlated scalar subquery.
 func TestExprRelCol(t *testing.T) {
 	qc, _ := qcode.NewCompiler(dbs, qcode.Config{})
 

@@ -38,7 +38,7 @@ fake SQL drivers for new tests.
 | --- | --- |
 | GraphQL parsing | `core/graph` |
 | Query compiler & IR | `core/qcode` |
-| SQL generation | `core/psql` |
+| SQL generation | `core/sqlgen` |
 | Postgres/SQLite SQL differences | `core/dialect` |
 | Schema metadata & relationships | `core/sdata` |
 | Database introspection | `core/introspection` |

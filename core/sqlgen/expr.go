@@ -1,4 +1,4 @@
-package psql
+package sqlgen
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ func (c *compilerContext) RenderScalarExp(sel *qcode.Select, ex *qcode.Exp) erro
 
 // renderScalarExp emits the SQL for a scalar expression tree (*Exp with
 // arithmetic, literal, column, case, cast, coalesce, nullif, or
-// agg-of-expr nodes). Distinct from renderExp in psql/exp.go which
+// agg-of-expr nodes). Distinct from renderExp in sqlgen/exp.go which
 // emits boolean predicates for WHERE clauses.
 //
 // All output is from controlled sources:

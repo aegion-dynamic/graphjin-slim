@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/introspection"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 	"golang.org/x/sync/errgroup"
@@ -366,14 +366,14 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 	}
 
 	// Create SQL compiler for this database's dialect
-	ctx.psqlCompiler = psql.NewCompiler(psql.Config{
+	ctx.sqlgenCompiler = sqlgen.NewCompiler(sqlgen.Config{
 		Vars:            gj.conf.Vars,
 		DBType:          ctx.schema.DBType(),
 		DBVersion:       ctx.schema.DBVersion(),
 		SecPrefix:       gj.printFormat,
 		EnableCamelcase: gj.conf.EnableCamelcase,
 	})
-	ctx.psqlCompiler.SetSchemaInfo(ctx.schema.GetTables())
+	ctx.sqlgenCompiler.SetSchemaInfo(ctx.schema.GetTables())
 
 	return nil
 }

@@ -1,4 +1,4 @@
-package psql_test
+package sqlgen_test
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
@@ -760,7 +760,7 @@ func compileGQLToPSQLString(t *testing.T, gql string,
 		t.Fatal(err)
 	}
 
-	_, sqlBytes, err := pcompile.CompileEx(qc)
+	_, sqlBytes, err := scompile.CompileEx(qc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -780,7 +780,7 @@ func partitionFilterInSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pPCompile := psql.NewCompiler(psql.Config{})
+	pPCompile := sqlgen.NewCompiler(sqlgen.Config{})
 
 	gql := `query {
 		products {
@@ -853,7 +853,7 @@ func BenchmarkCompile(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		_, err = pcompile.Compile(&w, qc)
+		_, err = scompile.Compile(&w, qc)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -875,7 +875,7 @@ func BenchmarkCompileParallel(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			_, err = pcompile.Compile(&w, qc)
+			_, err = scompile.Compile(&w, qc)
 			if err != nil {
 				b.Fatal(err)
 			}

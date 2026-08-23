@@ -1,7 +1,7 @@
 //go:build gofuzz
 // +build gofuzz
 
-package psql
+package sqlgen
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ var (
 		"admin_account_id": "5",
 	}
 
-	pcompileTest = NewCompiler(Config{
+	scompileTest = NewCompiler(Config{
 		Schema: schema,
 		Vars:   vars,
 	})
@@ -47,7 +47,7 @@ func query(data []byte) error {
 		"data": json.RawMessage(data),
 	}
 
-	_, _, err2 := pcompileTest.CompileEx(qc, vars)
+	_, _, err2 := scompileTest.CompileEx(qc, vars)
 
 	if err1 != nil {
 		return err1
@@ -78,7 +78,7 @@ func insert(data []byte) error {
 		"data": json.RawMessage(data),
 	}
 
-	_, _, err = pcompileTest.CompileEx(qc, vars)
+	_, _, err = scompileTest.CompileEx(qc, vars)
 	return err
 }
 
@@ -104,7 +104,7 @@ func update(data []byte) error {
 		"data": json.RawMessage(data),
 	}
 
-	_, _, err = pcompileTest.CompileEx(qc, vars)
+	_, _, err = scompileTest.CompileEx(qc, vars)
 	return err
 }
 
@@ -130,6 +130,6 @@ func delete(data []byte) error {
 		"data": json.RawMessage(data),
 	}
 
-	_, _, err = pcompileTest.CompileEx(qc, vars)
+	_, _, err = scompileTest.CompileEx(qc, vars)
 	return err
 }

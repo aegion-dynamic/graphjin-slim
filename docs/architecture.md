@@ -73,7 +73,7 @@ GraphQL lexing, parsing, and schema syntax.
 The normalized query compiler, IR representation, and AST validation layer
 between GraphQL and SQL generation.
 
-### `core/psql`
+### `core/sqlgen`
 
 SQL query and mutation compilation.
 

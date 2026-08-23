@@ -1,6 +1,6 @@
 // +build gofuzz
 
-package psql_test
+package sqlgen_test
 
 import (
 	"testing"

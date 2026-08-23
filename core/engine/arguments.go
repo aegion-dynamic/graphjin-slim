@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 )
 
 // prepareQueryArgsForDB preserves the common database/sql argument path for
@@ -39,11 +39,11 @@ func (ar *args) addCursorArg(idx int, name string) {
 }
 
 func (gj *graphjinEngine) argList(c context.Context,
-	md psql.Metadata,
+	md sqlgen.Metadata,
 	fields map[string]json.RawMessage,
 	rc *RequestConfig,
 	buildJSON bool,
-	pc *psql.Compiler,
+	pc *sqlgen.Compiler,
 ) (ar args, err error) {
 	ar = args{}
 	params := md.Params()
@@ -171,13 +171,13 @@ func parseVarVal(v json.RawMessage) interface{} {
 	}
 }
 
-func argErr(p psql.Param) error {
+func argErr(p sqlgen.Param) error {
 	return fmt.Errorf("required variable '%s' of type '%s' must be set", p.Name, p.Type)
 }
 
 // convertBoolIfNeeded converts Go bool to int (1/0) for databases like Oracle
 // where PL/SQL BOOLEAN cannot be used in SQL WHERE clauses
-func convertBoolIfNeeded(pc *psql.Compiler, v interface{}) interface{} {
+func convertBoolIfNeeded(pc *sqlgen.Compiler, v interface{}) interface{} {
 	if b, ok := v.(bool); ok && pc.GetDialect().RequiresBooleanAsInt() {
 		if b {
 			return 1

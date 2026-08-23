@@ -1,11 +1,11 @@
-# psql
+# sqlgen
 
 `psql` is the SQL compiler that compiles validated `qcode.QCode` intermediate representations into optimized SQL queries for PostgreSQL and SQLite.
 
 Module path:
 
 ```text
-github.com/aegion-dynamic/graphjin-slim/core/v3/psql
+github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen
 ```
 
 ## Overview

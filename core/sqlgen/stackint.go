@@ -1,4 +1,4 @@
-package psql
+package sqlgen
 
 type IntStack struct {
 	stA [20]int32

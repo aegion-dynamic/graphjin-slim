@@ -1,6 +1,6 @@
 //nolint:errcheck
 
-package psql
+package sqlgen
 
 import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"

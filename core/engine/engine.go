@@ -21,7 +21,7 @@ import (
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/allow"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/runtime"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
@@ -64,7 +64,7 @@ type dbContext struct {
 	dbinfo        *sdata.DBInfo   // Raw schema metadata
 	schema        *sdata.DBSchema // Processed schema with relationships
 	qcodeCompiler *qcode.Compiler // GraphQL to QCode compiler (validates against this DB's schema)
-	psqlCompiler  *psql.Compiler  // QCode to SQL compiler (generates this DB's dialect)
+	sqlgenCompiler  *sqlgen.Compiler  // QCode to SQL compiler (generates this DB's dialect)
 }
 
 // GraphJin struct is an instance of the GraphJin engine it holds all the required information like
@@ -1053,7 +1053,7 @@ func (g *GraphJin) newGraphJinReloadingConfigDatabases(base *graphjinEngine, nex
 		target.dbinfo = nil
 		target.schema = nil
 		target.qcodeCompiler = nil
-		target.psqlCompiler = nil
+		target.sqlgenCompiler = nil
 		if err := gj.discoverDatabase(target); err != nil {
 			return err
 		}
@@ -1154,7 +1154,7 @@ func (g *GraphJin) newGraphJinReloadingDatabase(base *graphjinEngine, database s
 	target.dbinfo = nil
 	target.schema = nil
 	target.qcodeCompiler = nil
-	target.psqlCompiler = nil
+	target.sqlgenCompiler = nil
 
 	if err := gj.discoverDatabase(target); err != nil {
 		return err
@@ -1199,7 +1199,7 @@ func cloneDBContextForReload(ctx *dbContext) *dbContext {
 		dbinfo:        ctx.dbinfo,
 		schema:        ctx.schema,
 		qcodeCompiler: ctx.qcodeCompiler,
-		psqlCompiler:  ctx.psqlCompiler,
+		sqlgenCompiler:  ctx.sqlgenCompiler,
 	}
 }
 

@@ -18,9 +18,10 @@ on exactly the same pattern:
 | **Input** (query languages) | `langadapter` | compile text → `*qcode.QCode` | GraphQL; later: URL query DSL |
 | **Output** (wire formats) | formatter registry | format `*Result` → bytes + envelope | JSON (today's behavior); later: protobuf, msgpack, CSV |
 
-Plus one mechanical rename: `core/psql` → `core/sqlgen`, because the package is
-the *generic* SQL generator for every dialect and the current name misleads
-everyone who reads the tree for the first time.
+Also done as of this writing: `core/psql` was renamed to `core/sqlgen`, because
+the package is the *generic* SQL generator for every dialect and the old name
+misled everyone who read the tree for the first time. (Phase 1 complete; zero
+references remain.)
 
 The goal is **not** "support five languages." The goal is:
 
@@ -434,8 +435,8 @@ name; the frontend applies GraphQL naming on top.
 
 Blast radius (verified, small): ~34 Go references outside the package
 (`engine/{gstate,engine,arguments,dbjoin,testkit,multidb}.go`, comments in
-`dialect/`, one qcode test), directories `core/psql/{bench,tests}`,
-identifiers `psqlCompiler`/`pcompile`, and doc mentions. One isolated commit;
+`dialect/`, one qcode test), directories `core/sqlgen/{bench,tests}` (renamed from `core/psql`),
+identifiers `sqlgenCompiler` (was `psqlCompiler`) and `scompile` (was `pcompile`), and doc mentions. One isolated commit;
 grep-audited to zero leftover references.
 
 ---
@@ -471,7 +472,7 @@ interface contract. Surface layers wait for both registries (hence last-but-one)
 | Response byte drift | Golden-file tests on default formatter before/after each phase; byte-identical is an exit criterion |
 | Public API breakage | `gj.GraphQL()` signature and behavior frozen; `gj.Query()` is additive |
 | Second-language scope creep | URL DSL is *not* part of this plan; it is the validation exercise afterwards (§13) |
-| Performance regression in dbjoin | Benchmarks exist (`core/psql/bench`, `bench/`); compare before/after Phase 5 |
+| Performance regression in dbjoin | Benchmarks exist (`core/sqlgen/bench`, `bench/`); compare before/after Phase 5 |
 
 ---
 

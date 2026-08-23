@@ -52,7 +52,7 @@ type InlineChildRenderer interface {
 	// case, cast, coalesce, agg-of-expr, ...). Exposed here so dialects
 	// that build their own JSON-field renderer (mariadb, mssql inline
 	// path) can delegate expression aggregate rendering to the shared
-	// psql implementation instead of duplicating it.
+	// sqlgen implementation instead of duplicating it.
 	RenderScalarExp(sel *qcode.Select, ex *qcode.Exp) error
 	GetConfigVar(name string) (string, bool) // Returns config var value and whether it exists
 	GetSecPrefix() string
@@ -163,7 +163,7 @@ type Dialect interface {
 	RequiresLowercaseIdentifiers() bool // Oracle needs lowercase schemas
 	RequiresBooleanAsInt() bool         // Oracle needs bool as 1/0 (PL/SQL BOOLEAN can't be used in SQL)
 
-	// Recursive CTE Syntax (moves db-specific code from psql/recur.go)
+	// Recursive CTE Syntax (moves db-specific code from sqlgen/recur.go)
 	RequiresRecursiveKeyword() bool       // Oracle doesn't use RECURSIVE
 	RequiresRecursiveCTEColumnList() bool // Oracle requires explicit column alias list
 	RenderRecursiveOffset(ctx Context)    // OFFSET 1 vs LIMIT -1 OFFSET 1 vs LIMIT 1, MAX
@@ -175,18 +175,18 @@ type Dialect interface {
 	// For Postgres/MySQL: return false to use default outer scope correlation
 	RenderRecursiveAnchorWhere(ctx Context, psel *qcode.Select, ti sdata.DBTable, pkCol string) bool
 
-	// JSON Null Fields (moves db-specific code from psql/query.go)
+	// JSON Null Fields (moves db-specific code from sqlgen/query.go)
 	RenderJSONNullField(ctx Context, fieldName string)       // NULL field syntax
 	RenderJSONNullCursorField(ctx Context, fieldName string) // NULL cursor field syntax
 	RenderJSONRootSuffix(ctx Context)                        // FOR JSON PATH for MSSQL, empty for others
 
-	// Array Operations (moves db-specific code from psql/mutate.go)
+	// Array Operations (moves db-specific code from sqlgen/mutate.go)
 	RenderArraySelectPrefix(ctx Context)                   // ARRAY(SELECT vs (SELECT JSON_ARRAYAGG(
 	RenderArraySelectSuffix(ctx Context)                   // ) vs ))
 	RenderArrayAggPrefix(ctx Context, distinct bool)       // ARRAY_AGG vs json_group_array vs JSON_ARRAYAGG
 	RenderArrayRemove(ctx Context, col string, val func()) // array_remove vs JSON_REMOVE
 
-	// Column rendering (moves db-specific code from psql/columns.go)
+	// Column rendering (moves db-specific code from sqlgen/columns.go)
 	RequiresJSONQueryWrapper() bool  // MariaDB needs JSON_QUERY wrapper for inline children
 	RequiresNullOnEmptySelect() bool // MySQL/SQLite/MariaDB need NULL when no columns rendered
 }

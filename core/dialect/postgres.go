@@ -377,23 +377,23 @@ func (d *PostgresDialect) RenderValArrayColumn(ctx Context, ex *qcode.Exp, table
 	} else {
 		// ctx.ColWithTableID not available in Context interface directly?
 		// Context has ColWithTable(table, col).
-		// psql had colWithTableID.
+		// sqlgen had colWithTableID.
 		// I should check Context interface.
 		// Context interface has only ColWithTable(table, col).
 		// But I can construct the table name with ID manually if needed or update Context interface.
-		// psql.colWithTableID logic: if id >= 0 { quoted(table + "_" + val) } else { quoted(table) }
+		// sqlgen.colWithTableID logic: if id >= 0 { quoted(table + "_" + val) } else { quoted(table) }
 
 		// Let's assume passed 'table' is already the table name or alias we want?
-		// No, psql passes 'table' (schema.table) and 'pid'.
+		// No, sqlgen passes 'table' (schema.table) and 'pid'.
 		// I should probably update Context interface or helper.
-		// But wait, psql/exp.go line 428 calls c.colWithTableID.
+		// But wait, sqlgen/exp.go line 428 calls c.colWithTableID.
 
 		// For now, let's just replicate the logic if possible or trust the table arg.
 		// The caller in exp.go `renderValArrayColumn` passes `table` and `pid`.
 		// It calls `c.colWithTableID(table, pid, col.Name)`.
 
 		// I'll replicate simple string construction here or better, add ColWithTableID to Context?
-		// Modifying Context implies modifying psql/query.go impl of Context.
+		// Modifying Context implies modifying sqlgen/query.go impl of Context.
 		// Let's try to do it with existing methods if possible.
 		// `ColWithTable` takes table and col.
 

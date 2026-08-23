@@ -1,4 +1,4 @@
-package psql_test
+package sqlgen_test
 
 import (
 	"encoding/json"
@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
 var (
 	qcompile *qcode.Compiler
-	pcompile *psql.Compiler
+	scompile *sqlgen.Compiler
 )
 
 func TestMain(m *testing.M) {
@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 		"get_price":        "sql:select price from prices where id = $product_id",
 	}
 
-	pcompile = psql.NewCompiler(psql.Config{
+	scompile = sqlgen.NewCompiler(sqlgen.Config{
 		Vars: vars,
 	})
 
@@ -87,7 +87,7 @@ func _compileGQLToPSQL(t *testing.T, gql string, vars json.RawMessage, role stri
 			return err
 		}
 
-		_, _, err = pcompile.CompileEx(qc)
+		_, _, err = scompile.CompileEx(qc)
 		if err != nil {
 			return err
 		}
@@ -122,7 +122,7 @@ func TestCompositeFK_ThroughColumn_EmitsFullJoinCondition(t *testing.T) {
 		t.Fatalf("qcode compiler: %v", err)
 	}
 
-	pc := psql.NewCompiler(psql.Config{})
+	pc := sqlgen.NewCompiler(sqlgen.Config{})
 
 	gql := `query {
 		enrollment {
@@ -142,7 +142,7 @@ func TestCompositeFK_ThroughColumn_EmitsFullJoinCondition(t *testing.T) {
 
 	_, sqlBytes, err := pc.CompileEx(qcRes)
 	if err != nil {
-		t.Fatalf("psql compile: %v", err)
+		t.Fatalf("sqlgen compile: %v", err)
 	}
 	sql := string(sqlBytes)
 

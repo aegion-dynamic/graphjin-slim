@@ -77,7 +77,7 @@ The compiler sub-packages provide modular stages in the compilation pipeline:
 | `core/runtime` | Execution resilience, exponential backoff retry, field crypto, and error repair diagnostics |
 | `core/graph` | GraphQL lexer, parser, and syntax schema |
 | `core/qcode` | Normalized GraphQL query compiler and intermediate representation (IR) |
-| `core/psql` | SQL query and mutation compilation |
+| `core/sqlgen` | SQL query and mutation compilation |
 | `core/dialect` | Postgres and SQLite rendering differences |
 | `core/sdata` | Database metadata and schema relationships |
 | `core/introspection` | Database metadata discovery queries |
@@ -103,7 +103,7 @@ core/qcode (normalized IR & validation)
 core/sdata (schema metadata & relationships)
     |
     v
-core/psql + core/dialect (SQL compiler)
+core/sqlgen + core/dialect (SQL compiler)
     |
     v
 SQL and bound arguments

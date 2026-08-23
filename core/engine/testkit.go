@@ -3,7 +3,7 @@ package engine
 import (
 	"sort"
 
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/psql"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/sqlgen"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
@@ -46,13 +46,13 @@ func NewTestGraphJin(databaseSchemas map[string]string) (*GraphJin, error) {
 		if err != nil {
 			return nil, err
 		}
-		psc := psql.NewCompiler(psql.Config{})
+		psc := sqlgen.NewCompiler(sqlgen.Config{})
 
 		engine.databases[name] = &dbContext{
 			name:          name,
 			schema:        schema,
 			qcodeCompiler: qcc,
-			psqlCompiler:  psc,
+			sqlgenCompiler:  psc,
 		}
 		if engine.defaultDB == "" {
 			engine.defaultDB = name

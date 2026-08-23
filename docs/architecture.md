@@ -25,12 +25,12 @@ serv HTTP handlers
     v
 core GraphJin runtime
     |
-    +--> GraphQL parser
-    +--> query representation
+    +--> query language (langadapter seam; graphql built in)
+    +--> query representation (qcode IR)
     +--> schema metadata
     +--> SQL compiler
     +--> database execution
-    +--> response encoding
+    +--> response encoding (format seam; json built in)
 ```
 
 The service owns transport concerns. The core owns GraphQL behavior and SQL
@@ -80,6 +80,22 @@ SQL query and mutation compilation.
 ### `core/dialect`
 
 Database-specific SQL rendering for Postgres and SQLite.
+
+### `core/langadapter`
+
+The input seam: query languages register factories globally, instances
+bind per-database to a qcode compiler, and everything lowers into the
+shared qcode IR. Registry semantics mirror `core/dbadapter`. The
+built-in graphql language lives in the engine until its frontend is
+fully extracted; optional capabilities (`FastInfoer`,
+`SchemaDescriber`, `SubqueryBuilder`) let languages own parsing
+metadata, schema description, and cross-DB fan-out encoding.
+
+### `core/format`
+
+The output seam: wire formats register by name and own their envelope.
+The built-in JSON formatter reproduces historical bytes exactly. serv
+resolves formatters per request via `?format=` then Accept headers.
 
 ### `core/sdata`
 

@@ -1,0 +1,70 @@
+name: CI
+
+# Build and test every module, then enforce the import audits that keep
+# the seams honest:
+#   - the GraphQL parser must not leak into transport/service layers
+#   - core/qcode (the IR) must not depend on either seam package
+#   - the output seam must stay importable from anywhere (no engine deps)
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'serv/go.mod'
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          for m in core serv openapi webui tests; do
+              (cd "$m" && go build ./...)
+          done
+
+      - name: Test
+        run: |
+          set -euo pipefail
+          go test ./core/...
+          (cd serv && go test ./...)
+          (cd openapi && go test ./...)
+
+      # Import audits. The allowlist for the GraphQL parser is transitional:
+      # it shrinks as frontends extract into core/lang/*.
+      - name: Audit imports
+        run: |
+          set -euo pipefail
+          echo "== no old psql package references"
+          if grep -rn 'core/v3/psql' --include='*.go' . --exclude-dir=node_modules --exclude-dir=.git; then
+              echo "::error::stale reference to renamed core/psql"; exit 1
+          fi
+
+          echo "== graphql parser must not enter service/transport layers"
+          if grep -rln 'core/v3/graph"' --include='*.go' serv webui bench tests; then
+              echo "::error::graph parser imported outside the compiler/frontend"; exit 1
+          fi
+
+          echo "== IR (qcode) must not depend on seam registries"
+          if grep -rln 'core/v3/langadapter\|core/v3/format"' --include='*.go' core/qcode; then
+              echo "::error::qcode must stay language- and format-neutral"; exit 1
+          fi
+
+          echo "== output seam must not depend on engine"
+          if grep -rln 'core/v3/engine\|core/v3"' --include='*.go' core/format; then
+              echo "::error::format package gained an engine dependency"; exit 1
+          fi
+
+          echo "audits passed"

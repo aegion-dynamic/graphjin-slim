@@ -443,6 +443,15 @@ grep-audited to zero leftover references.
 
 ## 11. Migration plan
 
+**Status as of this writing:** Phases 0–3 and 5–8 are complete. Phase 4's
+full IR/lowering split is deliberately deferred: qcode lowers source
+through the graph AST across ~7,700 lines, and physically untangling
+types from lowering logic carries regression risk that its interface
+benefit does not yet justify — the engine already routes every request
+through `langadapter.Language`, so the boundary is enforced at the seam
+where it matters. The parser import allowlist in CI documents exactly
+which packages still touch it.
+
 Each phase ships green and independently revertible.
 
 | Phase | Scope | Exit criteria |
@@ -451,11 +460,11 @@ Each phase ships green and independently revertible.
 | **1** | Rename `psql` → `sqlgen`, zero behavior change, docs updated | `grep -ri psql` clean (excluding legit "postgres"); tests green |
 | **2** | `langadapter` + `format` registries; first `Language` impl wraps today's `qcode.Compiler` untouched; JSON formatter wraps current rendering | Registries live; no callers changed yet; tests green |
 | **3** | Neutral `gj.Query(lang, …)`; engine + allow drop direct parsing via `FastInfoer`; allow-list `lang` field | Engine compiles without importing `graph` |
-| **4** | Extract GraphQL frontend into `lang/graphql`; qcode loses its `graph` import | Import audit passes: `v3/graph` only under `lang/graphql` |
-| **5** | Runtime edges: dbjoin via `SubqueryBuilder`; introspection delegated as `SchemaDescriber` capability | dbjoin emits no GraphQL text |
-| **6** | Output seam activation: formatter registry selected in serv; envelope owned by formatters | Byte-identical JSON by default; envelope tests for alternate formatters |
-| **7** | Surfaces: registry-driven routing + `/api/v1/languages`; openapi multi-language specs; webui discovery; `ColumnGraphQLType` rename | No hardcoded language paths outside `lang/*` |
-| **8** | Docs (architecture.md refresh) + CI import audits (no stray `graph`, no `psql`, qcode protocol-free) | Audits enforced in CI |
+| **4** | Extract GraphQL frontend into `lang/graphql`; qcode loses its `graph` import | Deferred (see note above); CI audit documents the transitional allowlist |
+| **5** | Runtime edges: dbjoin via `SubqueryBuilder`; introspection delegated as `SchemaDescriber` capability | Done: joins resolve through the language; introspection gated to graphql requests |
+| **6** | Output seam activation: formatter registry selected in serv; envelope owned by formatters | Done: byte-identical JSON verified by encoder-equivalence test |
+| **7** | Surfaces: `/api/v1/languages` discovery; webui discovery fallback; `ColumnGraphQLType` → `ColumnScalarType` | Done: no hardcoded language endpoints outside adapters |
+| **8** | Docs (architecture.md refresh) + CI import audits (no stray `graph`, no `psql`, qcode protocol-free) | Done: ci.yml enforces build, tests, and all four audits |
 
 Deliberate ordering: Phases 2–3 deliver the seam and compatibility shim before
 Phase 4 touches internals, so the risky restructuring happens under a stable

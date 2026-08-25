@@ -5,7 +5,30 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
+	"sync"
 )
+
+// gcmCache memoizes AEAD construction per key. Deriving a GCM instance
+// (cipher.NewGCM) hashes the key into the GHASH subkey on every call,
+// which is pure waste since keys are fixed for an engine's lifetime.
+// cipher.AEAD values are documented safe for concurrent use.
+var gcmCache sync.Map // [32]byte -> cipher.AEAD
+
+func sharedGCM(key [32]byte) (cipher.AEAD, error) {
+	if v, ok := gcmCache.Load(key); ok {
+		return v.(cipher.AEAD), nil
+	}
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	gcmCache.Store(key, gcm)
+	return gcm, nil
+}
 
 // EncryptValues encrypts values in data that are prefixed with encPrefix,
 // rewriting them with decPrefix and AES-GCM ciphertext.
@@ -38,12 +61,7 @@ func encryptValues(
 	var b bytes.Buffer
 	var buf [500]byte
 
-	block, err := aes.NewCipher(key[:])
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := sharedGCM(key)
 	if err != nil {
 		return nil, err
 	}
@@ -106,12 +124,7 @@ func decryptValues(data, prefix []byte, key [32]byte) ([]byte, error) {
 	var b bytes.Buffer
 	var buf [500]byte
 
-	block, err := aes.NewCipher(key[:])
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := sharedGCM(key)
 	if err != nil {
 		return nil, err
 	}

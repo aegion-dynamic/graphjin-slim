@@ -606,7 +606,19 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 	parts := dialect.SplitQuery(cs.st.sql)
 
 	if len(parts) > 1 {
+		return s.executeScript(c, conn, cs, parts, args)
+	}
+
+	return s.executeSingle(c, conn, args)
+}
+
+// executeScript runs multi-statement scripts (e.g. SQLite conflict
+// fallback chains), capturing generated IDs between statements.
+func (s *gstate) executeScript(c context.Context, conn *sql.Conn,
+	cs *cstate, parts []string, args args) (err error) {
+	{
 		// Multi-statement script execution
+		dbType := s.getTargetDBCtx().dbtype
 		c1, span := s.gj.spanStart(c, "Execute Script")
 		defer span.End()
 
@@ -670,13 +682,15 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 					if err1 != nil {
 						err = err1 // Propagate error
 					} else {
-						defer rows.Close() //nolint:errcheck
-
+						// Close before the next statement rather than
+						// deferring: a script can hold many statements
+						// and defers would pile up until function exit.
 						var ids []string
 
 						for rows.Next() {
 							var b []byte
 							if err = rows.Scan(&b); err != nil {
+								rows.Close()
 								return err
 							}
 							// b is JSON object from RETURNING json_object(...)
@@ -684,6 +698,7 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 							// Parse ID from JSON
 							var rowMap map[string]interface{}
 							if err = json.Unmarshal(b, &rowMap); err != nil {
+								rows.Close()
 								return err
 							}
 
@@ -691,6 +706,7 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 								ids = append(ids, fmt.Sprintf("%v", idVal))
 							}
 						}
+						rows.Close()
 
 						if err = rows.Err(); err != nil {
 							return err
@@ -776,6 +792,13 @@ func (s *gstate) execute(c context.Context, conn *sql.Conn) (err error) {
 		}
 		return
 	}
+	return
+}
+
+// executeSingle runs the common one-statement query or mutation.
+func (s *gstate) executeSingle(c context.Context, conn *sql.Conn, args args) (err error) {
+	cs := s.cs
+	dbType := s.getTargetDBCtx().dbtype
 
 	// Standard Single-Statement Execution
 	c1, span := s.gj.spanStart(c, "Execute Query")

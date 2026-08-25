@@ -549,7 +549,7 @@ func (c *compilerContext) sortMutations() []int {
 }
 
 func (c *compilerContext) getVarName(m qcode.Mutate) string {
-	return m.Ti.Name + "_" + fmt.Sprintf("%d", m.ID)
+	return m.Ti.Name + "_" + strconv.FormatInt(int64(m.ID), 10)
 }
 
 // Removed renderLinearInsert, renderLinearUpdate, renderLinearConnect, renderLinearDisconnect which are now handled by dialect

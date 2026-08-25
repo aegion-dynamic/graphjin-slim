@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
@@ -37,12 +38,12 @@ func (d *PostgresDialect) RenderLimit(ctx Context, sel *qcode.Select) {
 		ctx.WriteString(` LIMIT LEAST(`)
 		ctx.AddParam(Param{Name: sel.Paging.LimitVar, Type: "integer"})
 		ctx.WriteString(`, `)
-		ctx.Write(fmt.Sprintf("%d", sel.Paging.Limit))
+		ctx.Write(strconv.FormatInt(int64(sel.Paging.Limit), 10))
 		ctx.WriteString(`)`)
 
 	default:
 		ctx.WriteString(` LIMIT `)
-		ctx.Write(fmt.Sprintf("%d", sel.Paging.Limit))
+		ctx.Write(strconv.FormatInt(int64(sel.Paging.Limit), 10))
 	}
 
 	switch {
@@ -52,7 +53,7 @@ func (d *PostgresDialect) RenderLimit(ctx Context, sel *qcode.Select) {
 
 	case sel.Paging.Offset != 0:
 		ctx.WriteString(` OFFSET `)
-		ctx.Write(fmt.Sprintf("%d", sel.Paging.Offset))
+		ctx.Write(strconv.FormatInt(int64(sel.Paging.Offset), 10))
 	}
 }
 
@@ -62,13 +63,13 @@ func (d *PostgresDialect) RenderJSONRoot(ctx Context, sel *qcode.Select) {
 
 func (d *PostgresDialect) RenderJSONSelect(ctx Context, sel *qcode.Select) {
 	ctx.WriteString(`SELECT to_jsonb(__sr_`)
-	ctx.Write(fmt.Sprintf("%d", sel.ID))
+	ctx.Write(strconv.FormatInt(int64(sel.ID), 10))
 	ctx.WriteString(`.*) `)
 
 	if sel.Paging.Cursor {
 		for i := range sel.OrderBy {
 			ctx.WriteString(`- '__cur_`)
-			ctx.Write(fmt.Sprintf("%d", i))
+			ctx.Write(strconv.Itoa(i))
 			ctx.WriteString(`' `)
 		}
 	}
@@ -76,7 +77,7 @@ func (d *PostgresDialect) RenderJSONSelect(ctx Context, sel *qcode.Select) {
 
 func (d *PostgresDialect) RenderJSONPlural(ctx Context, sel *qcode.Select) {
 	ctx.WriteString(`COALESCE(jsonb_agg(__sj_`)
-	ctx.Write(fmt.Sprintf("%d", sel.ID))
+	ctx.Write(strconv.FormatInt(int64(sel.ID), 10))
 	ctx.WriteString(`.json), '[]')`)
 }
 
@@ -107,7 +108,7 @@ func (d *PostgresDialect) RenderCursorCTE(ctx Context, sel *qcode.Select) {
 			ctx.WriteString(`, `)
 		}
 		ctx.WriteString(`a[`)
-		ctx.Write(fmt.Sprintf("%d", i+2))
+		ctx.Write(strconv.Itoa(i + 2))
 		ctx.WriteString(`] :: `)
 		ctx.WriteString(ob.Col.Type)
 		ctx.WriteString(` AS `)
@@ -658,7 +659,7 @@ func (d *PostgresDialect) RenderMutationCTE(ctx Context, m *qcode.Mutate, render
 	if m.Multi {
 		ctx.WriteString(m.Ti.Name)
 		ctx.WriteString(`_`)
-		ctx.Write(fmt.Sprintf("%d", m.ID))
+		ctx.Write(strconv.FormatInt(int64(m.ID), 10))
 	} else {
 		ctx.Quote(m.Ti.Name)
 	}
@@ -791,7 +792,7 @@ func (d *PostgresDialect) RenderSubscriptionUnbox(ctx Context, params []Param, i
 			ctx.WriteString(`, `)
 		}
 		ctx.WriteString(`CAST(x->>`)
-		ctx.Write(fmt.Sprintf("%d", i))
+		ctx.Write(strconv.Itoa(i))
 		ctx.WriteString(` AS `)
 		ctx.WriteString(p.Type)
 		ctx.WriteString(`) AS "` + p.Name + `"`)

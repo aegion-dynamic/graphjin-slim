@@ -1,7 +1,7 @@
 package dialect
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
@@ -257,7 +257,7 @@ func GenericRenderMutationPostamble(ctx Context, qc *qcode.QCode) {
 			if m.Multi {
 				ctx.WriteString(m.Ti.Name)
 				ctx.WriteString(`_`)
-				ctx.WriteString(fmt.Sprintf("%d", m.ID))
+				ctx.WriteString(strconv.FormatInt(int64(m.ID), 10))
 			} else {
 				ctx.Quote(m.Ti.Name)
 			}

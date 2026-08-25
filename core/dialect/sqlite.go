@@ -2,6 +2,7 @@ package dialect
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
@@ -61,7 +62,7 @@ func (d *SQLiteDialect) RenderLimit(ctx Context, sel *qcode.Select) {
 	if sel.Paging.LimitVar != "" {
 		ctx.AddParam(Param{Name: sel.Paging.LimitVar, Type: "integer"})
 	} else {
-		ctx.Write(fmt.Sprintf("%d", sel.Paging.Limit))
+		ctx.Write(strconv.FormatInt(int64(sel.Paging.Limit), 10))
 	}
 
 	if sel.Paging.OffsetVar != "" {
@@ -69,7 +70,7 @@ func (d *SQLiteDialect) RenderLimit(ctx Context, sel *qcode.Select) {
 		ctx.AddParam(Param{Name: sel.Paging.OffsetVar, Type: "integer"})
 	} else if sel.Paging.Offset != 0 {
 		ctx.WriteString(` OFFSET `)
-		ctx.Write(fmt.Sprintf("%d", sel.Paging.Offset))
+		ctx.Write(strconv.FormatInt(int64(sel.Paging.Offset), 10))
 	}
 }
 
@@ -112,7 +113,7 @@ func (d *SQLiteDialect) RenderCursorCTE(ctx Context, sel *qcode.Select) {
 		ctx.WriteString(`CAST(json_extract('["' || replace(NULLIF(`)
 		ctx.AddParam(Param{Name: cursorVar, Type: "text"})
 		ctx.WriteString(`, ''), ',', '","') || '"]', '$[`)
-		ctx.WriteString(fmt.Sprintf("%d", i+1))
+		ctx.WriteString(strconv.Itoa(i + 1))
 		ctx.WriteString(`]') AS `)
 		ctx.WriteString(d.sqliteType(ob.Col.Type))
 		ctx.WriteString(`) AS `)
@@ -799,7 +800,7 @@ func (d *SQLiteDialect) RenderMutationPostamble(ctx Context, qc *qcode.QCode) {
 }
 
 func (d *SQLiteDialect) getVarName(m qcode.Mutate) string {
-	return m.Ti.Name + "_" + fmt.Sprintf("%d", m.ID)
+	return m.Ti.Name + "_" + strconv.FormatInt(int64(m.ID), 10)
 }
 
 func (d *SQLiteDialect) RenderLinearInsert(ctx Context, m *qcode.Mutate, qc *qcode.QCode, varName string, renderColVal func(qcode.MColumn)) {
@@ -1228,14 +1229,14 @@ func (d *SQLiteDialect) ModifySelectsForMutation(qc *qcode.QCode) {
 
 		if len(mutations) == 1 {
 			m := mutations[0]
-			varName := m.Ti.Name + "_" + fmt.Sprintf("%d", m.ID)
+			varName := m.Ti.Name + "_" + strconv.FormatInt(int64(m.ID), 10)
 			exp = buildPKSelectExp(m.Ti, qcode.OpEquals, varName)
 		} else {
 			// Multiple mutations - use IN
 			m := mutations[0]
 			var varNames []string
 			for _, mut := range mutations {
-				varNames = append(varNames, mut.Ti.Name+"_"+fmt.Sprintf("%d", mut.ID))
+				varNames = append(varNames, mut.Ti.Name+"_"+strconv.FormatInt(int64(mut.ID), 10))
 			}
 			exp = buildPKSelectExp(m.Ti, qcode.OpIn, varNames...)
 		}
@@ -1246,7 +1247,7 @@ func (d *SQLiteDialect) ModifySelectsForMutation(qc *qcode.QCode) {
 
 // getVarName returns the variable name for a mutation's captured ID
 func getVarName(m *qcode.Mutate) string {
-	return m.Ti.Name + "_" + fmt.Sprintf("%d", m.ID)
+	return m.Ti.Name + "_" + strconv.FormatInt(int64(m.ID), 10)
 }
 func (d *SQLiteDialect) RenderMutateToRecordSet(ctx Context, m *qcode.Mutate, n int, renderRoot func()) {
 	if n != 0 {

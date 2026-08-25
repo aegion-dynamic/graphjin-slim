@@ -139,20 +139,9 @@ func (co *Compiler) Compile(w *bytes.Buffer, qc *qcode.QCode) (Metadata, error) 
 
 func (co *Compiler) RenderSetSessionVar(name, value string) string {
 	var w bytes.Buffer
-	// Provide a minimal Context implementation over bytes.Buffer
-	ctx := &compilerContext{
-		w: &w,
-		// minimal context, methods not used by RenderSetSessionVar should be safe or not called
-	}
-	// We need 'WriteString' which compilerContext has via *bytes.Buffer?
-	// No, compilerContext has w *bytes.Buffer. It needs to implement Context interface.
-	// compilerContext DOES implement Context (implicitly via methods in other files? or we need to ensure it).
-	// Let's check if compilerContext implements Context.
-	// It has `w *bytes.Buffer`.
-	// Dialect expects `Context` interface: WriteString, Quote, etc.
-	// `compilerContext` in `query.go` (and probably `common.go` which I missed reading fully but saw `dialect/common.go` earlier failure)
-	// usually implements these.
-	// I should create a temporary context safe for this.
+	// compilerContext satisfies dialect.Context; session-var rendering
+	// only writes literals, so the nil md/qc fields are never touched.
+	ctx := &compilerContext{w: &w}
 
 	if co.dialect.RenderSetSessionVar(ctx, name, value) {
 		return w.String()
@@ -213,18 +202,7 @@ func (co *Compiler) CompileQuery(
 		}
 	}
 
-	c.dialect.RenderJSONRoot(c, nil) // sel is nil for root? Or qc is enough?
-	// RenderJSONRoot(ctx, sel)
-	// original: SELECT json_object( or jsonb_build_object(
-	// It didn't use sel. It used qc.Name if qc.Typename.
-
-	// Wait, original:
-	// switch c.ct { ... SELECT ... }
-	// if qc.Typename { c.w.WriteString(...) }
-
-	// RenderJSONRoot should maybe handle the whole SELECT part?
-	// My Dialect.RenderJSONRoot implementation just writes SELECT ..._object(
-	// Then logic continues.
+	c.dialect.RenderJSONRoot(c, nil)
 
 	if qc.Typename {
 		c.dialect.RenderJSONRootField(c, "__typename", func() {

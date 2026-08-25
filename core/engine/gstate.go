@@ -946,8 +946,10 @@ func (s *gstate) tx() (tx *sql.Tx) {
 }
 
 func (s *gstate) key() (key string) {
-	// CRITICAL: Include database in cache key to prevent cross-database cache collisions.
-	// Same query name with different databases must have different cache entries.
+	// CRITICAL: Include database in cache key to prevent cross-database
+	// cache collisions, and delimit every component: plain concatenation
+	// would make namespace "user" + name "slist" collide with namespace
+	// "users" + name "list". NUL cannot appear in any of the components.
 	if s.multiDB && len(s.dbGroups) > 0 {
 		// For multi-DB queries, include sorted list of ALL databases
 		dbs := make([]string, 0, len(s.dbGroups))
@@ -955,9 +957,9 @@ func (s *gstate) key() (key string) {
 			dbs = append(dbs, db)
 		}
 		sort.Strings(dbs)
-		key = s.r.namespace + s.r.name + strings.Join(dbs, ",")
+		key = s.r.namespace + "\x00" + s.r.name + "\x00" + strings.Join(dbs, ",")
 	} else {
-		key = s.r.namespace + s.r.name + s.database
+		key = s.r.namespace + "\x00" + s.r.name + "\x00" + s.database
 	}
 	return
 }

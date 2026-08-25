@@ -31,21 +31,29 @@ func TestCacheKeyIncludesDatabase(t *testing.T) {
 			namespace: "ns1",
 			qname:     "getUsers",
 			database:  "",
-			wantKey:   "ns1getUsers",
+			wantKey:   "ns1\x00getUsers\x00",
 		},
 		{
 			name:      "with database",
 			namespace: "ns1",
 			qname:     "getUsers",
 			database:  "main",
-			wantKey:   "ns1getUsersmain",
+			wantKey:   "ns1\x00getUsers\x00main",
 		},
 		{
 			name:      "different database same query",
 			namespace: "ns1",
 			qname:     "getUsers",
 			database:  "analytics",
-			wantKey:   "ns1getUsersanalytics",
+			wantKey:   "ns1\x00getUsers\x00analytics",
+		},
+		{
+			// regression: plain concatenation made these two collide
+			name:      "boundary collision is impossible with delimiters",
+			namespace: "user",
+			qname:     "slist",
+			database:  "",
+			wantKey:   "user\x00slist\x00",
 		},
 	}
 

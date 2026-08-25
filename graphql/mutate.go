@@ -506,8 +506,9 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 			return nil, fmt.Errorf("expecting object for '%s'", k)
 		}
 
-		// When parent-to-child relationship is one-to-many
-		if rel.Type == sdata.RelOneToMany {
+		// Nested one-to-many children under an INSERT create new rows;
+		// under an UPDATE they attach existing rows by setting the FK.
+		if rel.Type == sdata.RelOneToMany && ms.mt == qcode.MTUpdate {
 			ty = qcode.MTConnect
 		}
 
@@ -516,15 +517,18 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 			ParentID: m.ID,
 			Type:     ty,
 			Key:      k,
-			//	Val:      v,
-			Path: append(m.Path, k),
-			Rel:  rel,
-			Ti:   rel.Left.Ti,
+			Path:     append(m.Path, k),
+			Rel:      rel,
+			Ti:       rel.Left.Ti,
 		}, md: md}
 		ms.id++
 
 		if md.Data.Type == graph.NodeList {
 			ml = co.processList(mi)
+		} else {
+			// A single nested object must produce its mutate too; leaving
+			// ml nil here silently dropped the child row entirely.
+			ml = []mutItem{mi}
 		}
 		items = append(items, ml...)
 	}

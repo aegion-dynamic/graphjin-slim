@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
-	"github.com/aegion-dynamic/graphjin-slim/graphql/v3"
 	schemapkg "github.com/aegion-dynamic/graphjin-slim/core/v3/schema"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
+	"github.com/aegion-dynamic/graphjin-slim/graphql/v3"
 )
 
 // helper mirroring engine.writeSchema

@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
-	"github.com/aegion-dynamic/graphjin-slim/graphql/v3"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
+	"github.com/aegion-dynamic/graphjin-slim/graphql/v3"
 )
 
 const formatsEnum = "validateFormatEnum"

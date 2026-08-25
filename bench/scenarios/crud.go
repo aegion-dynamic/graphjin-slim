@@ -99,10 +99,7 @@ func crudNestedInsert(h *harness.H) error {
 	}
 	rows, _ := data["products"].([]any)
 	if len(rows) != 1 {
-		// Documented defect: literal-object nested inserts on sqlite
-		// silently drop the child row (finding #15). Surfaced as a skip
-		// so it stays visible daily without masking regressions.
-		return fmt.Errorf("%w: nested child silently dropped (finding #15)", harness.ErrKnownBug)
+		return fmt.Errorf("child product missing: %v", rows)
 	}
 	got := rows[0].(map[string]any)["users_id"].(float64)
 	if got != parentID {

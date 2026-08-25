@@ -21,13 +21,16 @@ import (
 )
 
 type gstate struct {
-	gj    *graphjinEngine
-	r     GraphqlReq
-	cs    *cstate
-	vmap  map[string]json.RawMessage
-	data  []byte
-	dhash [sha256.Size]byte
-	verrs []qcode.ValidErr
+	gj *graphjinEngine
+	r  GraphqlReq
+	cs *cstate
+	// compileFn defaults to compileQuery; tests override it to exercise
+	// the negative-cache mechanics without a registered language.
+	compileFn func() error
+	vmap      map[string]json.RawMessage
+	data      []byte
+	dhash     [sha256.Size]byte
+	verrs     []qcode.ValidErr
 	// database is the target database name for multi-database support.
 	// Empty string means default database (backward compatible single-DB mode).
 	database string
@@ -49,8 +52,9 @@ type gstate struct {
 
 type cstate struct {
 	sync.Once
-	st  stmt
-	err error
+	st       stmt
+	err      error
+	failedAt time.Time // when err was recorded, for negative-cache expiry
 }
 
 type stmt struct {
@@ -155,21 +159,50 @@ func (s *gstate) compile() (err error) {
 
 	// In production mode compile and cache the result
 	// In production mode the query is derived from the allow list
+	if s.compileFn == nil {
+		s.compileFn = s.compileQuery
+	}
 	err = s.compileQueryOnce()
 	return
 }
 
+// negCacheTTL bounds how long a failed compilation is remembered.
+// Deterministic failures (bad query, schema mismatch) stay cheap to
+// re-hit within the window; transient failures (database restarts,
+// timeouts) are forgotten quickly so the next request retries.
+const negCacheTTL = 30 * time.Second
+
 func (s *gstate) compileQueryOnce() (err error) {
 	val, loaded := s.gj.queries.LoadOrStore(s.key(), &cstate{})
-	s.cs = val.(*cstate)
+	cs := val.(*cstate)
 
-	if !loaded {
-		s.cs.Do(func() {
-			s.cs.err = s.compileQuery()
-		})
+	// A poisoned entry (cached compile failure) is only served while
+	// fresh. Once stale it is dropped so a new single-flight entry is
+	// created and compilation retries from scratch.
+	if loaded && cs.err != nil {
+		if time.Since(cs.failedAt) < negCacheTTL {
+			s.cs = cs
+			return cs.err
+		}
+		s.gj.queries.Delete(s.key())
+		val, _ = s.gj.queries.LoadOrStore(s.key(), &cstate{})
+		cs = val.(*cstate)
 	}
+	s.cs = cs
 
-	err = s.cs.err
+	// Do runs exactly once per cstate instance: concurrent callers wait
+	// for the winner, and an entry recreated above compiles afresh.
+	cs.Do(func() {
+		if s.compileFn == nil {
+			s.compileFn = s.compileQuery
+		}
+		cs.err = s.compileFn()
+		if cs.err != nil {
+			cs.failedAt = time.Now()
+		}
+	})
+
+	err = cs.err
 	return
 }
 

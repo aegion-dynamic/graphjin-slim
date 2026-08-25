@@ -3,6 +3,7 @@ package sqlgen
 import (
 	"bytes"
 	"strconv"
+	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/dialect"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
@@ -50,7 +51,10 @@ func (c *compilerContext) quoted(identifier string) {
 
 func (c *compilerContext) squoted(identifier string) {
 	c.w.WriteByte('\'')
-	c.w.WriteString(identifier)
+	// Inline literals can originate from user-controlled mutation payloads;
+	// an unescaped quote would terminate the literal early and hand the
+	// remainder to the SQL parser. SQL escapes quotes by doubling them.
+	c.w.WriteString(strings.ReplaceAll(identifier, "'", "''"))
 	c.w.WriteByte('\'')
 }
 

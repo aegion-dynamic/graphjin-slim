@@ -372,7 +372,7 @@ func (d *SQLiteDialect) RenderLiteral(ctx Context, val string, valType qcode.Val
 		ctx.WriteString(val)
 	case qcode.ValStr:
 		ctx.WriteString(`'`)
-		ctx.WriteString(val)
+		ctx.WriteString(strings.ReplaceAll(val, "'", "''"))
 		ctx.WriteString(`'`)
 	default:
 		ctx.Quote(val)

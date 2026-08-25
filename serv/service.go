@@ -1402,6 +1402,13 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
 		}
 
 		res, err := s.gj.GraphQLByName(ctx, queryName, vars, &rc)
+		if res == nil && err != nil {
+			// The engine refused the request (unknown query, validation
+			// failure, ...). Render the error directly: responseHandler
+			// dereferences res and would panic on a nil result.
+			renderErr(w, err)
+			return
+		}
 		s.responseHandler(
 			ctx,
 			w,

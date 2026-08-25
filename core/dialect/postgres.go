@@ -339,7 +339,7 @@ func (d *PostgresDialect) RenderLiteral(ctx Context, val string, valType qcode.V
 	default:
 		// Default to single-quoted string literal (not double-quoted identifier)
 		ctx.WriteString(`'`)
-		ctx.WriteString(val)
+		ctx.WriteString(strings.ReplaceAll(val, "'", "''"))
 		ctx.WriteString(`'`)
 	}
 }

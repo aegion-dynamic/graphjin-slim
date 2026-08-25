@@ -42,6 +42,9 @@ jobs:
           (cd graphql && go test ./...)
           (cd serv && go test ./...)
           (cd openapi && go test ./...)
+          # end-to-end verification battery: real services over sqlite,
+          # scenario assertions plus the dev/prod differential oracle
+          (cd bench && go test ./... -timeout 300s)
 
       # Import audits. The allowlist for the GraphQL parser is transitional:
       # it shrinks as frontends extract into core/lang/*.

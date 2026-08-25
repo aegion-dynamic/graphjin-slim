@@ -12,6 +12,9 @@ func init() {
 		Name:     "prodsec",
 		Variants: []string{"prod"},
 		Fn:       prodSec,
+		Seeds: map[string]harness.SeedQuery{
+			"getUser": {Query: `query getUser($id = ID) { users(id: $id) { id full_name email } }`},
+		},
 	})
 	register(Scenario{Name: "edge_cases", Fn: edgeCases})
 }

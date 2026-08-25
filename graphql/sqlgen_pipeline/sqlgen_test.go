@@ -1,6 +1,7 @@
 package pipeline_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"log"
@@ -166,4 +167,24 @@ func TestCompositeFK_ThroughColumn_EmitsFullJoinCondition(t *testing.T) {
 		t.Errorf("join clause missing course_id (ExtraPairs composite column).\nfull SQL:\n%s\njoin clause:\n%s", sql, joinClause)
 	}
 	t.Logf("emitted SQL (composite-FK join verified):\n%s", sql)
+}
+
+// TestQuoteEscapingInMutationValues proves user-controlled strings with
+// single quotes reach SQL as doubled quotes, never raw — the statement
+// must stay valid and injection-safe.
+func TestQuoteEscapingInMutationValues(t *testing.T) {
+	gql := "mutation { users(insert: { full_name: \"O'Brien'); DROP TABLE users;--\", email: \"ob@x.io\" }) { id } }"
+	qc, err := qcompile.Compile([]byte(gql), map[string]json.RawMessage{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var w bytes.Buffer
+	md, err := scompile.Compile(&w, qc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := w.String()
+	if !strings.Contains(sql, "O''Brien''); DROP TABLE users;--") {
+		t.Fatalf("quote not escaped in generated SQL (params=%d):\n%s", len(md.Params()), sql)
+	}
 }

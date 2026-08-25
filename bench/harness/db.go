@@ -2,99 +2,119 @@ package harness
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
-
-	"github.com/uptrace/bun"
 )
 
 // bg is the context for all seeding operations.
 func bg() context.Context { return context.Background() }
 
-// Domain models — these double as both the migration source and the
-// ground-truth shapes scenarios assert against.
-
-type User struct {
-	ID        int64     `bun:"id,pk,autoincrement"`
-	FullName  string    `bun:"full_name,notnull"`
-	Email     string    `bun:"email,notnull"`
-	CreatedAt time.Time `bun:"created_at,nullzero"`
-}
-
-func (*User) TableName() string { return "users" }
-
-type Product struct {
-	ID      int64   `bun:"id,pk,autoincrement"`
-	Name    string  `bun:"name,notnull"`
-	Price   float64 `bun:"price,notnull"`
-	UsersID int64   `bun:"users_id"`
-}
-
-func (*Product) TableName() string { return "products" }
-
-type BlobRow struct {
-	ID      int64  `bun:"id,pk,autoincrement"`
-	Content string `bun:"content,notnull"`
-}
-
-func (*BlobRow) TableName() string { return "blobs" }
-
-// SeedShop creates users + products with deterministic rows:
-// Ada / Alan / Grace, four products spread across them.
-func SeedShop(db *bun.DB) error {
-	if _, err := db.NewCreateTable().Model((*User)(nil)).IfNotExists().Exec(bg()); err != nil {
-		return err
+// SeedShop creates the full fixture domain with deterministic rows.
+//
+// Ground truth (scenarios assert against these exact values):
+//
+//	users:    1=Ada Lovelace  2=Alan Turing  3=Grace Hopper
+//	products: 1 Analytical Engine 999.99 (ada)   2 Enigma Replica 499.50 (alan)
+//	          3 Compiler Design  149.00 (grace) 4 COBOL Manual 39.99 (grace)
+//	orders:   1 ada paid 1049.49   2 ada pending 39.99   3 alan shipped 499.50
+//	items:    order1 <- (p1 x2, p3 x1)   order2 <- (p4 x1)   order3 <- (p2 x1)
+//	tags:     1 vintage 2 computing 3 classic
+//	product_tags: p1<-{vintage,computing} p2<-{computing} p3<-{classic}
+//
+// Historical assertions (three users, four products, price sum 1688.48,
+// ada owns exactly one product) must keep holding.
+func SeedShop(db *sql.DB) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			full_name TEXT NOT NULL,
+			email TEXT NOT NULL UNIQUE,
+			age INTEGER,
+			active BOOLEAN NOT NULL DEFAULT 1,
+			bio TEXT,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS products (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			price REAL NOT NULL,
+			users_id INTEGER REFERENCES users(id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS orders (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER REFERENCES users(id),
+			total REAL NOT NULL,
+			status TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS items (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			order_id INTEGER REFERENCES orders(id),
+			product_id INTEGER REFERENCES products(id),
+			qty INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS tags (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			label TEXT NOT NULL UNIQUE
+		)`,
+		`CREATE TABLE IF NOT EXISTS product_tags (
+			product_id INTEGER REFERENCES products(id),
+			tag_id INTEGER REFERENCES tags(id),
+			UNIQUE(product_id, tag_id)
+		)`,
+		`INSERT INTO users (id, full_name, email, age, active, bio) VALUES
+			(1, 'Ada Lovelace', 'ada@example.com', 36, 1, 'first programmer'),
+			(2, 'Alan Turing', 'alan@example.com', 41, 1, NULL),
+			(3, 'Grace Hopper', 'grace@example.com', 85, 0, 'COBOL whisperer')`,
+		`INSERT INTO products (id, name, price, users_id) VALUES
+			(1, 'Analytical Engine', 999.99, 1),
+			(2, 'Enigma Replica', 499.50, 2),
+			(3, 'Compiler Design', 149.00, 3),
+			(4, 'COBOL Manual', 39.99, 3)`,
+		`INSERT INTO orders (id, user_id, total, status, created_at) VALUES
+			(1, 1, 1049.49, 'paid',    '2026-01-01T10:00:00Z'),
+			(2, 1, 39.99,   'pending', '2026-01-02T11:00:00Z'),
+			(3, 2, 499.50,  'shipped', '2026-01-03T12:00:00Z')`,
+		`INSERT INTO items (id, order_id, product_id, qty) VALUES
+			(1, 1, 1, 1),
+			(2, 1, 3, 2),
+			(3, 2, 4, 1),
+			(4, 3, 2, 1)`,
+		`INSERT INTO tags (id, label) VALUES (1,'vintage'), (2,'computing'), (3,'classic')`,
+		`INSERT INTO product_tags (product_id, tag_id) VALUES (1,1),(1,2),(2,2),(3,3)`,
 	}
-	if _, err := db.NewCreateTable().Model((*Product)(nil)).
-		ForeignKey(`(users_id) REFERENCES users(id)`).
-		IfNotExists().Exec(bg()); err != nil {
-		return err
+	for _, s := range stmts {
+		if _, err := db.ExecContext(bg(), s); err != nil {
+			return fmt.Errorf("seed shop: %w\nstmt: %s", err, s)
+		}
 	}
-
-	users := []User{
-		{FullName: "Ada Lovelace", Email: "ada@example.com"},
-		{FullName: "Alan Turing", Email: "alan@example.com"},
-		{FullName: "Grace Hopper", Email: "grace@example.com"},
-	}
-	if _, err := db.NewInsert().Model(&users).Exec(bg()); err != nil {
-		return err
-	}
-
-	products := []Product{
-		{Name: "Analytical Engine", Price: 999.99, UsersID: users[0].ID},
-		{Name: "Enigma Replica", Price: 499.50, UsersID: users[1].ID},
-		{Name: "Compiler Design", Price: 149.00, UsersID: users[2].ID},
-		{Name: "COBOL Manual", Price: 39.99, UsersID: users[2].ID},
-	}
-	_, err := db.NewInsert().Model(&products).Exec(bg())
-	return err
+	return nil
 }
 
 // SeedBlob stores a single ~size-byte text row.
-func SeedBlob(db *bun.DB, size int) error {
-	if _, err := db.NewCreateTable().Model((*BlobRow)(nil)).IfNotExists().Exec(bg()); err != nil {
+func SeedBlob(db *sql.DB, size int) error {
+	if _, err := db.ExecContext(bg(),
+		`CREATE TABLE IF NOT EXISTS blobs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			content TEXT NOT NULL
+		)`); err != nil {
 		return err
 	}
 	payload := make([]byte, size)
 	for i := range payload {
 		payload[i] = byte('a' + i%26)
 	}
-	_, err := db.NewInsert().Model(&BlobRow{Content: string(payload)}).Exec(bg())
+	_, err := db.ExecContext(bg(), `INSERT INTO blobs (content) VALUES (?)`, string(payload))
 	return err
 }
 
-// SeedChain builds n tables ta, tb, tc… (pure-alpha names survive
-// GraphJin's name normalization untouched) where each carries an FK to
-// its predecessor, holding exactly one chained row.
-//
-// These tables differ only by name and FK target, which static ORM
-// models cannot express — so this one builder drops below the model
-// layer deliberately. Everything else stays model-driven.
-func SeedChain(db *bun.DB, n int) error {
+// SeedChain builds n tables ta, tb, tc… where each carries an FK to its
+// predecessor, holding exactly one chained row.
+func SeedChain(db *sql.DB, n int) error {
 	for i := 0; i < n; i++ {
 		cur := ChainTable(i)
-		prevCol := ""
-		fk := ""
+		prevCol, fk := "", ""
 		if i > 0 {
 			prevCol = ", prev_id INTEGER"
 			fk = fmt.Sprintf(", FOREIGN KEY (prev_id) REFERENCES %s(id)", ChainTable(i-1))
@@ -103,22 +123,29 @@ func SeedChain(db *bun.DB, n int) error {
 			`CREATE TABLE %s (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL%s%s)`,
 			cur, prevCol, fk,
 		)
-		if _, err := db.Exec(ddl); err != nil {
+		if _, err := db.ExecContext(bg(), ddl); err != nil {
 			return fmt.Errorf("create %s: %w", cur, err)
 		}
-
-		row := map[string]any{"name": cur + " row"}
+		insert := fmt.Sprintf(`INSERT INTO %s (name%s) VALUES ('%s row'`, cur, prevColName(i), cur)
 		if i > 0 {
-			row["prev_id"] = 1
+			insert += ", 1"
 		}
-		if _, err := db.NewInsert().Model(&row).
-			TableExpr(cur).
-			Exec(bg()); err != nil {
+		insert += ")"
+		if _, err := db.ExecContext(bg(), insert); err != nil {
 			return fmt.Errorf("seed %s: %w", cur, err)
 		}
 	}
 	return nil
 }
+
+func prevColName(i int) string {
+	if i > 0 {
+		return ", prev_id"
+	}
+	return ""
+}
+
+var _ = time.Second // reserved for future timing-aware seeds
 
 // chainLetters are level names ta…tz minus "to" (SQL keyword).
 var chainLetters = func() []string {
@@ -140,5 +167,3 @@ func ChainTable(i int) string {
 	}
 	return fmt.Sprintf("tx%d", i) // beyond 25 levels: numeric fallback
 }
-
-var _ = time.Second // reserved for future timing-aware seeds

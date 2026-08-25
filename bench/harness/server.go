@@ -13,12 +13,11 @@ import (
 	"path/filepath"
 	"time"
 
+	_ "github.com/aegion-dynamic/graphjin-slim/graphql/v3" // and the query language: applications opt in per capability
 	"github.com/aegion-dynamic/graphjin-slim/openapi/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	_ "github.com/aegion-dynamic/graphjin-slim/sqlite/v3" // register the engine adapter this harness runs on
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/sqlitedialect"
 )
 
 // Budgets caps how heavy a scenario may get so the suite stays
@@ -46,12 +45,25 @@ type SeedQuery struct {
 }
 
 type Opts struct {
-	Name    string // scenario name (used for the db file)
-	Prod    bool   // production mode
-	Schema  string // "shop" | "chain" | "blob"
-	ChainN  int    // table count for Schema=="chain"
-	Seeds   map[string]SeedQuery
-	Budgets Budgets
+	Name     string // scenario name (used for the db file)
+	Prod     bool   // production mode
+	Schema   string // "shop" | "chain" | "blob"
+	ChainN   int    // table count for Schema=="chain"
+	Seeds    map[string]SeedQuery
+	Budgets  Budgets
+	DebugLog bool
+}
+
+// DiffLog records canonical data payloads per (key, variant) so tests can
+// require that dev and prod variants agree on the same logical reads.
+var DiffLog = map[string]map[string]string{}
+
+// RecordDiff stores one normalized result under a differential key.
+func RecordDiff(key, variant, canonicalJSON string) {
+	if DiffLog[key] == nil {
+		DiffLog[key] = map[string]string{}
+	}
+	DiffLog[key][variant] = canonicalJSON
 }
 
 // size1MB is the blob payload used by the "blob" schema.
@@ -62,8 +74,8 @@ type H struct {
 	Root    string // scenario working directory (also process cwd)
 	BaseURL string
 	Port    int
-
-	GDB *bun.DB // ground-truth handle on the scenario sqlite file
+	Prod    bool   // service running in production mode
+	variant string // "dev" | "prod"
 
 	Budgets Budgets
 
@@ -81,11 +93,10 @@ func SpinUp(o Opts) (*H, error) {
 	}
 
 	dbPath := "bench.db"
-	sqldb, derr := sql.Open(database.DriverSQLite, dbPath)
+	db, derr := sql.Open(database.DriverSQLite, dbPath)
 	if derr != nil {
 		return nil, derr
 	}
-	db := bun.NewDB(sqldb, sqlitedialect.New())
 	db.SetMaxOpenConns(1)
 	defer db.Close()
 
@@ -132,6 +143,9 @@ func SpinUp(o Opts) (*H, error) {
 	}
 
 	conf := serv.Config{}
+	if o.DebugLog {
+		conf.LogLevel = "debug"
+	}
 	conf.Serv.AppName = "bench-" + o.Name
 	conf.Serv.Production = o.Prod
 	conf.Modules = map[string]map[string]any{
@@ -153,7 +167,7 @@ func SpinUp(o Opts) (*H, error) {
 		Root:    mustCwd(),
 		BaseURL: fmt.Sprintf("http://127.0.0.1:%d", port),
 		Port:    port,
-		GDB:     db,
+		Prod:    o.Prod,
 		svc:     gjs,
 		hc:      &http.Client{Timeout: b.Timeout},
 		Budgets: b,
@@ -178,6 +192,20 @@ func (h *H) waitHealthy(timeout time.Duration) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("service not healthy after %s", timeout)
+}
+
+// OpenDB opens the scenario's sqlite file directly for ground-truth
+// assertions about persisted state, independent of the HTTP surface.
+func (h *H) OpenDB() (*sql.DB, error) {
+	return sql.Open(database.DriverSQLite, filepath.Join(h.Root, "bench.db"))
+}
+
+// Variant reports which configuration flavor this service runs.
+func (h *H) Variant() string {
+	if h.Prod {
+		return "prod"
+	}
+	return "dev"
 }
 
 // Stop shuts the service down. Safe to call more than once.

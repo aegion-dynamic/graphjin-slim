@@ -3,12 +3,18 @@ package harness
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// ErrKnownBug marks a failure caused by a documented engine defect
+// rather than a regression. Runners turn it into a visible skip.
+var ErrKnownBug = errors.New("known engine bug")
 
 // GQL posts a query to the GraphQL endpoint and returns the full decoded
 // response (data + errors keys as present).
@@ -148,10 +154,19 @@ func (h *H) Get(path string) (int, []byte, error) {
 	return resp.StatusCode, raw, err
 }
 
-// Walk descends a nested JSON map following dotted keys ("c1.c2.c3").
+// Walk descends nested JSON following dotted keys ("c1.c2.c3"). Numeric
+// segments index into arrays ("users.0.full_name").
 func Walk(m map[string]any, path string) (any, error) {
 	cur := any(m)
 	for _, key := range splitDots(path) {
+		if idx, err := strconv.Atoi(key); err == nil {
+			list, ok := cur.([]any)
+			if !ok || idx < 0 || idx >= len(list) {
+				return nil, fmt.Errorf("walk %q: %v is not a list of length >%s", path, cur, key)
+			}
+			cur = list[idx]
+			continue
+		}
 		asMap, ok := cur.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("walk %q: %T at %q is not an object", path, cur, key)

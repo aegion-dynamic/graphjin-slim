@@ -9,6 +9,25 @@ type Scenario struct {
 	Name     string
 	Variants []string // subset of {"dev", "prod"}; empty means dev only
 	Fn       func(h *harness.H) error
+	Schema   string                       // "shop" (default) | "chain" | "blob"
+	ChainN   int                          // table count for Schema=="chain"
+	Seeds    map[string]harness.SeedQuery // saved queries written pre-start
+}
+
+// Opts renders the spin-up options for one variant.
+func (sc Scenario) Opts(variant string, b harness.Budgets) harness.Opts {
+	schema := sc.Schema
+	if schema == "" {
+		schema = "shop"
+	}
+	return harness.Opts{
+		Name:    sc.Name + "-" + variant,
+		Prod:    variant == "prod",
+		Schema:  schema,
+		ChainN:  sc.ChainN,
+		Seeds:   sc.Seeds,
+		Budgets: b,
+	}
 }
 
 // All is populated by init() calls across this package.

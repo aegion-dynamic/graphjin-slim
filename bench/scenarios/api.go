@@ -8,10 +8,16 @@ import (
 )
 
 func init() {
-	register(Scenario{Name: "rest_saved_queries", Fn: restSavedQueries})
+	register(Scenario{Name: "rest_saved_queries", Fn: restSavedQueries,
+		Seeds: map[string]harness.SeedQuery{
+			"getUser": {Query: `query getUser($id = ID) { users(id: $id) { id full_name email } }`, Vars: map[string]any{"id": 1}},
+		}})
 	register(Scenario{Name: "strict_vars", Fn: strictVars})
 	register(Scenario{Name: "apq", Fn: apq})
-	register(Scenario{Name: "openapi_spec", Fn: openapiSpec})
+	register(Scenario{Name: "openapi_spec", Fn: openapiSpec,
+		Seeds: map[string]harness.SeedQuery{
+			"getUser": {Query: `query getUser($id = ID) { users(id: $id) { id full_name email } }`, Vars: map[string]any{"id": 1}},
+		}})
 }
 
 const getUserQuery = `query getUser($id = ID) {

@@ -8,10 +8,10 @@ import (
 )
 
 func init() {
-	register(Scenario{Name: "fk_depth", Fn: func(h *harness.H) error {
+	register(Scenario{Schema: "chain", Name: "fk_depth", Fn: func(h *harness.H) error {
 		return fkDepth(h, h.Budgets.MaxDepth)
 	}})
-	register(Scenario{Name: "fk_recursion_guard", Fn: func(h *harness.H) error {
+	register(Scenario{Schema: "chain", Name: "fk_recursion_guard", Fn: func(h *harness.H) error {
 		return fkRecursionGuard(h, h.Budgets.MaxDepth)
 	}})
 }

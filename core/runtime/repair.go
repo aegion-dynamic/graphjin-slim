@@ -50,6 +50,7 @@ const (
 	repairKindPermission          = "permission_denied"
 	repairKindMutationNotAllowed  = "mutation_not_allowed"
 	repairKindVariable            = "variable_error"
+	repairKindDatabase            = "database_error"
 	repairKindGeneric             = "generic"
 )
 
@@ -114,6 +115,10 @@ func BuildGraphJinErrorRepair(query, errorMsg string) ErrorRepair {
 		res.Kind = repairKindOperatorInvalid
 		res.Diagnosis = "Invalid operator or operand shape."
 		res.Next = []string{"query_catalog", "validate_where_clause"}
+	case strings.Contains(errLower, `near "`): // e.g. sqlite: near "b": syntax error
+		res.Kind = repairKindDatabase
+		res.Diagnosis = "The database rejected the generated statement. This usually indicates an engine bug rather than a query problem; please report it."
+		res.Next = []string{"query_catalog"}
 	case strings.Contains(errLower, "syntax") || strings.Contains(errLower, "parse"):
 		res.Kind = repairKindSyntaxParse
 		res.Diagnosis = "GraphQL syntax or parse error."

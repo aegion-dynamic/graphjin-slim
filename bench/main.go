@@ -74,29 +74,7 @@ func runE2E(filter, variant string, budgets harness.Budgets) int {
 				continue
 			}
 
-			opts := harness.Opts{Name: sc.Name, Prod: v == "prod", Budgets: budgets, Schema: "shop"}
-			if sc.Name == "rest_saved_queries" {
-				opts.Seeds = map[string]harness.SeedQuery{
-					"getUser": {Query: `query getUser($id = ID) { users(id: $id) { id full_name email } }`, Vars: map[string]any{"id": 1}},
-				}
-			}
-			if sc.Name == "openapi_spec" {
-				opts.Seeds = map[string]harness.SeedQuery{
-					"getUser": {Query: `query getUser($id = ID) { users(id: $id) { id full_name email } }`, Vars: map[string]any{"id": 1}},
-				}
-			}
-			if sc.Name == "prodsec" {
-				opts.Seeds = map[string]harness.SeedQuery{
-					"getUser": {Query: `query getUser($id = ID) { users(id: $id) { id full_name email } }`},
-				}
-			}
-			if sc.Name == "fk_depth" || sc.Name == "fk_recursion_guard" {
-				opts.Schema = "chain"
-			}
-			if sc.Name == "edge_cases" {
-				opts.Schema = "shop"
-			}
-			h, err := harness.SpinUp(opts)
+			h, err := harness.SpinUp(sc.Opts(v, budgets))
 			if err != nil {
 				fmt.Printf("FAIL %s [%s]: spin-up: %v\n", sc.Name, v, err)
 				cleanup(origWd, root)
@@ -105,7 +83,7 @@ func runE2E(filter, variant string, budgets harness.Budgets) int {
 			}
 
 			t0 := time.Now()
-			err = guarded(h, budgets, func() error { return sc.Fn(h) })
+			err = harness.Guarded(h, budgets, func() error { return sc.Fn(h) })
 			dur := time.Since(t0)
 
 			h.Stop()
@@ -153,19 +131,6 @@ func runLoad(filter string, budgets harness.Budgets, total int) int {
 		return 1
 	}
 	return 0
-}
-
-// guarded runs fn under the scenario timeout so a hung request surfaces as
-// a failure instead of freezing the whole suite.
-func guarded(h *harness.H, b harness.Budgets, fn func() error) error {
-	done := make(chan error, 1)
-	go func() { done <- fn() }()
-	select {
-	case err := <-done:
-		return err
-	case <-time.After(b.Timeout + 10*time.Second):
-		return fmt.Errorf("scenario exceeded %s deadline", b.Timeout+10*time.Second)
-	}
 }
 
 func cleanup(origWd, root string) {

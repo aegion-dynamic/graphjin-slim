@@ -207,6 +207,17 @@ Worth recording so nobody "optimizes" these later by mistake:
 
 ---
 
+## Part 8 — Found by the verification battery (bench), added as it was built
+
+15. **Nested inserts silently drop children on sqlite** — `users(insert: {..., products: {...}})` returns success, creates the parent, and never writes the child row. Silent data loss. Scenario runs as a visible skip (`known engine bug`) until fixed.
+16. **Semicolon inside any inserted value breaks sqlite mutations** — multi-statement scripts split on `;` without honoring quoted literals... actually fixed: values are now quote-escaped at render time (see below); splitter honors quotes.
+17. **REST saved-query handler panicked on nil result** (`serv/service.go` apiV1Rest → responseHandler dereferenced nil after an engine error) — connection killed mid-response. Fixed with the same guard the GraphQL path already had.
+18. **SQL errors were mislabeled "GraphQL syntax or parse error"** by the repair classifier — now a distinct `database_error` kind fires for driver-shaped errors before the parse bucket.
+
+Also fixed while building this: mutation/filter string literals are now quote-escaped (`O'Brien` renders as `'O''Brien'`) across sqlgen emitters and both dialects — closing a correctness hole and an injection-shaped hazard. Regression test: `TestQuoteEscapingInMutationValues`.
+
+---
+
 ## Final order of work
 
 | # | Task | Size | Payoff |

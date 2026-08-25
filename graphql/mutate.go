@@ -49,7 +49,7 @@ type mState struct {
 	rootSelID int32
 }
 
-func (co *Compiler) compileMutation(qc *qcode.QCode,
+func (co *Compiler) compileMutation(scr *mutState, qc *qcode.QCode,
 	vmap map[string]json.RawMessage,
 ) (err error) {
 	if qc.ActionVar != "" {
@@ -113,7 +113,7 @@ func (co *Compiler) compileMutation(qc *qcode.QCode,
 			continue
 		}
 
-		mi.md, err = co.parseMutationDataFromArg(qc, sel.FieldName, vmap)
+		mi.md, err = co.parseMutationDataFromArg(scr, qc, sel.FieldName, vmap)
 		if err != nil {
 			return err
 		}
@@ -211,9 +211,9 @@ func (co *Compiler) compileMutation(qc *qcode.QCode,
 	// Snapshot frontend scratch for post-compile inspection
 	// (e.g. configureInsertConflict) before values are stripped down to
 	// pure IR.
-	co.mutMeta = make(map[int32]*mutItem, len(mutates))
+	scr.mutMeta = make(map[int32]*mutItem, len(mutates))
 	for i := range mutates {
-		co.mutMeta[mutates[i].ID] = &mutates[i]
+		scr.mutMeta[mutates[i].ID] = &mutates[i]
 	}
 
 	qc.Mutates = make([]qcode.Mutate, 0, len(mutates))
@@ -226,17 +226,17 @@ func (co *Compiler) compileMutation(qc *qcode.QCode,
 		mi.ColVals = colValsFromNode(mi.md.Data)
 		qc.Mutates = append(qc.Mutates, mi.Mutate)
 	}
-	return co.configureInsertConflict(qc)
+	return co.configureInsertConflict(scr, qc)
 }
 
-func (co *Compiler) configureInsertConflict(qc *qcode.QCode) error {
+func (co *Compiler) configureInsertConflict(scr *mutState, qc *qcode.QCode) error {
 	if qc.InsertConflictAction == qcode.ConflictNone {
 		return nil
 	}
 	if qc.SType != qcode.QTInsert {
 		return errors.New("on_conflict is only valid with insert")
 	}
-	if co.actionArg.Val != nil && co.actionArg.Val.Type == graph.NodeList {
+	if scr.actionArg.Val != nil && scr.actionArg.Val.Type == graph.NodeList {
 		return errors.New("on_conflict: get does not support bulk or nested inserts")
 	}
 	if strings.HasPrefix(strings.TrimSpace(string(qc.ActionVal)), "[") {
@@ -247,7 +247,7 @@ func (co *Compiler) configureInsertConflict(qc *qcode.QCode) error {
 	}
 
 	m := &qc.Mutates[0]
-	mi := co.mutMeta[m.ID]
+	mi := scr.mutMeta[m.ID]
 	if m.Type != qcode.MTInsert || m.ParentID != -1 || m.Array || mi == nil || mi.md.Data == nil || mi.md.Data.Type != graph.NodeObj || len(mi.children) != 0 || len(m.RCols) != 0 {
 		return errors.New("on_conflict: get does not support bulk or nested inserts")
 	}
@@ -330,11 +330,11 @@ func parseDataValue(qc *qcode.QCode, actionVal *graph.Node, isJSON bool) (mData,
 	return md, nil
 }
 
-func (co *Compiler) parseMutationData(qc *qcode.QCode) (mData, error) {
+func (co *Compiler) parseMutationData(scr *mutState, qc *qcode.QCode) (mData, error) {
 	var md mData
 	var err error
 
-	av := co.actionArg.Val
+	av := scr.actionArg.Val
 	switch av.Type {
 	case graph.NodeVar:
 		if len(qc.ActionVal) == 0 {
@@ -352,18 +352,18 @@ func (co *Compiler) parseMutationData(qc *qcode.QCode) (mData, error) {
 	return md, nil
 }
 
-func (co *Compiler) parseMutationDataFromArg(qc *qcode.QCode, key string, vmap map[string]json.RawMessage) (mData, error) {
+func (co *Compiler) parseMutationDataFromArg(scr *mutState, qc *qcode.QCode, key string, vmap map[string]json.RawMessage) (mData, error) {
 	var md mData
 	var err error
 
-	arg, ok := co.actionArgs[key]
+	arg, ok := scr.actionArgs[key]
 	if !ok {
-		return co.parseMutationData(qc)
+		return co.parseMutationData(scr, qc)
 	}
 
 	av := arg.Val
 	if av == nil {
-		return co.parseMutationData(qc)
+		return co.parseMutationData(scr, qc)
 	}
 
 	multiRoot := len(qc.Roots) > 1

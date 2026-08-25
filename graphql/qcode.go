@@ -27,14 +27,12 @@ var qualifiedGraphQLRootPattern = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*(
 type Compiler struct {
 	c Config
 	s *sdata.DBSchema
-
-	// Per-compile scratch: mutation parse output and tree-building
-	// state that backends never observe.
-	actionArgs map[string]graph.Arg
-	actionArg  graph.Arg
-	rootsA     [5]int32
-	mutMeta    map[int32]*mutItem
 }
+
+// mutState carries per-compile mutation scratch: parsed action args and
+// mutation metadata that backends never observe. It must be created fresh
+// for every Compile call; the Compiler itself stays safe for concurrent
+// use precisely because all mutable state lives here.
 
 func NewCompiler(s *sdata.DBSchema, c Config) (*Compiler, error) {
 	if c.DBSchema == "" {
@@ -84,15 +82,22 @@ func (co *Compiler) Compile(
 		buf.Reset()
 	}
 
-	qc.Roots = co.rootsA[:0]
+	// A small inline array avoids a heap allocation for the common
+	// one-or-two-root query while staying private to this compile.
+	var rootsArr [5]int32
+	qc.Roots = rootsArr[:0]
 	qc.Type = GetQType(op.Type)
 
-	if err = co.compileQuery(qc, &op); err != nil {
+	// One scratch instance flows through mutation type detection, data
+	// parsing and conflict configuration so they share what each saw.
+	scr := &mutState{}
+
+	if err = co.compileQuery(scr, qc, &op); err != nil {
 		return
 	}
 
 	if qc.Type == qcode.QTMutation {
-		if err = co.compileMutation(qc, vmap); err != nil {
+		if err = co.compileMutation(scr, qc, vmap); err != nil {
 			return
 		}
 	}
@@ -114,7 +119,7 @@ func qualifiedGraphQLRootError(query []byte, parseErr error) error {
 	return fmt.Errorf("invalid GraphQL root %q: %s", qualified, message)
 }
 
-func (co *Compiler) compileQuery(qc *qcode.QCode, op *graph.Operation) error {
+func (co *Compiler) compileQuery(scr *mutState, qc *qcode.QCode, op *graph.Operation) error {
 	var id int32
 
 	if len(op.Fields) == 0 {
@@ -122,7 +127,7 @@ func (co *Compiler) compileQuery(qc *qcode.QCode, op *graph.Operation) error {
 	}
 
 	if op.Type == graph.OpMutate {
-		if err := co.setMutationType(qc, op); err != nil {
+		if err := co.setMutationType(scr, qc, op); err != nil {
 			return err
 		}
 	}
@@ -902,7 +907,15 @@ func (co *Compiler) enforcePartitionFilterOLAP(sel *qcode.Select) {
 	}
 }
 
-func (co *Compiler) setMutationType(qc *qcode.QCode, op *graph.Operation) error {
+// mutState holds mutation-parse scratch shared between setMutationType,
+// compileMutation and its helpers for the duration of one Compile call.
+type mutState struct {
+	actionArgs map[string]graph.Arg
+	actionArg  graph.Arg
+	mutMeta    map[int32]*mutItem
+}
+
+func (co *Compiler) setMutationType(scr *mutState, qc *qcode.QCode, op *graph.Operation) error {
 	var err error
 
 	validateActionArg := func(arg graph.Arg) error {
@@ -926,7 +939,7 @@ func (co *Compiler) setMutationType(qc *qcode.QCode, op *graph.Operation) error 
 		return errors.New(`mutations must contains one of the following arguments (insert, update, upsert or delete)`)
 	}
 
-	co.actionArgs = make(map[string]graph.Arg, len(rootFields))
+	scr.actionArgs = make(map[string]graph.Arg, len(rootFields))
 
 	for ri, rf := range rootFields {
 		var fieldType qcode.QType
@@ -981,7 +994,7 @@ func (co *Compiler) setMutationType(qc *qcode.QCode, op *graph.Operation) error 
 			if actionArg.Val != nil {
 				qc.ActionVar = actionArg.Val.Val
 			}
-			co.actionArg = actionArg
+			scr.actionArg = actionArg
 		} else if fieldType != qc.SType {
 			return errors.New("all root mutations must be of the same type (insert, update, upsert or delete)")
 		}
@@ -997,7 +1010,7 @@ func (co *Compiler) setMutationType(qc *qcode.QCode, op *graph.Operation) error 
 		if key == "" {
 			key = rf.Name
 		}
-		co.actionArgs[key] = actionArg
+		scr.actionArgs[key] = actionArg
 	}
 	if qc.InsertConflictAction != qcode.ConflictNone && len(rootFields) != 1 {
 		return errors.New("on_conflict: get supports exactly one root insert")

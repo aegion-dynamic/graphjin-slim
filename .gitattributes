@@ -1,2 +1,0 @@
-# Vite bundles include vendor template strings whose trailing spaces are data.
-webui/assets/build/assets/*.js -whitespace

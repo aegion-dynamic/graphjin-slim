@@ -170,7 +170,7 @@ jobs:
         run: |
           OLD_HEAD=$(git rev-parse HEAD)
           echo "base_sha=$OLD_HEAD" >> "$GITHUB_OUTPUT"
-          ./release.sh "${{ steps.decide.outputs.version }}"
+          ./.github/release.sh "${{ steps.decide.outputs.version }}"
           if git diff --quiet; then
               echo "changed=false" >> "$GITHUB_OUTPUT"
           else

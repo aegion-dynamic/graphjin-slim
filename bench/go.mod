@@ -6,14 +6,15 @@ require (
 	github.com/aegion-dynamic/graphjin-slim/graphql/v3 v3.0.0-20260825075527-c589ed58a82e
 	github.com/aegion-dynamic/graphjin-slim/openapi/v3 v3.0.0-00010101000000-000000000000
 	github.com/aegion-dynamic/graphjin-slim/postgres/v3 v3.36.0
-	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.36.0
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.36.1
 	github.com/aegion-dynamic/graphjin-slim/sqlite/v3 v3.34.1
 	github.com/jackc/pgx/v5 v5.10.0
 )
 
 require (
 	github.com/Code-Hex/dd v1.1.0 // indirect
-	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.36.0 // indirect
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.36.1 // indirect
+	github.com/aquaticcalf/sqlcipher v0.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a // indirect

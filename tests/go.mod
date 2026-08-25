@@ -9,7 +9,8 @@ require (
 )
 
 require (
-	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.35.1 // indirect
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.36.1 // indirect
+	github.com/aquaticcalf/sqlcipher v0.0.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

@@ -5,16 +5,25 @@ import (
 	"database/sql"
 	"fmt"
 
+	sqlcipher "github.com/aquaticcalf/sqlcipher"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/dbadapter"
 )
 
+// engineName is this adapter's key in the dbadapter registry; it matches
+// serv/database's DriverSQLite so config selects the right engine.
+const engineName = "sqlite"
+
 func init() {
 	dbadapter.Register(adapter{})
+	// Keep the legacy database/sql registration name alive for direct
+	// consumers (seeding tools, tests) that open "sqlite" themselves.
+	sql.Register(engineName, &sqlcipher.Driver{})
 }
 
 type adapter struct{}
 
-func (adapter) Name() string { return DriverName }
+func (adapter) Name() string { return engineName }
 
 // Open resolves settings from the source config and connects.
 //
@@ -27,11 +36,10 @@ func (adapter) Name() string { return DriverName }
 //
 // Legacy flat fields are used as fallback for keys absent from Settings.
 func (adapter) Open(ctx context.Context, sc dbadapter.SourceConfig) (*sql.DB, error) {
-	opts := optionsFrom(sc)
-	return Open(ctx, opts)
+	return sqlcipher.Open(ctx, optionsFrom(sc))
 }
 
-func optionsFrom(sc dbadapter.SourceConfig) Options {
+func optionsFrom(sc dbadapter.SourceConfig) sqlcipher.Options {
 	get := func(key string) (string, bool) {
 		if sc.Settings == nil {
 			return "", false
@@ -47,10 +55,10 @@ func optionsFrom(sc dbadapter.SourceConfig) Options {
 		return s, true
 	}
 
-	o := Options{
-		Path:          sc.Flat.Path,
-		ConnString:    sc.Flat.ConnString,
-		EncryptionKey: sc.Flat.EncryptionKey,
+	o := sqlcipher.Options{
+		Path:       sc.Flat.Path,
+		ConnString: sc.Flat.ConnString,
+		Key:        sc.Flat.EncryptionKey,
 	}
 	if v, ok := get("path"); ok {
 		o.Path = v
@@ -59,7 +67,7 @@ func optionsFrom(sc dbadapter.SourceConfig) Options {
 		o.ConnString = v
 	}
 	if v, ok := get("encryption_key"); ok {
-		o.EncryptionKey = v
+		o.Key = v
 	}
 	if raw, ok := sc.Settings["pragmas"].([]any); ok {
 		for _, p := range raw {
@@ -72,4 +80,3 @@ func optionsFrom(sc dbadapter.SourceConfig) Options {
 	}
 	return o
 }
-

@@ -1,0 +1,18 @@
+# Postgres for the verification battery. Run standalone:
+#
+#   docker build -t gj-bench-postgres -f bench/dockerfile bench/
+#   docker run --rm -p 5432:5432 gj-bench-postgres
+#
+# Then: cd bench && go test ./...
+# (the harness probes this port and skips postgres tiers when absent)
+
+FROM postgres:16-alpine
+
+ENV POSTGRES_USER=graphjin \
+    POSTGRES_PASSWORD=graphjin \
+    POSTGRES_DB=graphjin
+
+EXPOSE 5432
+
+HEALTHCHECK --interval=2s --timeout=3s --retries=20 \
+    CMD pg_isready -U graphjin -d graphjin

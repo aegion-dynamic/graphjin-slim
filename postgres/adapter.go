@@ -16,7 +16,10 @@ func init() {
 
 type adapter struct{}
 
-func (adapter) Name() string { return DriverPostgres }
+// Name is the configuration-facing engine key. It must match
+// serv/database's DriverPostgres ("postgres") so conf.DB.Type selects
+// this adapter; the raw database/sql driver stays "pgx" internally.
+func (adapter) Name() string { return "postgres" }
 
 // Open resolves settings from the source config and connects.
 //

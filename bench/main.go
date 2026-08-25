@@ -31,6 +31,7 @@ func run() int {
 	fs := flag.NewFlagSet(mode, flag.ExitOnError)
 	runFilter := fs.String("run", "", "only scenarios whose name contains this")
 	variant := fs.String("variant", "all", "dev, prod, or all")
+	backend := fs.String("backend", "sqlite", "sqlite or postgres")
 	extreme := fs.Bool("extreme", false, "raise depth/rows/concurrency budgets")
 	total := fs.Int("total", 2000, "load tier request count")
 	fs.Parse(os.Args[2:])
@@ -42,14 +43,14 @@ func run() int {
 
 	switch mode {
 	case "e2e":
-		return runE2E(*runFilter, *variant, budgets)
+		return runE2E(*runFilter, *variant, *backend, budgets)
 	case "load":
 		return runLoad(*runFilter, budgets, *total)
 	}
 	return 2
 }
 
-func runE2E(filter, variant string, budgets harness.Budgets) int {
+func runE2E(filter, variant, backend string, budgets harness.Budgets) int {
 	origWd, _ := os.Getwd()
 
 	var pass, fail int
@@ -74,7 +75,7 @@ func runE2E(filter, variant string, budgets harness.Budgets) int {
 				continue
 			}
 
-			h, err := harness.SpinUp(sc.Opts(v, budgets))
+			h, err := harness.SpinUp(sc.Opts(v, backend, budgets))
 			if err != nil {
 				fmt.Printf("FAIL %s [%s]: spin-up: %v\n", sc.Name, v, err)
 				cleanup(origWd, root)

@@ -11,13 +11,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/aegion-dynamic/graphjin-slim/graphql/v3" // and the query language: applications opt in per capability
 	"github.com/aegion-dynamic/graphjin-slim/openapi/v3"
+	postgresmod "github.com/aegion-dynamic/graphjin-slim/postgres/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3/database"
 	_ "github.com/aegion-dynamic/graphjin-slim/sqlite/v3" // register the engine adapter this harness runs on
+	_ "github.com/jackc/pgx/v5/stdlib"                    // register the raw database/sql driver for seeding
 )
 
 // Budgets caps how heavy a scenario may get so the suite stays
@@ -49,9 +52,18 @@ type Opts struct {
 	Prod     bool   // production mode
 	Schema   string // "shop" | "chain" | "blob"
 	ChainN   int    // table count for Schema=="chain"
+	Backend  string // "sqlite" (default) | "postgres"
 	Seeds    map[string]SeedQuery
 	Budgets  Budgets
 	DebugLog bool
+}
+
+// PostgresDSN is where the bench expects the container from dockerfile.
+func PostgresDSN() string {
+	if d := os.Getenv("GJ_BENCH_PG_DSN"); d != "" {
+		return d
+	}
+	return "postgres://graphjin:graphjin@127.0.0.1:5432/graphjin?sslmode=disable"
 }
 
 // DiffLog records canonical data payloads per (key, variant) so tests can
@@ -76,6 +88,7 @@ type H struct {
 	Port    int
 	Prod    bool   // service running in production mode
 	variant string // "dev" | "prod"
+	Backend string // "sqlite" | "postgres"
 
 	Budgets Budgets
 
@@ -92,33 +105,75 @@ func SpinUp(o Opts) (*H, error) {
 		b = DefaultBudgets()
 	}
 
-	dbPath := "bench.db"
-	db, derr := sql.Open(database.DriverSQLite, dbPath)
-	if derr != nil {
-		return nil, derr
+	backend := o.Backend
+	if backend == "" {
+		backend = "sqlite"
 	}
-	db.SetMaxOpenConns(1)
-	defer db.Close()
 
-	switch o.Schema {
-	case "", "shop":
-		if err := SeedShop(db); err != nil {
-			return nil, fmt.Errorf("seed shop: %w", err)
+	var dbPath string
+
+	switch backend {
+	case "sqlite":
+		dbPath = "bench.db"
+		db, derr := sql.Open(database.DriverSQLite, dbPath)
+		if derr != nil {
+			return nil, derr
 		}
-	case "chain":
-		n := o.ChainN
-		if n == 0 || n > b.MaxDepth {
-			n = b.MaxDepth
+		db.SetMaxOpenConns(1)
+		defer db.Close()
+
+		switch o.Schema {
+		case "", "shop":
+			if err := SeedShop(db, backend); err != nil {
+				return nil, fmt.Errorf("seed shop: %w", err)
+			}
+		case "chain":
+			n := o.ChainN
+			if n == 0 || n > b.MaxDepth {
+				n = b.MaxDepth
+			}
+			if err := SeedChain(db, n); err != nil {
+				return nil, fmt.Errorf("seed chain(%d): %w", n, err)
+			}
+		case "blob":
+			if err := SeedBlob(db, size1MB); err != nil {
+				return nil, fmt.Errorf("seed blob: %w", err)
+			}
+		default:
+			return nil, fmt.Errorf("unknown schema %q", o.Schema)
 		}
-		if err := SeedChain(db, n); err != nil {
-			return nil, fmt.Errorf("seed chain(%d): %w", n, err)
+
+	case "postgres":
+		dsn := PostgresDSN()
+		pgDB, derr := sql.Open(postgresmod.DriverPostgres, dsn)
+		if derr != nil {
+			return nil, fmt.Errorf("%w: %v", ErrBackendUnavailable, derr)
 		}
-	case "blob":
-		if err := SeedBlob(db, size1MB); err != nil {
-			return nil, fmt.Errorf("seed blob: %w", err)
+		defer pgDB.Close()
+		pgDB.SetMaxOpenConns(2)
+		if perr := pgDB.Ping(); perr != nil {
+			return nil, fmt.Errorf("%w: postgres at %s: %v", ErrBackendUnavailable, RedactDSN(dsn), perr)
 		}
+		// Fresh schema per scenario gives file-per-scenario isolation.
+		for _, stmt := range []string{
+			`DROP SCHEMA IF EXISTS public CASCADE`,
+			`CREATE SCHEMA public`,
+		} {
+			if _, err := pgDB.Exec(stmt); err != nil {
+				return nil, fmt.Errorf("reset schema: %w", err)
+			}
+		}
+		switch o.Schema {
+		case "", "shop":
+			if err := SeedShop(pgDB, backend); err != nil {
+				return nil, fmt.Errorf("seed shop(pg): %w", err)
+			}
+		default:
+			return nil, fmt.Errorf("schema %q unsupported on postgres", o.Schema)
+		}
+
 	default:
-		return nil, fmt.Errorf("unknown schema %q", o.Schema)
+		return nil, fmt.Errorf("unknown backend %q", backend)
 	}
 
 	qdir := filepath.Join("config", "queries")
@@ -152,8 +207,12 @@ func SpinUp(o Opts) (*H, error) {
 		"openapi": {"specs_dir": "./specs"},
 	}
 	conf.Serv.HostPort = fmt.Sprintf("127.0.0.1:%d", port)
-	conf.DB.Type = "sqlite"
-	conf.DB.Path = dbPath
+	conf.DB.Type = backend
+	if backend == "postgres" {
+		conf.DB.ConnString = PostgresDSN()
+	} else {
+		conf.DB.Path = dbPath
+	}
 
 	gjs, err := serv.NewGraphJinService(&conf,
 		serv.OptionSetModule(openapi.Module(openapi.Config{Title: "GraphJin Bench"})),
@@ -168,6 +227,7 @@ func SpinUp(o Opts) (*H, error) {
 		BaseURL: fmt.Sprintf("http://127.0.0.1:%d", port),
 		Port:    port,
 		Prod:    o.Prod,
+		Backend: backend,
 		svc:     gjs,
 		hc:      &http.Client{Timeout: b.Timeout},
 		Budgets: b,
@@ -218,6 +278,16 @@ func (h *H) Stop() {
 	_ = h.svc.Shutdown(ctx)
 	_ = h.svc.Close()
 	h.svc = nil
+}
+
+// RedactDSN hides credentials in error messages.
+func RedactDSN(dsn string) string {
+	if i := strings.Index(dsn, "//"); i >= 0 {
+		if j := strings.Index(dsn[i:], "@"); j >= 0 {
+			return dsn[:i+2] + "***@" + dsn[i+j+1:]
+		}
+	}
+	return dsn
 }
 
 func freePort() (int, error) {

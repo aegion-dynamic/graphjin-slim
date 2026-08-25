@@ -1,60 +1,134 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/aegion-dynamic/graphjin-slim/bench/v3/harness"
 	"github.com/aegion-dynamic/graphjin-slim/bench/v3/scenarios"
+	postgresmod "github.com/aegion-dynamic/graphjin-slim/postgres/v3"
 )
 
-// TestE2EScenarios runs every registered end-to-end scenario against a
-// real service for each of its variants. This is the CI entry point:
-// `go test ./...` in this module gates merges on the full battery.
+// backends lists every database engine the battery covers. The postgres
+// tier runs only when its container (see bench/dockerfile) is reachable;
+// locally absent docker degrades to a visible skip, never a failure.
+var backends = []string{"sqlite", "postgres"}
+
 func TestE2EScenarios(t *testing.T) {
 	budgets := harness.DefaultBudgets()
-	for _, sc := range scenarios.All {
-		for _, v := range sc.Variants {
-			sc, v := sc, v
-			t.Run(sc.Name+"/"+v, func(t *testing.T) {
-				t.Chdir(t.TempDir())
-				h, err := harness.SpinUp(sc.Opts(v, budgets))
-				if err != nil {
-					t.Fatalf("spin-up: %v", err)
-				}
-				defer h.Stop()
 
-				if err := harness.Guarded(h, budgets, func() error { return sc.Fn(h) }); err != nil {
-					if errors.Is(err, harness.ErrKnownBug) {
-						t.Skip(err.Error())
-					}
-					t.Fatal(err)
-				}
+	pgOK := backendAvailable("postgres")
+
+	for _, backend := range backends {
+		if backend == "postgres" && !pgOK {
+			t.Run("postgres/unavailable", func(t *testing.T) {
+				t.Skipf("postgres not reachable at %s — start it with: docker run --rm -p 5432:5432 $(docker build -q -f dockerfile .)", harness.PostgresDSN())
 			})
-		}
-	}
-
-	// Differential oracle: every key recorded by the differential battery
-	// must carry identical canonical payloads from both variants.
-	var mismatches []string
-	for _, key := range diffKeys() {
-		got := harness.DiffLog[key]
-		if got["dev"] == "" || got["prod"] == "" {
-			mismatches = append(mismatches, key+": missing a variant")
 			continue
 		}
-		if got["dev"] != got["prod"] {
-			mismatches = append(mismatches,
-				fmt.Sprintf("%s\n  dev : %s\n  prod: %s", key, got["dev"], got["prod"]))
+
+		for _, sc := range scenarios.All {
+			if backend == "postgres" && sc.Schema != "" && sc.Schema != "shop" {
+				continue // chain/blob fixtures are sqlite-specific today
+			}
+			for _, v := range sc.Variants {
+				sc, v, backend := sc, v, backend
+				t.Run(sc.Name+"/"+v+"/"+backend, func(t *testing.T) {
+					t.Chdir(t.TempDir())
+					h, err := harness.SpinUp(sc.Opts(v, backend, budgets))
+					if err != nil {
+						if errors.Is(err, harness.ErrBackendUnavailable) && backend == "postgres" {
+							t.Skipf("postgres unavailable: %v", err)
+						}
+						t.Fatalf("spin-up: %v", err)
+					}
+					defer h.Stop()
+
+					if err := harness.Guarded(h, budgets, func() error { return sc.Fn(h) }); err != nil {
+						if errors.Is(err, harness.ErrKnownBug) {
+							t.Skip(err.Error())
+						}
+						t.Fatal(err)
+					}
+				})
+			}
 		}
 	}
+
+	// Differential oracles over everything the battery recorded.
+	var mismatches []string
+
+	perBackend := map[string][]string{} // "sqlite","postgres" → dimension keys
+	for key, dims := range harness.DiffLog {
+		for dim := range dims {
+			backend := "sqlite"
+			if i := strings.Index(dim, "@"); i >= 0 {
+				backend = dim[i+1:]
+			}
+			perBackend[backend] = append(perBackend[backend], key+"@"+dim)
+		}
+	}
+
+	for backend, keys := range perBackend {
+		sort.Strings(keys)
+		for _, k := range keys {
+			got := harness.DiffLog[strings.SplitN(k, "@", 2)[0]]
+			dv, pv := got["dev@"+backend], got["prod@"+backend]
+			if dv == "" || pv == "" {
+				mismatches = append(mismatches, fmt.Sprintf("%s[%s]: missing a variant", k, backend))
+				continue
+			}
+			if dv != pv {
+				mismatches = append(mismatches,
+					fmt.Sprintf("%s[%s]\n  dev : %s\n  prod: %s", k, backend, dv, pv))
+			}
+		}
+	}
+
+	// Cross-dialect oracle: when both engines ran, identical logical reads
+	// must produce identical canonical results everywhere. Every key in
+	// the differential battery is therefore required to be deterministic
+	// (no timestamps, no server-side randomness).
+	sd, pd := harness.DiffLog["user1"]["dev@sqlite"], harness.DiffLog["user1"]["dev@postgres"]
+	allD := harness.DiffLog["allusers"]
+	if sd != "" && pd != "" && sd != pd {
+		mismatches = append(mismatches, "cross-dialect user1: sqlite and postgres disagree")
+	}
+	if allD["dev@sqlite"] != "" && allD["dev@postgres"] != "" && allD["dev@sqlite"] != allD["dev@postgres"] {
+		mismatches = append(mismatches, "cross-dialect allusers: sqlite and postgres disagree")
+	}
+	sp := harness.DiffLog["products"]
+	if sp["dev@sqlite"] != "" && sp["dev@postgres"] != "" && sp["dev@sqlite"] != sp["dev@postgres"] {
+		mismatches = append(mismatches, "cross-dialect products: sqlite and postgres disagree")
+	}
+
 	if len(mismatches) > 0 {
 		for _, m := range mismatches {
 			t.Errorf("differential: %s", m)
 		}
 	}
+}
+
+// backendAvailable probes whether an engine can be reached right now.
+func backendAvailable(backend string) bool {
+	if backend != "postgres" {
+		return true
+	}
+	db, err := sql.Open(postgresmod.DriverPostgres, harness.PostgresDSN())
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return db.PingContext(ctx) == nil
 }
 
 func diffKeys() []string {

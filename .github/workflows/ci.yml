@@ -16,6 +16,21 @@ permissions:
 jobs:
   ci:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: graphjin
+          POSTGRES_PASSWORD: graphjin
+          POSTGRES_DB: graphjin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U graphjin"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
 
@@ -42,9 +57,10 @@ jobs:
           (cd graphql && go test ./...)
           (cd serv && go test ./...)
           (cd openapi && go test ./...)
-          # end-to-end verification battery: real services over sqlite,
-          # scenario assertions plus the dev/prod differential oracle
-          (cd bench && go test ./... -timeout 300s)
+          # end-to-end verification battery: real services over sqlite AND
+          # postgres (service container above), scenario assertions plus the
+          # dev/prod and cross-dialect differential oracles
+          (cd bench && GJ_BENCH_PG_DSN="postgres://graphjin:graphjin@127.0.0.1:5432/graphjin?sslmode=disable" go test ./... -timeout 600s)
 
       # Import audits. The allowlist for the GraphQL parser is transitional:
       # it shrinks as frontends extract into core/lang/*.

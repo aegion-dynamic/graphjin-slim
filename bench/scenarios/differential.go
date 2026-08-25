@@ -34,7 +34,7 @@ func canonical(v any) string {
 }
 
 func record(h *harness.H, key string, payload any) {
-	harness.RecordDiff(key, h.Variant(), canonical(payload))
+	harness.RecordDiff(key, h.Variant()+"@"+h.Backend, canonical(payload))
 }
 
 func differential(h *harness.H) error {

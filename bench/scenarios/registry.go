@@ -14,8 +14,8 @@ type Scenario struct {
 	Seeds    map[string]harness.SeedQuery // saved queries written pre-start
 }
 
-// Opts renders the spin-up options for one variant.
-func (sc Scenario) Opts(variant string, b harness.Budgets) harness.Opts {
+// Opts renders the spin-up options for one variant on one backend.
+func (sc Scenario) Opts(variant string, backend string, b harness.Budgets) harness.Opts {
 	schema := sc.Schema
 	if schema == "" {
 		schema = "shop"
@@ -23,6 +23,7 @@ func (sc Scenario) Opts(variant string, b harness.Budgets) harness.Opts {
 	return harness.Opts{
 		Name:    sc.Name + "-" + variant,
 		Prod:    variant == "prod",
+		Backend: backend,
 		Schema:  schema,
 		ChainN:  sc.ChainN,
 		Seeds:   sc.Seeds,

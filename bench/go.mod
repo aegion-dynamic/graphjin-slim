@@ -5,8 +5,10 @@ go 1.26.6
 require (
 	github.com/aegion-dynamic/graphjin-slim/graphql/v3 v3.0.0-20260825075527-c589ed58a82e
 	github.com/aegion-dynamic/graphjin-slim/openapi/v3 v3.0.0-00010101000000-000000000000
+	github.com/aegion-dynamic/graphjin-slim/postgres/v3 v3.36.0
 	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.36.0
 	github.com/aegion-dynamic/graphjin-slim/sqlite/v3 v3.34.1
+	github.com/jackc/pgx/v5 v5.10.0
 )
 
 require (
@@ -19,6 +21,9 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -52,3 +57,5 @@ replace github.com/aegion-dynamic/graphjin-slim/openapi/v3 => ../openapi
 replace github.com/aegion-dynamic/graphjin-slim/webui/v3 => ../webui
 
 replace github.com/aegion-dynamic/graphjin-slim/sqlite/v3 => ../sqlite
+
+replace github.com/aegion-dynamic/graphjin-slim/postgres/v3 => ../postgres

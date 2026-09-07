@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"bytes"
+
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/qcode"
 
 	"encoding/json"
@@ -223,7 +225,7 @@ func (co *Compiler) compileMutation(scr *mutState, qc *qcode.QCode,
 		}
 		mi.IsJSON = mi.md.IsJSON
 		mi.Array = mi.md.Array
-		mi.ColVals = colValsFromNode(mi.md.Data)
+		mi.ColVals = co.colValsFromNode(mi.Ti, mi.md.Data)
 		qc.Mutates = append(qc.Mutates, mi.Mutate)
 	}
 	return co.configureInsertConflict(scr, qc)
@@ -417,16 +419,16 @@ func (co *Compiler) newMutate(ms *mState, m mutItem) error {
 	switch m.Type {
 	case qcode.MTInsert:
 		for _, v := range items {
+			if v.Rel.Type == sdata.RelOneToMany {
+				ms.st.Push(v)
+			}
+		}
+		for _, v := range items {
 			if v.Rel.Type == sdata.RelOneToOne {
 				ms.st.Push(v)
 			}
 		}
 		ms.st.Push(m)
-		for _, v := range items {
-			if v.Rel.Type == sdata.RelOneToMany {
-				ms.st.Push(v)
-			}
-		}
 
 	case qcode.MTUpdate:
 		for _, v := range items {
@@ -456,7 +458,9 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 	for i := range data.Children {
 		v := data.Children[i]
 
-		if md, err = parseDataValue(ms.qc, v, m.IsJSON); err != nil {
+		// Inherit the parent's JSON-input flag from md (the Mutate.IsJSON
+		// field is only populated at the end of compilation).
+		if md, err = parseDataValue(ms.qc, v, m.md.IsJSON); err != nil {
 			return nil, err
 		}
 
@@ -470,6 +474,22 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 		paths, err := co.FindPath(k, m.Key, "")
 		// no relationship found must be a keyword
 		if err != nil {
+			// An object- or array-valued key can still be a plain column:
+			// json/jsonb columns legitimately hold documents and arrays
+			// (e.g. form_fields.options), and SQL array columns accept lists
+			// of scalars. Fall through to the column check before treating
+			// the FindPath failure as fatal (issue #5: "from edge not found").
+			if col, colErr := m.Ti.GetColumn(k); colErr == nil {
+				switch {
+				case isJSONColType(col.Type):
+					continue
+				case col.Array && md.Data.Type == graph.NodeList:
+					continue
+				default:
+					return nil, fmt.Errorf("column '%s' of type '%s' does not accept an object or array value", k, col.Type)
+				}
+			}
+
 			var ty qcode.MType
 			var ok bool
 
@@ -502,14 +522,34 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 		rel := sdata.PathToRel(paths[0])
 		ty := ms.mt
 
+		if md.Data.Type == graph.NodeList && ms.mt == qcode.MTInsert {
+			// FindPath resolves child→parent, which is always RelOneToOne for
+			// an FK child. A list value *is* the one-to-many signal: resolve
+			// the reverse (parent→child) edge so the child's FK is bound to
+			// the parent's id, matching what addTablesAndColumns and the CTE
+			// renderer expect of RelOneToMany insert children.
+			if rel.Type == sdata.RelOneToOne {
+				rel = reverseRel(rel)
+			}
+		}
 		if md.Data.Type == graph.NodeList && rel.Type != sdata.RelOneToMany {
 			return nil, fmt.Errorf("expecting object for '%s'", k)
 		}
 
-		// Nested one-to-many children under an INSERT create new rows;
-		// under an UPDATE they attach existing rows by setting the FK.
+		// Nested one-to-many children under an UPDATE attach existing rows
+		// by setting the FK.
 		if rel.Type == sdata.RelOneToMany && ms.mt == qcode.MTUpdate {
 			ty = qcode.MTConnect
+		}
+
+		// The table being mutated is the child side of the relationship:
+		// Left for child→parent (RelOneToOne) edges and for legacy
+		// parent-side list items whose Right side is the parent mutate's
+		// own table; Right for flipped parent→child (RelOneToMany) edges.
+		ti := rel.Left.Ti
+		if rel.Type == sdata.RelOneToMany &&
+			!(rel.Right.Ti.Schema == m.Ti.Schema && rel.Right.Ti.Name == m.Ti.Name) {
+			ti = rel.Right.Ti
 		}
 
 		mi := mutItem{Mutate: qcode.Mutate{
@@ -519,7 +559,7 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 			Key:      k,
 			Path:     append(m.Path, k),
 			Rel:      rel,
-			Ti:       rel.Left.Ti,
+			Ti:       ti,
 		}, md: md}
 		ms.id++
 
@@ -594,6 +634,7 @@ func (co *Compiler) processList(m mutItem) []mutItem {
 			m1 := m
 			m1.md.Data = m.md.Data.Children[i]
 			m1.Array = m1.md.Data.Type == graph.NodeList
+			m1.md.Array = m1.Array
 			m1.ID += int32(i)
 			mList = append(mList, m1)
 		}
@@ -602,8 +643,9 @@ func (co *Compiler) processList(m mutItem) []mutItem {
 
 	// For SQL databases: use Array flag to control json_to_recordset vs json_to_record
 	// The SQL is generated once and processes all elements from the JSON parameter
-	if m.IsJSON {
+	if m.md.IsJSON {
 		m.Array = m.md.Data.Type == graph.NodeList
+		m.md.Array = m.Array
 		m.md.Data = m.md.Data.Children[0]
 		return []mutItem{m}
 	}
@@ -614,6 +656,7 @@ func (co *Compiler) processList(m mutItem) []mutItem {
 		m1 := m
 		m1.md.Data = m.md.Data.Children[i]
 		m1.Array = m1.md.Data.Type == graph.NodeList
+		m1.md.Array = m1.Array
 		m1.ID += int32(i)
 		mList = append(mList, m1)
 	}
@@ -641,11 +684,35 @@ func (co *Compiler) addTablesAndColumns(m *mutItem, items []mutItem, data *graph
 			cm[m.Rel.Left.Col.Name] = struct{}{}
 		}
 
+		// A flipped one-to-many list child (nested list under an insert):
+		// its INSERT references the parent CTE and must bind its own FK
+		// column to the parent's id, exactly like a one-to-one child.
+		if m.Rel.Type == sdata.RelOneToMany && m.ParentID != -1 &&
+			!(m.Rel.Left.Ti.Schema == m.Ti.Schema && m.Rel.Left.Ti.Name == m.Ti.Name) {
+			m.DependsOn[m.ParentID] = struct{}{}
+			m.RCols = append(m.RCols, qcode.MRColumn{
+				Col:  m.Rel.Right.Col,
+				VCol: m.Rel.Left.Col,
+			})
+			cm[m.Rel.Right.Col.Name] = struct{}{}
+		}
+
 		// Render columns and values needed by the children of the current level
 		// Render child foreign key columns if child-to-parent
 		// relationship is one-to-many
 		for _, v := range items {
-			if v.Rel.Type == sdata.RelOneToMany {
+			if v.Rel.Type != sdata.RelOneToMany {
+				continue
+			}
+
+			// Legacy shape only: a parent-side list item nested under this
+			// child insert (v.Rel.Right is this table). Its CTE must render
+			// before this mutate and its RCols bind this table's FK to the
+			// item's id. Flipped list children (v.Rel.Left is this table)
+			// instead depend on this mutate and bind their own FK in their
+			// own branch above — registering them here would create a
+			// dependency cycle.
+			if v.Rel.Right.Ti.Schema == m.Ti.Schema && v.Rel.Right.Ti.Name == m.Ti.Name {
 				m.DependsOn[v.ID] = struct{}{}
 				m.RCols = append(m.RCols, qcode.MRColumn{
 					Col:  v.Rel.Right.Col,
@@ -764,9 +831,36 @@ func flipRel(rel sdata.DBRel) sdata.DBRel {
 	return rel
 }
 
+// reverseRel reverses the direction of a relationship edge, swapping both
+// sides and the cardinality. FindPath(from=child, to=parent) returns the
+// child→parent edge (RelOneToOne); list-valued nested children need the
+// parent→child edge (RelOneToMany) so downstream rendering binds the child's
+// FK column to the parent's id.
+func reverseRel(rel sdata.DBRel) sdata.DBRel {
+	lt, lc := rel.Left.Ti, rel.Left.Col
+	rel.Left.Ti, rel.Left.Col = rel.Right.Ti, rel.Right.Col
+	rel.Right.Ti, rel.Right.Col = lt, lc
+	switch rel.Type {
+	case sdata.RelOneToOne:
+		rel.Type = sdata.RelOneToMany
+	case sdata.RelOneToMany:
+		rel.Type = sdata.RelOneToOne
+	}
+	return rel
+}
+
+// isJSONColType reports whether a DB column type holds JSON documents and
+// therefore accepts object/array values directly.
+func isJSONColType(t string) bool {
+	return t == "json" || t == "jsonb"
+}
+
 // colValsFromNode projects the parsed payload node into the neutral
-// per-column value map that backends consume.
-func colValsFromNode(n *graph.Node) map[string]qcode.ColVal {
+// per-column value map that backends consume. Object/array payloads are
+// only turned into JSON literals when the target column is json/jsonb —
+// the renderer then quotes them and casts to the column type. SQL array
+// columns keep the List/ListItems shape.
+func (co *Compiler) colValsFromNode(t sdata.DBTable, n *graph.Node) map[string]qcode.ColVal {
 	if n == nil {
 		return nil
 	}
@@ -787,8 +881,78 @@ func colValsFromNode(n *graph.Node) map[string]qcode.ColVal {
 				}
 			}
 			cv.ListItems = items
+			if co.isJSONCol(t, k) {
+				cv.Val = nodeToJSON(f)
+				cv.List = false
+				cv.ListItems = nil
+			}
+		case graph.NodeObj:
+			if co.isJSONCol(t, k) {
+				cv.Val = nodeToJSON(f)
+			}
 		}
 		out[k] = cv
 	}
 	return out
+}
+
+// isJSONCol reports whether key k names a json/jsonb column on table t.
+func (co *Compiler) isJSONCol(t sdata.DBTable, k string) bool {
+	col, ok := t.ColumnExists(co.ParseName(k))
+	return ok && isJSONColType(col.Type)
+}
+
+// nodeToJSON serializes a parsed value node back into compact JSON text so
+// object/array payloads can be rendered as literals for json/jsonb columns.
+func nodeToJSON(n *graph.Node) string {
+	var b bytes.Buffer
+	if err := writeNodeJSON(&b, n); err != nil {
+		return ""
+	}
+	return b.String()
+}
+
+func writeNodeJSON(b *bytes.Buffer, n *graph.Node) error {
+	switch n.Type {
+	case graph.NodeObj:
+		b.WriteByte('{')
+		for i, c := range n.Children {
+			if i != 0 {
+				b.WriteByte(',')
+			}
+			key, err := json.Marshal(c.Name)
+			if err != nil {
+				return err
+			}
+			b.Write(key)
+			b.WriteByte(':')
+			if err := writeNodeJSON(b, c); err != nil {
+				return err
+			}
+		}
+		b.WriteByte('}')
+	case graph.NodeList:
+		b.WriteByte('[')
+		for i, c := range n.Children {
+			if i != 0 {
+				b.WriteByte(',')
+			}
+			if err := writeNodeJSON(b, c); err != nil {
+				return err
+			}
+		}
+		b.WriteByte(']')
+	case graph.NodeNum, graph.NodeBool:
+		b.WriteString(n.Val)
+	case graph.NodeVar:
+		return fmt.Errorf("variables are not supported inside inline object or array values")
+	default:
+		// NodeStr, NodeLabel: escape as a JSON string
+		v, err := json.Marshal(n.Val)
+		if err != nil {
+			return err
+		}
+		b.Write(v)
+	}
+	return nil
 }

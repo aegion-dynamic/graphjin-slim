@@ -1,0 +1,4 @@
+# vars: {"s": true}
+query ($s: Boolean!) {
+  events(limit: 1) { slug title @skip(if: $s) }
+}

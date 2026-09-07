@@ -1,0 +1,7 @@
+# relation field names derive from the FK column: registrations.event_id -> "event"
+query {
+  registrations(limit: 2) {
+    name
+    event { title }
+  }
+}

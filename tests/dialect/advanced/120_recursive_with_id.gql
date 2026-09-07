@@ -1,0 +1,8 @@
+# analytics: on
+query {
+  taxonomy_terms(unrestricted: true, limit: 2) {
+    id
+    slug
+    taxonomy_terms(find: "children", limit: 2, unrestricted: true) { slug }
+  }
+}

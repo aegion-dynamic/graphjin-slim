@@ -1,0 +1,10 @@
+# analytics: on
+# find: children|parents walks the self-FK (taxonomy_terms.parent_id);
+# the outer select must include the primary key
+query {
+  taxonomy_terms(unrestricted: true, where: {slug: {eq: "renewable-energy"}}) {
+    id
+    slug
+    taxonomy_terms(find: "children", unrestricted: true) { slug }
+  }
+}

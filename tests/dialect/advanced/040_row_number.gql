@@ -1,0 +1,7 @@
+# analytics: on
+query {
+  events(unrestricted: true, order_by: {capacity: desc}, limit: 4) {
+    slug
+    rn: capacity @rowNumber(order: "asc")
+  }
+}

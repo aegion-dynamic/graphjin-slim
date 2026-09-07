@@ -1,0 +1,2 @@
+# `id: <value>` is shorthand for where: {id: {eq: ...}} and returns an object
+query { events(id: "44444444-4444-4444-4444-000000000001") { slug } }

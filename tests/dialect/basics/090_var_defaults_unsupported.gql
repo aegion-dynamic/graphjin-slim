@@ -1,0 +1,6 @@
+# expect-error: required variable 'cap'
+# note: GraphQL variable defaults are NOT supported by the engine; the client
+# must always supply every declared variable.
+query ($cap: Int = 200) {
+  events(where: {capacity: {gte: $cap}}) { slug }
+}

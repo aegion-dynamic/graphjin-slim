@@ -1,0 +1,3 @@
+query {
+  events(where: {slug: {in: ["grid-scale-storage-summit", "youth-climate-assembly"]}}) { slug }
+}

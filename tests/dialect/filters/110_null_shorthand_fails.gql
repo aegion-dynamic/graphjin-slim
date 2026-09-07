@@ -1,0 +1,2 @@
+# expect-error: invalid values for: week_id
+query { events(where: {week_id: null}, limit: 2) { slug } }

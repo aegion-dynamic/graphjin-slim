@@ -1,0 +1,8 @@
+# expect-error: syntax error at or near "ON"
+# note: KNOWN BROKEN on Postgres - the upsert renders ON CONFLICT outside the
+# writable CTE. Documented as a limitation.
+mutation {
+  events(upsert: {slug: "nested-obj-event", title: "Upserted title", host_user_id: "11111111-1111-1111-1111-000000000001"}, where: {slug: {eq: "nested-obj-event"}}) {
+    id slug title
+  }
+}

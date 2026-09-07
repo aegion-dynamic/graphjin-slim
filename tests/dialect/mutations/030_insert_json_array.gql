@@ -1,0 +1,5 @@
+# the issue-#5 fix: a real JSON array into a json column works
+# vars: {"input": {"event_id": "44444444-4444-4444-4444-000000000001", "label": "JSON array probe", "field_type": "single_choice", "options": ["Newsletter", "Twitter / X", "A colleague"]}}
+mutation ($input: form_fieldsInput!) {
+  form_fields(insert: $input) { id label options }
+}

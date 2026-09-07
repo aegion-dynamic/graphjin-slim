@@ -1,0 +1,5 @@
+# use_cursor pulls the cursor captured by pagination/010_first
+# use_cursor: pagination/010_first
+query ($cursor: String!) {
+  events(first: 2, after: $cursor, order_by: {slug: asc}) { slug }
+}

@@ -1,0 +1,6 @@
+query {
+  events(limit: 1) {
+    identifier: id
+    title
+  }
+}

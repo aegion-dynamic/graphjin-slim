@@ -1,0 +1,5 @@
+# analytics: on
+# expect-error: requires a filter on temporal column
+# note: with analytics_mode on, tables having a temporal column (created_at,
+# updated_at, ...) must be filtered on it or explicitly unlocked
+query { events(limit: 1) { slug } }

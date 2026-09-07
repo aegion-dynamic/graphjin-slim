@@ -1,0 +1,6 @@
+# vars: {"v": ["in_app"]}
+# expect-error: operator does not exist: jsonb @> jsonb
+# note: contains on jsonb renders `jsonb @> ARRAY[...]::jsonb[]` which is
+# invalid. On true SQL array columns (text[]) contains works; on jsonb use
+# contained_in instead.
+query ($v: JSON!) { meetings(where: {channels: {contains: $v}}) { status } }

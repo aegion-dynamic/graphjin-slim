@@ -1,0 +1,3 @@
+# introspection only runs when the operation is literally named
+# IntrospectionQuery (the standard GraphQL introspection document)
+query IntrospectionQuery { __schema { queryType { name } } }

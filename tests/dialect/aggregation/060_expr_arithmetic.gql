@@ -1,0 +1,6 @@
+query {
+  events {
+    half: sum(expr: {div: [{col: "capacity"}, 2]})
+    plus1: sum(expr: {add: [{col: "capacity"}, 1]})
+  }
+}

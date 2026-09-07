@@ -1,0 +1,4 @@
+mutation {
+  a: form_fields(insert: {event_id: "44444444-4444-4444-4444-000000000001", label: "Root A"}) { id }
+  b: form_fields(insert: {event_id: "44444444-4444-4444-4444-000000000001", label: "Root B"}) { id }
+}

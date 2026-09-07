@@ -1,0 +1,2 @@
+# analytics: on
+query { events(where: {created_at: {gte: "2026-01-01"}}, limit: 2) { slug } }

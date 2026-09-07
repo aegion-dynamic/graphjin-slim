@@ -1,0 +1,2 @@
+# has_key / has_key_any / has_key_all require a jsonb column (not json)
+query { profiles(where: {socials: {has_key: "linkedin"}}) { display_name } }

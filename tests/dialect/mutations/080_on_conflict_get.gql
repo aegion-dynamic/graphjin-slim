@@ -1,0 +1,6 @@
+# on_conflict: get returns the EXISTING row instead of erroring on conflict
+mutation {
+  users(insert: {id: "11111111-1111-1111-1111-000000000001", first_name: "Amara", last_name: "Okafor", email: "amara.okafor@verdantgrid.io", phone: "+234 802 111 0001", external_id: "cog|usr_amara"}, on_conflict: get) {
+    id first_name
+  }
+}

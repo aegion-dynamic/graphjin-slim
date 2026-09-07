@@ -1,0 +1,3 @@
+query {
+  events(where: {and: [{format: {eq: "in_person"}}, {status: {eq: "live"}}]}, limit: 3) { slug }
+}

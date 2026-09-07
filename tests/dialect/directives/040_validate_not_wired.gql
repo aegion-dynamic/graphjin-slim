@@ -1,0 +1,7 @@
+# expect-error: unknown argument
+# note: @validate / @constraint exist in the graphql frontend but the validator
+# registry is not wired through core.NewGraphJin - only apps that construct
+# graphql.NewCompiler directly with Config{Validators: ...} can use them.
+query ($n: Int!) @validate(variable: "n", required: true) {
+  events(where: {capacity: {gte: $n}}) { slug capacity }
+}

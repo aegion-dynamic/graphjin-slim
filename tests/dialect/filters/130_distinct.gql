@@ -1,0 +1,1 @@
+query { events(distinct: [format]) { format } }

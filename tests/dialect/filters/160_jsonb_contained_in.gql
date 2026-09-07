@@ -1,0 +1,2 @@
+# vars: {"v": ["in_app", "email"]}
+query ($v: JSON!) { meetings(where: {channels: {containedIn: $v}}) { status } }

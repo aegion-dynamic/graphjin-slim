@@ -1,0 +1,4 @@
+# vars: {"slug": "grid-scale-storage-summit"}
+query ($slug: String!) {
+  events(where: {slug: {eq: $slug}}) { title }
+}

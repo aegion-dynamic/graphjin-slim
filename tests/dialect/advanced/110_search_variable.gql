@@ -1,0 +1,3 @@
+# search is passed via variable
+# vars: {"q": "storage"}
+query ($q: String!) { events(search: $q) { slug title } }

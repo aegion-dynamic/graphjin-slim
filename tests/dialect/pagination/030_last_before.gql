@@ -1,0 +1,8 @@
+# use_cursor: pagination/010_first
+# note: last/before is accepted but the seek predicate renders FORWARD
+# (events.slug > cursor), so today this returns the page AFTER the cursor,
+# same as first/after. Backwards walking is not functional yet.
+# use_cursor: pagination/010_first
+query ($cursor: String!) {
+  events(last: 2, before: $cursor, order_by: {slug: asc}) { slug }
+}

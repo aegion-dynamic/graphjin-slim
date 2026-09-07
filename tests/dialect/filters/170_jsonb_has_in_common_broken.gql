@@ -1,0 +1,4 @@
+# vars: {"v": ["in_app"]}
+# expect-error: operator does not exist: jsonb && jsonb
+# note: has_in_common on jsonb renders `jsonb && ARRAY[...]::jsonb[]` - invalid.
+query ($v: JSON!) { meetings(where: {channels: {has_in_common: $v}}) { status } }

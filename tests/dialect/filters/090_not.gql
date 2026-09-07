@@ -1,0 +1,1 @@
+query { events(where: {not: {format: {eq: "virtual"}}}, limit: 3) { slug } }

@@ -1,0 +1,1 @@
+query @cacheControl(maxAge: 60) { events(limit: 1) { slug } }

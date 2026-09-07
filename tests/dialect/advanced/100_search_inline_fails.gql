@@ -1,0 +1,5 @@
+# analytics: on
+# expect-error: requires a filter on temporal column
+# note: the `search:` argument value must be a VARIABLE; an inline string is
+# treated as a variable name and fails as missing.
+query { events(search: "storage") { slug title } }

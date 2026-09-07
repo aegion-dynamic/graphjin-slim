@@ -1,0 +1,2 @@
+# ordering by an aggregate (forces GROUP BY); count_id = COUNT(id)
+query { events(order_by: {count_id: desc}, limit: 2) { slug count_id } }

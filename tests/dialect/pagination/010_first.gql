@@ -1,0 +1,2 @@
+# the cursor is returned as <root>_cursor next to the result key
+query { events(first: 2, order_by: {slug: asc}) { slug } }

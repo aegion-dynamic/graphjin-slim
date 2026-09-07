@@ -1,0 +1,5 @@
+mutation {
+  form_fields(update: {label: "Renamed"}, where: {id: {eq: "55555555-5555-5555-5555-000000000001"}}) {
+    id label
+  }
+}

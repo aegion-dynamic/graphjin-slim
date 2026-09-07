@@ -1,0 +1,10 @@
+# analytics: on
+# for the "parents" direction, nest the table by NAME (the FK-derived
+# "parent" edge does not walk upward correctly)
+query {
+  taxonomy_terms(unrestricted: true, where: {slug: {eq: "energy-storage"}}) {
+    id
+    slug
+    taxonomy_terms(find: "parents", unrestricted: true) { slug }
+  }
+}

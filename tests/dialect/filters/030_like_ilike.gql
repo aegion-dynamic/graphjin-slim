@@ -1,0 +1,4 @@
+query {
+  like: events(where: {slug: {like: "%summit%"}}) { slug }
+  ilike: events(where: {title: {ilike: "%CLIMATE%"}}, limit: 2) { title }
+}

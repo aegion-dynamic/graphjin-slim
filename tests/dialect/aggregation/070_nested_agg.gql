@@ -1,0 +1,7 @@
+# an aggregate-only nested select collapses to one row per parent
+query {
+  events(order_by: {slug: asc}, limit: 2) {
+    slug
+    registrations { count_id }
+  }
+}

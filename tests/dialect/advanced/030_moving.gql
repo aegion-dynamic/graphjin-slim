@@ -1,0 +1,9 @@
+# analytics: on
+# moving 2-row average within the partition
+query {
+  events(unrestricted: true, where: {status: {eq: "live"}}, order_by: {capacity: asc}) {
+    slug
+    capacity
+    mv: capacity @moving(aggregate: "avg", by: "status", orderBy: {capacity: asc}, rows: 2)
+  }
+}

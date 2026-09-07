@@ -1,0 +1,6 @@
+query {
+  events(where: {slug: {eq: "grid-scale-storage-summit"}}) {
+    title
+    registrations(limit: 2, order_by: {name: asc}) { name }
+  }
+}

@@ -1,0 +1,4 @@
+query {
+  standalone: events(where: {week_id: {is_null: true}}, limit: 2) { slug }
+  in_week: events(where: {week_id: {is_null: false}}, limit: 2) { slug }
+}

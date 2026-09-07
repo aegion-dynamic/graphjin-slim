@@ -1,0 +1,1 @@
+query { events(limit: 1) { slug __typename } }

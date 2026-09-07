@@ -1,0 +1,2 @@
+# contains on a true SQL array column (text[])
+query { audit_logs(where: {changed_fields: {contains: ["status"]}}) { id } }

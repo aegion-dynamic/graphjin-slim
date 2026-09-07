@@ -1,0 +1,5 @@
+# nested one-to-many list insert: children get the parent's id as FK
+# vars: {"input": {"slug": "probe-nested-list", "title": "Probe", "host_user_id": "11111111-1111-1111-1111-000000000001", "status": "draft", "format": "in_person", "participation_type": "open", "registrations": [{"name": "Probe Reg", "email": "probe@example.org"}]}}
+mutation ($input: eventsInput!) {
+  events(insert: $input) { id slug registrations { name } }
+}

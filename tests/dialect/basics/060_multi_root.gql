@@ -1,0 +1,4 @@
+query {
+  events(limit: 1) { slug }
+  form_fields(limit: 1) { label }
+}

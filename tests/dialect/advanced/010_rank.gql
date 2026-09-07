@@ -1,0 +1,8 @@
+# analytics: on
+# note: analytics tables with a temporal column require created_at filter or unrestricted
+query {
+  events(unrestricted: true, order_by: {slug: asc}, limit: 4) {
+    slug
+    cap: capacity @rank(order: "desc")
+  }
+}

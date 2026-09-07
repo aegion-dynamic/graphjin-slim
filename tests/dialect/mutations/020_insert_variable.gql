@@ -1,0 +1,4 @@
+# vars: {"input": {"event_id": "44444444-4444-4444-4444-000000000001", "label": "Probe var", "field_type": "single_choice", "options": ["Yes", "No", "Maybe"]}}
+mutation ($input: form_fieldsInput!) {
+  form_fields(insert: $input) { id label options }
+}

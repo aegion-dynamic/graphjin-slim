@@ -1,0 +1,3 @@
+query {
+  events(where: {registrations: {email: {eq: "mei.tanaka@asiacleanlab.jp"}}}) { title }
+}

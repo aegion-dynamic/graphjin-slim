@@ -1,0 +1,5 @@
+# booleans and null compare directly WITHOUT an operator object.
+# note: null shorthand is NOT supported for nullable filters; use is_null.
+query {
+  bools: events(where: {waitlist_open: true}, limit: 2) { slug }
+}

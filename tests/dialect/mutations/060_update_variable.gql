@@ -1,0 +1,4 @@
+# vars: {"data": {"label": "Renamed 2"}}
+mutation ($data: form_fieldsInput!) {
+  form_fields(update: $data, where: {id: {eq: "55555555-5555-5555-5555-000000000002"}}) { id label }
+}

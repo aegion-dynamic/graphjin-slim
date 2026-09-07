@@ -1,0 +1,1 @@
+query { events(order_by: {status: asc, start_time: desc}, limit: 2) { slug } }

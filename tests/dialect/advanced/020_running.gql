@@ -1,0 +1,9 @@
+# analytics: on
+# running SUM over capacity, partitioned by status (rows ordered by capacity)
+query {
+  events(unrestricted: true, where: {status: {eq: "live"}}, order_by: {capacity: asc}) {
+    slug
+    capacity
+    run: capacity @running(aggregate: "sum", by: "status", orderBy: {capacity: asc})
+  }
+}

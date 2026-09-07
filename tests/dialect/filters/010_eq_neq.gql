@@ -1,0 +1,1 @@
+query { events(where: {slug: {neq: "grid-scale-storage-summit"}}, limit: 2) { slug } }

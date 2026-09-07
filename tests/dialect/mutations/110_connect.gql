@@ -1,0 +1,12 @@
+# vars: {"rid": "66666666-6666-6666-6666-000000000008"}
+# expect-error: syntax error at or near "FROM"
+# note: KNOWN BROKEN - connect/disconnect of one-to-many children under
+# UPDATE renders an empty SET clause and a dangling AND. Not functional yet.
+# (Keep this example as the regression marker until it is fixed.)
+mutation ($rid: UUID!) {
+  events(update: {title: "Retitled for probe", registrations: {connect: {where: {id: {eq: $rid}}}}}, where: {id: {eq: "44444444-4444-4444-4444-000000000004"}}) {
+    slug
+    title
+    registrations { name }
+  }
+}

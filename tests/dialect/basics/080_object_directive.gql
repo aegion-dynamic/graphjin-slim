@@ -1,0 +1,4 @@
+# @object collapses a plural table into a single object (implies limit 1)
+query {
+  events @object(where: {slug: {eq: "grid-scale-storage-summit"}}) { title }
+}

@@ -1,0 +1,5 @@
+mutation {
+  form_fields(insert: {event_id: "44444444-4444-4444-4444-000000000001", label: "Probe field", field_type: short_text}) {
+    id label
+  }
+}

@@ -1,0 +1,1 @@
+query { events { total: sum(expr: {col: "capacity"}) } }

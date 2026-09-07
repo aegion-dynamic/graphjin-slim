@@ -1,0 +1,4 @@
+query {
+  pending: events(where: {capacity: {lt: 100}}, limit: 2) { slug capacity }
+  big: events(where: {capacity: {gte: 250}}, limit: 2) { slug capacity }
+}

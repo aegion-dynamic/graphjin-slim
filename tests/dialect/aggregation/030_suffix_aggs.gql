@@ -1,0 +1,2 @@
+# legacy <column>_<function> naming; verify what this actually returns
+query { events { capacity_sum: capacity } }

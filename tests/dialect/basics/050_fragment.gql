@@ -1,0 +1,4 @@
+query {
+  events(limit: 1) { ...ev }
+}
+fragment ev on events { slug title }

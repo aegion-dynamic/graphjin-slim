@@ -1326,7 +1326,6 @@ func (s1 *HttpService) apiV1GraphQL(ns *string, ah HandlerFunc) http.Handler {
 
 // apiV1Rest returns a handler that handles the REST API requests
 func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
-	rLen := len(httpapi.RESTPath)
 	dtrace := otel.GetTextMapPropagator()
 
 	h := func(w http.ResponseWriter, r *http.Request) {
@@ -1344,16 +1343,11 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
 		ctx, span = s.spanStart(ctx, "REST Request", opts...)
 		defer span.End()
 
-		if len(r.RequestURI) <= rLen {
-			err := errors.New("no query name defined")
+		queryName, err := httpapi.QueryName(r.URL.Path)
+		if err != nil {
 			spanError(span, err)
 			renderErr(w, err)
 			return
-		}
-
-		queryName := r.RequestURI[rLen:]
-		if n := strings.IndexRune(queryName, '?'); n != -1 {
-			queryName = queryName[:n]
 		}
 
 		switch r.Method {

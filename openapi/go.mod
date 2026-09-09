@@ -3,8 +3,8 @@ module github.com/aegion-dynamic/graphjin-slim/openapi/v3
 go 1.26.6
 
 require (
-	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.36.3
-	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.36.3
+	github.com/aegion-dynamic/graphjin-slim/core/v3 v3.36.4
+	github.com/aegion-dynamic/graphjin-slim/serv/v3 v3.36.4
 )
 
 require (

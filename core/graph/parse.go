@@ -557,6 +557,59 @@ func (p *Parser) parseOpParams(op *Operation) (err error) {
 func (p *Parser) parseVarDef(op *Operation) (err error) {
 	name := p.val(p.next())
 
+	// Standard GraphQL definition: ($var: Type / $var: Type! / $var: Type = default).
+	// The type is recorded as a NodeVar node so QueryParameters can build a
+	// typed contract. NodeVar renders zero bytes in graphNodeToJSON, so
+	// execution defaults are unaffected (setDefaultVars skips empty Vals).
+	if p.peek(itemColon) {
+		p.ignore()
+		// Punctuator tokens (! [ ]) carry no text (lexer ignores the rune
+		// before emitting), so re-emit the literals explicitly.
+		var sb bytes.Buffer
+		for {
+			switch {
+			case p.peek(itemRequired):
+				p.next()
+				sb.WriteString("!")
+			case p.peek(itemListOpen):
+				p.next()
+				sb.WriteString("[")
+			case p.peek(itemListClose):
+				p.next()
+				sb.WriteString("]")
+			case p.peek(itemName):
+				sb.WriteString(p.val(p.next()))
+			default:
+				goto typed
+			}
+		}
+	typed:
+		if sb.Len() == 0 {
+			err = p.tokErr(`type after ":"`)
+			return
+		}
+		var val *Node = &Node{Type: NodeVar, Val: sb.String()}
+		// Optional default after the type. Stored exactly like the legacy
+		// ($var = default) form below.
+		if p.peek(itemEquals) {
+			p.ignore()
+			if !p.peek(itemName,
+				itemStringVal,
+				itemNumberVal,
+				itemBoolVal,
+				itemObjOpen,
+				itemListOpen) {
+				err = p.tokErr(`string, number, bool, object or list`)
+				return
+			}
+			if val, err = p.parseValue(); err != nil {
+				return
+			}
+		}
+		op.VarDef = append(op.VarDef, VarDef{Name: name, Val: val})
+		return
+	}
+
 	if !p.peek(itemEquals) {
 		return
 	}

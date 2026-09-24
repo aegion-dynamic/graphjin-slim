@@ -8,6 +8,7 @@ package graphql
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/dbjoin"
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/graph"
@@ -148,6 +149,11 @@ func (l Lang) QueryParameters(query []byte) ([]langadapter.Parameter, error) {
 			required = varDef.Val.Type == graph.NodeLabel &&
 				len(varDef.Val.Children) > 0 &&
 				varDef.Val.Children[0].Type == graph.NodeLabel
+			// Type annotations recorded by parseVarDef as NodeVar carry
+			// the trailing "!" for required variables.
+			if varDef.Val.Type == graph.NodeVar {
+				required = strings.HasSuffix(varDef.Val.Val, "!")
+			}
 		}
 		params = append(params, langadapter.Parameter{
 			Name:     varDef.Name,

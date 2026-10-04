@@ -22,6 +22,7 @@ type (
 	OpType                = engine.OpType
 	RootLimitInfo         = engine.RootLimitInfo
 	DatabaseConfig        = engine.DatabaseConfig
+	SchemasConfig         = engine.SchemasConfig
 	Table                 = engine.Table
 	Column                = engine.Column
 	Function              = engine.Function

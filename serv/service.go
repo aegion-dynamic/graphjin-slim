@@ -816,6 +816,26 @@ func (s *graphjinService) initFS() error {
 }
 
 // initConfig initializes the configuration
+// syncSingleDBSchemas copies database.schemas from the legacy single
+// database block into the engine's default database entry.
+func syncSingleDBSchemas(c *Config) {
+	if c == nil {
+		return
+	}
+	src := c.DB.Schemas
+	if len(src.Allowed) == 0 && src.Default == "" && src.Separator == "" {
+		return
+	}
+	if c.Core.Databases == nil {
+		c.Core.Databases = map[string]core.DatabaseConfig{}
+	}
+	def := c.Core.Databases[core.DefaultDBName]
+	if len(def.Schemas.Allowed) == 0 && def.Schemas.Default == "" && def.Schemas.Separator == "" {
+		def.Schemas = src
+	}
+	c.Core.Databases[core.DefaultDBName] = def
+}
+
 func (s *graphjinService) initConfig() error {
 	c := s.conf
 	c.dirty = true
@@ -827,6 +847,12 @@ func (s *graphjinService) initConfig() error {
 	if c.DBType == "" {
 		c.DBType = c.DB.Type
 	}
+
+	// copy schemas from the legacy single database block into the engine's
+	// default database entry. The entry carries no connection info, so the
+	// legacy single-DB connection path is unchanged; the engine picks up
+	// Schemas during normalization. Explicit Core.Databases config wins.
+	syncSingleDBSchemas(c)
 
 	hp := strings.SplitN(s.conf.HostPort, ":", 2)
 

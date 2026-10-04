@@ -1,7 +1,11 @@
 // Package database contains service database configuration and adapters.
 package database
 
-import "time"
+import (
+	"time"
+
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
+)
 
 // Config contains connection and pool settings for the supported drivers.
 type Config struct {
@@ -14,6 +18,10 @@ type Config struct {
 	Password      string `jsonschema:"title=Password"`
 	Schema        string `jsonschema:"title=Postgres Schema"`
 	Path          string `jsonschema:"title=File Path (SQLite)"`
+	// Schemas carries multischema behavior (allowed/default/separator) for
+	// the single database. The service copies it into the engine's default
+	// database entry, so `database.schemas` in yaml just works.
+	Schemas       core.SchemasConfig `mapstructure:"schemas" jsonschema:"title=Schemas"`
 	EncryptionKey string `mapstructure:"encryption_key" jsonschema:"title=SQLCipher Encryption Key (optional)"`
 
 	PoolSize        int           `mapstructure:"pool_size" jsonschema:"title=Connection Pool Size"`

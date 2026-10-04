@@ -100,9 +100,12 @@ func parseTFieldsColumns(tableSchema, tableName, tableDatabase string, fields []
 		isRecursive := (dir.RelatedSchema == tableSchema &&
 			dir.RelatedType == tableName)
 
-		colType := pascalToSnakeSpace(f.Type)
-		if dir.TypeSuffix != "" {
-			colType += "(" + dir.TypeSuffix + ")"
+		colType := dir.DBType
+		if colType == "" {
+			colType = pascalToSnakeSpace(f.Type)
+			if dir.TypeSuffix != "" {
+				colType += "(" + dir.TypeSuffix + ")"
+			}
 		}
 
 		col := sdata.DBColumn{
@@ -142,9 +145,12 @@ func parseTFieldsFunction(fn *sdata.DBFunction, fields []graph.TField) (
 		if err != nil {
 			return
 		}
-		paramType := pascalToSnakeSpace(f.Type)
-		if dir.TypeSuffix != "" {
-			paramType += "(" + dir.TypeSuffix + ")"
+		paramType := dir.DBType
+		if paramType == "" {
+			paramType = pascalToSnakeSpace(f.Type)
+			if dir.TypeSuffix != "" {
+				paramType += "(" + dir.TypeSuffix + ")"
+			}
 		}
 		p := sdata.DBFuncParam{
 			ID:   i,
@@ -217,6 +223,7 @@ type tfieldInfo struct {
 	Search        bool
 	Blocked       bool
 	TypeSuffix    string
+	DBType        string
 	RelatedType   string
 	RelatedField  string
 	RelatedSchema string
@@ -259,6 +266,13 @@ func parseTFieldDirectives(ft string, dir []graph.Directive) (tfi tfieldInfo, er
 				break
 			}
 			tfi.TypeSuffix = arg.Val.Val
+
+		case "dbtype":
+			arg, err = getArg(d.Args, "value", graph.NodeStr, graph.NodeLabel)
+			if err != nil {
+				break
+			}
+			tfi.DBType = arg.Val.Val
 
 		case "relation":
 			arg, err = getArg(d.Args, "type", graph.NodeStr, graph.NodeLabel)

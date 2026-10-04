@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -17,10 +18,21 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// forceLiveDiscovery reports whether live discovery is forced even when a
+// baked discovery cache file exists. GRAPHJIN_FORCE_DISCOVERY=1 (or true)
+// is the Lambda escape hatch: use the file by default, do the full
+// discovery query whenever the variable is set, regardless of the file.
+func forceLiveDiscovery() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("GRAPHJIN_FORCE_DISCOVERY"))) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
 // discoverAllDatabases runs Phase 1: schema discovery for all databases.
 // This populates ctx.dbinfo for each database context.
-func (gj *graphjinEngine) discoverAllDatabases() error {
-	// Discover sources concurrently — each writes only its own ctx.dbinfo, so
+func (gj *graphjinEngine) discoverAllDatabases() error {	// Discover sources concurrently — each writes only its own ctx.dbinfo, so
 	// there is no shared state to race on. Bounded so a config with many sources
 	// doesn't open a large number of connections at once.
 	var g errgroup.Group
@@ -64,8 +76,9 @@ func (gj *graphjinEngine) discoverDatabase(ctx *dbContext) error {
 	isPrimary := (ctx.name == gj.defaultDB)
 
 	// For the primary DB: load schema from GraphJin DDL when in MockDB mode
-	// or when EnableSchema is on in production.
-	if isPrimary && (gj.prod && gj.conf.EnableSchema) {
+	// or when EnableSchema is on in production. GRAPHJIN_FORCE_DISCOVERY
+	// skips the baked file even when present, forcing live discovery below.
+	if isPrimary && (gj.prod && gj.conf.EnableSchema) && !forceLiveDiscovery() {
 		b, schemaPath, err := gj.loadSchemaDDL()
 		if err != nil {
 			if false {

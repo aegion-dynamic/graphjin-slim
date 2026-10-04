@@ -327,7 +327,7 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 
 	// Create schema
 	var err error
-	ctx.schema, err = sdata.NewDBSchema(ctx.dbinfo, getDBTableAliases(gj.conf))
+	ctx.schema, err = sdata.NewDBSchemaWithConfig(ctx.dbinfo, getDBTableAliases(gj.conf), gj.conf.SchemaConfigFor(ctx.name))
 	if err != nil {
 		return fmt.Errorf("database %s: schema creation failed: %w", ctx.name, err)
 	}

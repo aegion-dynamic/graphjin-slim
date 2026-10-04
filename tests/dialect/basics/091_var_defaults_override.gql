@@ -1,0 +1,5 @@
+# vars: {"cap": 1000}
+# note: a supplied variable overrides its declared default (200)
+query ($cap: Int = 200) {
+  events(where: {capacity: {gte: $cap}}) { slug }
+}

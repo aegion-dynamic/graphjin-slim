@@ -789,7 +789,7 @@ query IntrospectionQuery { __schema { queryType { name } } }
 | Thing | Status | What you get instead |
 |---|---|---|
 | singular top-level names (`event`) | not supported | table names plus `@object` or `id:` |
-| variable defaults (`$v: Int = 5`) | not supported | always supply every variable |
+| variable defaults (`$v: Int = 5`) | supported | omitted variables fall back to the default |
 | `null` direct value in where | rejected | `is_null: true` / `false` |
 | `order_by` list form | rejected | object form only |
 | `contains` on jsonb | broken SQL | `contained_in` on jsonb, `contains` on `text[]` |

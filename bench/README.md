@@ -29,6 +29,7 @@ scenario and a reproducible request.
 | `openapi_spec` | served spec matches live routes; typed params only (no untyped blob); startup disk export byte-identical; no subscription type |
 | `introspection` | valid introspection; reverse relations present in both directions; no Subscription anywhere |
 | `prodsec` [prod] | ad-hoc queries rejected; saved query runs with explicit vars; bare call errors loudly; named-op execution through GraphQL works |
+| `multischema` [postgres] | alias roots (`orders_archiveOfArchive`), nested cross-schema joins, aggregates over aliases, explicit schemas allow-list |
 | `edge_cases` | unicode round-trip, empty-set shapes, malformed bodies, unknown-field errors |
 
 Variants: every scenario runs in dev mode; `prodsec` additionally runs

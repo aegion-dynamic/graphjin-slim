@@ -1,0 +1,5 @@
+# note: nested join across schemas via the accesscontrol -> application FK.
+# accesscontrol has no seed data; empty list still proves path resolution.
+query {
+  team_roleOfAccesscontrol(limit: 1) { team { name } }
+}

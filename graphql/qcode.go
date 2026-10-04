@@ -604,12 +604,33 @@ func (co *Compiler) setRelFilters(qc *qcode.QCode, sel *qcode.Select) {
 }
 
 func (co *Compiler) Find(schema, name string) (sdata.DBTable, error) {
-	if co.c.EnableCamelcase {
-		name = strings.TrimSuffix(name, singularSuffixSnake)
-	} else {
-		name = strings.TrimSuffix(name, singularSuffixCamel)
+	// Strip singular suffixes before alias resolution so
+	// usersOfPrivateByID resolves to the private.users table.
+	trimmed := strings.TrimSuffix(name, singularSuffixSnake)
+	trimmed = strings.TrimSuffix(trimmed, singularSuffixCamel)
+	// Alias-first: only wins when the table actually exists, so names
+	// that merely contain the separator (e.g. proofs) fall through.
+	// The alias carries its own schema, so a default/explicit-default
+	// schema argument must not veto it — only a conflicting explicit
+	// non-default schema falls through.
+	if t, ok := co.s.FindByAlias(trimmed); ok &&
+		(schema == "" || schema == co.s.DefaultSchema() || t.Schema == schema) {
+		if !co.s.IsAllowedSchema(t.Schema) {
+			return sdata.DBTable{}, fmt.Errorf("schema '%s' not allowed", t.Schema)
+		}
+		return t, nil
 	}
-	return co.s.Find(schema, name)
+	if schema != "" && !co.s.IsAllowedSchema(schema) {
+		return sdata.DBTable{}, fmt.Errorf("schema '%s' not allowed", schema)
+	}
+	t, err := co.s.Find(schema, trimmed)
+	if err != nil {
+		return t, err
+	}
+	if !co.s.IsAllowedSchema(t.Schema) {
+		return sdata.DBTable{}, fmt.Errorf("schema '%s' not allowed", t.Schema)
+	}
+	return t, nil
 }
 
 func (co *Compiler) FindPath(from, to, through string) ([]sdata.TPath, error) {
@@ -620,6 +641,10 @@ func (co *Compiler) FindPath(from, to, through string) ([]sdata.TPath, error) {
 		from = strings.TrimSuffix(from, singularSuffixCamel)
 		to = strings.TrimSuffix(to, singularSuffixCamel)
 	}
+	// Cross-schema aliases carry their schema in the name; the
+	// relationship graph is keyed by bare table names.
+	from = co.s.RealTableName(from)
+	to = co.s.RealTableName(to)
 
 	// Try normal graph path first (same-database relationships)
 	path, err := co.s.FindPath(from, to, through)
@@ -651,6 +676,8 @@ func (co *Compiler) FindPathByColumn(from, to, col string) ([]sdata.TPath, error
 		from = strings.TrimSuffix(from, singularSuffixCamel)
 		to = strings.TrimSuffix(to, singularSuffixCamel)
 	}
+	from = co.s.RealTableName(from)
+	to = co.s.RealTableName(to)
 	return co.s.FindPathByColumn(from, to, col)
 }
 

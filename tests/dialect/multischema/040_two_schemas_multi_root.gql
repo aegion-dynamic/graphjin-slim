@@ -1,0 +1,5 @@
+# note: roots from two schemas in one query
+query {
+  usersOfApplication(limit: 1) { email }
+  teamsOfAccesscontrol(limit: 1) { name }
+}

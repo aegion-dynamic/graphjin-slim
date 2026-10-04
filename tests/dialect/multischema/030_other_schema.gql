@@ -1,0 +1,4 @@
+# note: accesscontrol has no seed data; empty list still proves the alias resolves
+query {
+  teamsOfAccesscontrol(limit: 1) { name }
+}

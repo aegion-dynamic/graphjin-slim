@@ -1,0 +1,4 @@
+# note: an omitted variable falls back to its declared default (200 here)
+query ($cap: Int = 200) {
+  events(where: {capacity: {gte: $cap}}) { slug }
+}

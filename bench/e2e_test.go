@@ -37,6 +37,9 @@ func TestE2EScenarios(t *testing.T) {
 			if backend == "postgres" && sc.Schema != "" && sc.Schema != "shop" {
 				continue // chain/blob fixtures are sqlite-specific today
 			}
+			if !sc.SupportsBackend(backend) {
+				continue // e.g. multischema needs real postgres schemas
+			}
 			for _, v := range sc.Variants {
 				sc, v, backend := sc, v, backend
 				t.Run(sc.Name+"/"+v+"/"+backend, func(t *testing.T) {

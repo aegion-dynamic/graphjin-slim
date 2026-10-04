@@ -1,0 +1,4 @@
+# note: bare name falls back to the only schema containing users (application)
+query {
+  users(limit: 1) { email }
+}

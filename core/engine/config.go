@@ -288,6 +288,7 @@ type DatabaseConfig struct {
 	Password        string         `mapstructure:"password" json:"password" yaml:"password"`
 	DBName          string         `mapstructure:"db_name" json:"db_name" yaml:"db_name"`
 	Schema          string         `mapstructure:"schema" json:"schema" yaml:"schema"`
+	Schemas         SchemasConfig  `mapstructure:"schemas" json:"schemas" yaml:"schemas"`
 	Path            string         `mapstructure:"path" json:"path" yaml:"path"`
 	EncryptionKey   string         `mapstructure:"encryption_key" json:"encryption_key" yaml:"encryption_key"`
 	EnableTLS       bool           `mapstructure:"enable_tls" json:"enable_tls" yaml:"enable_tls"`
@@ -331,6 +332,34 @@ type Function struct {
 	Name       string
 	Schema     string
 	ReturnType string `mapstructure:"return_type" json:"return_type" yaml:"return_type" jsonschema:"title=Return Type,example=boolean,example=record"`
+}
+
+// SchemasConfig carries multischema behavior for one database.
+// Separator "" means DefaultCrossSchemaSeparator ("Of").
+// Allowed empty means allow all discovered schemas.
+// Default "" falls back to DatabaseConfig.Schema.
+type SchemasConfig struct {
+	Allowed   []string `mapstructure:"allowed" json:"allowed" yaml:"allowed"`
+	Default   string   `mapstructure:"default" json:"default" yaml:"default"`
+	Separator string   `mapstructure:"separator" json:"separator" yaml:"separator"`
+}
+
+// SchemaConfigFor returns the sdata SchemaConfig for a database.
+func (c *Config) SchemaConfigFor(database string) sdata.SchemaConfig {
+	var sc SchemasConfig
+	if c != nil {
+		if db, ok := c.Databases[database]; ok {
+			sc = db.Schemas
+			if sc.Default == "" {
+				sc.Default = db.Schema
+			}
+		}
+	}
+	return sdata.SchemaConfig{
+		AllowedSchemas:       append([]string(nil), sc.Allowed...),
+		DefaultSchema:        sc.Default,
+		CrossSchemaSeparator: sc.Separator,
+	}
 }
 
 type RelationshipConfig struct {

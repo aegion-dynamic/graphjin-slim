@@ -15,6 +15,7 @@ import (
 	"time"
 
 	_ "github.com/aegion-dynamic/graphjin-slim/graphql/v3" // and the query language: applications opt in per capability
+	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
 	"github.com/aegion-dynamic/graphjin-slim/openapi/v3"
 	postgresmod "github.com/aegion-dynamic/graphjin-slim/postgres/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
@@ -56,6 +57,10 @@ type Opts struct {
 	Seeds    map[string]SeedQuery
 	Budgets  Budgets
 	DebugLog bool
+	// Multischema seeds a second postgres schema (archive) with a
+	// cross-schema FK and exposes it via an explicit schemas allow-list.
+	// Postgres only; sqlite has a single schema.
+	Multischema bool
 }
 
 // PostgresDSN is where the bench expects the container from dockerfile.
@@ -155,10 +160,16 @@ func SpinUp(o Opts) (*H, error) {
 			return nil, fmt.Errorf("%w: postgres at %s: %v", ErrBackendUnavailable, RedactDSN(dsn), perr)
 		}
 		// Fresh schema per scenario gives file-per-scenario isolation.
-		for _, stmt := range []string{
+		reset := []string{
 			`DROP SCHEMA IF EXISTS public CASCADE`,
 			`CREATE SCHEMA public`,
-		} {
+		}
+		if o.Multischema {
+			// The archive fixture lives outside public, so the reset
+			// above does not clear it; drop it explicitly for reruns.
+			reset = append(reset, `DROP SCHEMA IF EXISTS archive CASCADE`)
+		}
+		for _, stmt := range reset {
 			if _, err := pgDB.Exec(stmt); err != nil {
 				return nil, fmt.Errorf("reset schema: %w", err)
 			}
@@ -167,6 +178,11 @@ func SpinUp(o Opts) (*H, error) {
 		case "", "shop":
 			if err := SeedShop(pgDB, backend); err != nil {
 				return nil, fmt.Errorf("seed shop(pg): %w", err)
+			}
+			if o.Multischema {
+				if err := SeedShopMultischemaPG(pgDB); err != nil {
+					return nil, err
+				}
 			}
 		default:
 			return nil, fmt.Errorf("schema %q unsupported on postgres", o.Schema)
@@ -212,6 +228,21 @@ func SpinUp(o Opts) (*H, error) {
 		conf.DB.ConnString = PostgresDSN()
 	} else {
 		conf.DB.Path = dbPath
+	}
+	if o.Multischema {
+		if backend != "postgres" {
+			return nil, fmt.Errorf("multischema requires the postgres backend")
+		}
+		conf.Core.Databases = map[string]engine.DatabaseConfig{
+			engine.DefaultDBName: {
+				Type:       backend,
+				ConnString: PostgresDSN(),
+				Schemas: engine.SchemasConfig{
+					Allowed: []string{"public", "archive"},
+					Default: "public",
+				},
+			},
+		}
 	}
 
 	gjs, err := serv.NewGraphJinService(&conf,

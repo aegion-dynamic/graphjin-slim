@@ -12,6 +12,23 @@ type Scenario struct {
 	Schema   string                       // "shop" (default) | "chain" | "blob"
 	ChainN   int                          // table count for Schema=="chain"
 	Seeds    map[string]harness.SeedQuery // saved queries written pre-start
+	// Backends restricts which backends run this scenario; empty means all.
+	// Multischema needs real postgres schemas, so it sets {"postgres"}.
+	Backends   []string
+	Multischema bool // seed second schema + explicit schemas allow-list (postgres only)
+}
+
+// SupportsBackend reports whether this scenario runs on the backend.
+func (sc Scenario) SupportsBackend(backend string) bool {
+	if len(sc.Backends) == 0 {
+		return true
+	}
+	for _, b := range sc.Backends {
+		if b == backend {
+			return true
+		}
+	}
+	return false
 }
 
 // Opts renders the spin-up options for one variant on one backend.
@@ -21,13 +38,14 @@ func (sc Scenario) Opts(variant string, backend string, b harness.Budgets) harne
 		schema = "shop"
 	}
 	return harness.Opts{
-		Name:    sc.Name + "-" + variant,
-		Prod:    variant == "prod",
-		Backend: backend,
-		Schema:  schema,
-		ChainN:  sc.ChainN,
-		Seeds:   sc.Seeds,
-		Budgets: b,
+		Name:        sc.Name + "-" + variant,
+		Prod:        variant == "prod",
+		Backend:     backend,
+		Schema:      schema,
+		ChainN:      sc.ChainN,
+		Seeds:       sc.Seeds,
+		Budgets:     b,
+		Multischema: sc.Multischema,
 	}
 }
 

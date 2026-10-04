@@ -264,7 +264,7 @@ func BuildIntrospection(opts IntroOptions) (result json.RawMessage, err error) {
 		in.schema = sch
 
 		for _, t := range sch.GetTables() {
-			if t.Blocked {
+			if t.Blocked || !sch.IsAllowedSchema(t.Schema) {
 				continue
 			}
 			in.addToTablesEnum(t)
@@ -310,8 +310,22 @@ func BuildIntrospection(opts IntroOptions) (result json.RawMessage, err error) {
 		}
 
 		for _, t := range sch.GetTables() {
+			if t.Blocked || !sch.IsAllowedSchema(t.Schema) {
+				continue
+			}
 			if err = in.addTable(t, ""); err != nil {
 				return
+			}
+			// Non-default schemas get a second root under the
+			// cross-schema alias (e.g. usersOfPrivate). Default-schema
+			// tables keep their bare name only.
+			if alias := sch.CrossSchemaAlias(t.Name, t.Schema); alias != t.Name {
+				if in.getName(alias) == in.getName(t.Name) {
+					continue
+				}
+				if err = in.addTable(t, alias); err != nil {
+					return
+				}
 			}
 		}
 	}

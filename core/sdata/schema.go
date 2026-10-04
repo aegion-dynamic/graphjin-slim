@@ -34,11 +34,28 @@ type CrossDBRel struct {
 	IsOneToOne   bool     // true if target col is PK/unique
 }
 
+// DefaultCrossSchemaSeparator is the default separator joining table and
+// schema in cross-schema GraphQL names (e.g. usersOfPrivate).
+const DefaultCrossSchemaSeparator = "Of"
+
+// SchemaConfig carries multischema behavior for one database.
+// Empty AllowedSchemas means allow all discovered schemas.
+// Empty DefaultSchema falls back to DBInfo.Schema.
+// Empty CrossSchemaSeparator falls back to DefaultCrossSchemaSeparator.
+type SchemaConfig struct {
+	AllowedSchemas       []string
+	DefaultSchema        string
+	CrossSchemaSeparator string
+}
+
 type DBSchema struct {
 	dbType            string                  // db type
 	version           int                     // db version
 	schema            string                  // db schema
 	name              string                  // db name
+	allowedSchemas    []string                // allow-list, empty allows all
+	defaultSchema     string                  // effective default schema
+	crossSchemaSep    string                  // separator for cross-schema names
 	tables            []DBTable               // tables
 	virtualTables     map[string]VirtualTable // for polymorphic relationships
 	dbFunctions       map[string]DBFunction   // db functions
@@ -118,11 +135,31 @@ func NewDBSchema(
 	info *DBInfo,
 	aliases map[string][]string,
 ) (*DBSchema, error) {
+	return NewDBSchemaWithConfig(info, aliases, SchemaConfig{})
+}
+
+// NewDBSchemaWithConfig creates a new database schema with multischema behavior.
+func NewDBSchemaWithConfig(
+	info *DBInfo,
+	aliases map[string][]string,
+	cfg SchemaConfig,
+) (*DBSchema, error) {
+	defSchema := cfg.DefaultSchema
+	if defSchema == "" {
+		defSchema = info.Schema
+	}
+	sep := cfg.CrossSchemaSeparator
+	if sep == "" {
+		sep = DefaultCrossSchemaSeparator
+	}
 	schema := &DBSchema{
 		dbType:            info.Type,
 		version:           info.Version,
 		schema:            info.Schema,
 		name:              info.Name,
+		allowedSchemas:    append([]string(nil), cfg.AllowedSchemas...),
+		defaultSchema:     defSchema,
+		crossSchemaSep:    sep,
 		virtualTables:     make(map[string]VirtualTable),
 		dbFunctions:       make(map[string]DBFunction),
 		tindex:            make(map[string]nodeInfo),
@@ -633,6 +670,94 @@ func (s *DBSchema) DBVersion() int {
 // DBSchema returns the database schema
 func (s *DBSchema) DBSchema() string {
 	return s.schema
+}
+
+// DefaultSchema returns the effective default schema.
+func (s *DBSchema) DefaultSchema() string {
+	if s.defaultSchema != "" {
+		return s.defaultSchema
+	}
+	return s.schema
+}
+
+// GetCrossSchemaSeparator returns the separator for cross-schema names.
+func (s *DBSchema) GetCrossSchemaSeparator() string {
+	if s.crossSchemaSep != "" {
+		return s.crossSchemaSep
+	}
+	return DefaultCrossSchemaSeparator
+}
+
+// IsAllowedSchema reports whether a schema is visible to queries.
+func (s *DBSchema) IsAllowedSchema(schema string) bool {
+	if schema == "" || schema == s.DefaultSchema() {
+		return true
+	}
+	if len(s.allowedSchemas) == 0 {
+		return true
+	}
+	for _, a := range s.allowedSchemas {
+		if a == schema {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseCrossSchemaTableName splits table+separator+schema.
+// Without the separator it returns the full name and the default schema.
+func (s *DBSchema) ParseCrossSchemaTableName(fullName string) (tableName, schemaName string) {
+	sep := s.GetCrossSchemaSeparator()
+	if parts := strings.SplitN(fullName, sep, 2); len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+		return parts[0], parts[1]
+	}
+	return fullName, s.DefaultSchema()
+}
+
+// CrossSchemaAlias builds the GraphQL name for a table outside the default schema.
+// Tables in the default schema keep their bare name.
+func (s *DBSchema) CrossSchemaAlias(table, schema string) string {
+	if schema == "" || schema == s.DefaultSchema() {
+		return table
+	}
+	return table + s.GetCrossSchemaSeparator() + upperFirst(schema)
+}
+
+// FindByAlias resolves a possibly cross-schema GraphQL name to its table.
+// It handles the capitalized schema suffix produced by CrossSchemaAlias
+// with an exact match first and an EqualFold fallback.
+func (s *DBSchema) FindByAlias(fullName string) (DBTable, bool) {
+	table, schema := s.ParseCrossSchemaTableName(fullName)
+	if v, ok := s.tindex[(schema + ":" + table)]; ok {
+		return s.tables[v.nodeID], true
+	}
+	for _, t := range s.tables {
+		if t.Name == table && strings.EqualFold(t.Schema, schema) {
+			return t, true
+		}
+	}
+	return DBTable{}, false
+}
+
+// RealTableName maps a cross-schema alias back to its bare table name.
+// Bare names (no separator) and unknown names pass through unchanged,
+// so existing ambiguity errors for bare names are preserved.
+func (s *DBSchema) RealTableName(fullName string) string {
+	table, _ := s.ParseCrossSchemaTableName(fullName)
+	if table == fullName {
+		return fullName
+	}
+	if t, ok := s.FindByAlias(fullName); ok {
+		return t.Name
+	}
+	return fullName
+}
+
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // DBName returns the database name

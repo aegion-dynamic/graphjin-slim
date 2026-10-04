@@ -58,6 +58,14 @@ func runE2E(filter, variant, backend string, budgets harness.Budgets) int {
 		if filter != "" && !contains(sc.Name, filter) {
 			continue
 		}
+		if !sc.SupportsBackend(backend) {
+			fmt.Printf("SKIP %-24s [%s]  backend %q not supported\n", sc.Name, variant, backend)
+			continue
+		}
+		if backend == "postgres" && sc.Schema != "" && sc.Schema != "shop" {
+			fmt.Printf("SKIP %-24s [%s]  schema %q is sqlite-specific\n", sc.Name, variant, sc.Schema)
+			continue
+		}
 		for _, v := range sc.Variants {
 			if variant != "all" && v != variant {
 				continue

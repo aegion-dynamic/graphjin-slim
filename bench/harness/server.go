@@ -15,7 +15,7 @@ import (
 	"time"
 
 	_ "github.com/aegion-dynamic/graphjin-slim/graphql/v3" // and the query language: applications opt in per capability
-	"github.com/aegion-dynamic/graphjin-slim/core/v3/engine"
+	"github.com/aegion-dynamic/graphjin-slim/core/v3"
 	"github.com/aegion-dynamic/graphjin-slim/openapi/v3"
 	postgresmod "github.com/aegion-dynamic/graphjin-slim/postgres/v3"
 	"github.com/aegion-dynamic/graphjin-slim/serv/v3"
@@ -233,15 +233,9 @@ func SpinUp(o Opts) (*H, error) {
 		if backend != "postgres" {
 			return nil, fmt.Errorf("multischema requires the postgres backend")
 		}
-		conf.Core.Databases = map[string]engine.DatabaseConfig{
-			engine.DefaultDBName: {
-				Type:       backend,
-				ConnString: PostgresDSN(),
-				Schemas: engine.SchemasConfig{
-					Allowed: []string{"public", "archive"},
-					Default: "public",
-				},
-			},
+		conf.DB.Schemas = core.SchemasConfig{
+			Allowed: []string{"public", "archive"},
+			Default: "public",
 		}
 	}
 

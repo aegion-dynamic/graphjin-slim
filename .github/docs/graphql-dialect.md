@@ -14,7 +14,7 @@ whole document:
 tests/dialect/up.sh
 # ...applies tests/dialect/schema/backend/*.hcl, seeds tests/dialect/schema/seed.sql,
 # then runs the executor:
-# 75 run, 0 failed
+# 81 run, 0 failed
 ```
 
 If an example documents a limitation it is marked with
@@ -784,7 +784,60 @@ normal table-resolution path.
 query IntrospectionQuery { __schema { queryType { name } } }
 ```
 
-## 12. Limitations at a glance
+## 12. Multiple schemas
+
+Discovery reads every non-system schema, and SQL is always schema-qualified,
+so tables outside the default schema are queryable. Since GraphQL roots are
+bare names, each non-default table gets a second root: the table name, the
+separator, then the schema with a capital first letter.
+
+```graphql
+# application.users (default schema is public here)
+query { usersOfApplication(limit: 2) { email } }
+# {"usersOfApplication": [{"email": "amara.okafor@verdantgrid.io"}, ...]}
+```
+
+Tables in the default schema keep their bare name, and a bare name also
+resolves by fallback when only one schema contains it:
+
+```graphql
+query { users(limit: 1) { email } }
+```
+
+Roots from different schemas compose in one query, and nesting follows
+foreign keys across schemas:
+
+```graphql
+query {
+  usersOfApplication(limit: 1) { email }
+  teamsOfAccesscontrol(limit: 1) { name }
+}
+query {
+  team_roleOfAccesscontrol(limit: 1) { team { name } }
+}
+```
+
+Three settings control this, per database under `databases.<name>.schemas`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `allowed` | all discovered schemas | schemas visible to queries; anything else is rejected and hidden from introspection |
+| `default` | the `schema` setting, else the database default (`public`, `main`) | the schema whose tables keep bare names; never needs listing in `allowed` |
+| `separator` | `Of` | the join between table and schema in alias roots |
+
+```yaml
+databases:
+  default:
+    schemas:
+      allowed: [public, application]
+      default: public
+      separator: Of
+```
+
+Backed by `tests/dialect/multischema/010_alias_query.gql` through
+`050_nested_cross_schema.gql`.
+
+## 13. Limitations at a glance
 
 | Thing | Status | What you get instead |
 |---|---|---|
@@ -803,7 +856,7 @@ query IntrospectionQuery { __schema { queryType { name } } }
 | `__schema` outside `IntrospectionQuery` | fails | name the operation `IntrospectionQuery` |
 | JSON-path filter operators | not exposed | none today |
 
-## 13. Selector argument reference
+## 14. Selector argument reference
 
 | Argument | Applies to | Value |
 |---|---|---|

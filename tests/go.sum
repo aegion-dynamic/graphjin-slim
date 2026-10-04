@@ -1,4 +1,7 @@
+github.com/aegion-dynamic/graphjin-slim/graphql/v3 v3.36.5 h1:pkTk+2ANUZCS5dfBwD1WrVQI/miZRmt6XiaHHJBLLsw=
+github.com/aegion-dynamic/graphjin-slim/graphql/v3 v3.36.5/go.mod h1:GHE5fT7SElPsLgSLO/2ASivL9b5uMPpmISlQ2uOrzy8=
 github.com/aquaticcalf/sqlcipher v0.0.1 h1:YVaQzYq9Cjcvdo4XrjNQShyPrT/SH4wojy2fMunhKx4=
+github.com/aquaticcalf/sqlcipher v0.0.1/go.mod h1:CxTm3rYZxl4mCLBVcpk+lvIhOFtZttNp3OiLdBkx7+A=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

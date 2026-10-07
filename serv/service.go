@@ -1422,11 +1422,30 @@ func (s1 *HttpService) apiV1Rest(ns *string, ah HandlerFunc) http.Handler {
 		}
 
 		res, err := s.gj.GraphQLByName(ctx, queryName, vars, &rc)
-		if res == nil && err != nil {
-			// The engine refused the request (unknown query, validation
-			// failure, ...). Render the error directly: responseHandler
-			// dereferences res and would panic on a nil result.
+		if err != nil {
+			// Request/compile failures carry no result; execution failures
+			// carry a partial result. Either way the REST/OpenAPI bridge
+			// must not answer 200; map to a client error (validation) or
+			// a server error.
+			if res != nil && len(res.Validation) != 0 {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(res)
+				return
+			}
+			if res != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(res)
+				return
+			}
 			renderErr(w, err)
+			return
+		}
+		if res != nil && len(res.Validation) != 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(res)
 			return
 		}
 		s.responseHandler(
@@ -1621,9 +1640,15 @@ func (r gqlReq) apqEnabled() bool {
 
 // renderErr renders the error response
 func renderErr(w http.ResponseWriter, err error) {
-	if err == errUnauthorized {
-		w.WriteHeader(http.StatusUnauthorized)
+	status := http.StatusBadRequest
+	switch {
+	case errors.Is(err, errUnauthorized):
+		status = http.StatusUnauthorized
+	case errors.Is(err, ErrGraphJinNotInitialized):
+		status = http.StatusServiceUnavailable
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
 
 	err1 := json.NewEncoder(w).Encode(errorResp{[]string{err.Error()}})
 	if err1 != nil {

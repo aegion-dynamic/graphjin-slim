@@ -705,7 +705,9 @@ mutation {
 }
 ```
 
-When the payload supplies more than one key, the loosest one is the
+When the payload supplies the primary key, the primary key is the
+conflict target: the insert returns the existing row with that key. Without
+it, when the payload supplies more than one key, the loosest one is the
 conflict target, because it is the one that conflicts first. Two keys of
 the same width are ambiguous and are rejected.
 

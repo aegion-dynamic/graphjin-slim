@@ -1,0 +1,24 @@
+# on_conflict: get with the primary key and another unique key in the
+# payload. The primary key names the row, so it is the conflict target and
+# the existing row with this id comes back.
+#
+# Before the fix the two keys were the same width and the insert was
+# refused:
+#
+#     on_conflict: get on table "taxonomy_terms" is ambiguous; supplied unique keys: id, slug
+#
+# expect: "label": "Startup Founder"
+mutation {
+  taxonomy_terms(
+    insert: {
+      id: "77777777-7777-7777-7777-000000000001"
+      kind: "stakeholder_type"
+      slug: "startup-founder"
+      label: "Changed label"
+    }
+    on_conflict: get
+  ) {
+    id
+    label
+  }
+}

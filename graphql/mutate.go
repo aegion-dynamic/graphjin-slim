@@ -317,6 +317,7 @@ func (co *Compiler) configureInsertConflict(scr *mutState, qc *qcode.QCode) erro
 	}
 
 	var candidates [][]qcode.MColumn
+	var pkSupplied bool
 	if len(m.Ti.PrimaryCols) != 0 {
 		pk := make([]qcode.MColumn, 0, len(m.Ti.PrimaryCols))
 		for _, col := range m.Ti.PrimaryCols {
@@ -329,6 +330,7 @@ func (co *Compiler) configureInsertConflict(scr *mutState, qc *qcode.QCode) erro
 		}
 		if len(pk) != 0 {
 			candidates = append(candidates, pk)
+			pkSupplied = true
 		}
 	}
 
@@ -365,6 +367,12 @@ func (co *Compiler) configureInsertConflict(scr *mutState, qc *qcode.QCode) erro
 
 	if len(candidates) == 0 {
 		return fmt.Errorf("on_conflict: get on table %q requires a supplied primary or unique key", m.Ti.Name)
+	}
+	if pkSupplied {
+		// A supplied primary key names the row: "return the existing row
+		// with this id" is what the insert means, whatever other keys the
+		// payload also supplies.
+		candidates = candidates[:1]
 	}
 	if len(candidates) > 1 {
 		// The loosest key is the one that conflicts first, so it is the one

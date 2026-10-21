@@ -23,6 +23,7 @@ func conflictGetCompiler(t *testing.T, compositePK bool) *graphql.Compiler {
 		cols = []sdata.DBColumn{
 			{Schema: "public", Table: "users", Name: "id", Type: "bigint", PrimaryKey: true, UniqueKey: true, NotNull: true},
 			{Schema: "public", Table: "users", Name: "email", Type: "text", UniqueKey: true, NotNull: true},
+			{Schema: "public", Table: "users", Name: "handle", Type: "text", UniqueKey: true},
 			{Schema: "public", Table: "users", Name: "name", Type: "text"},
 			{Schema: "public", Table: "profiles", Name: "id", Type: "bigint", PrimaryKey: true, UniqueKey: true, NotNull: true},
 			{Schema: "public", Table: "profiles", Name: "user_id", Type: "bigint", FKeySchema: "public", FKeyTable: "users", FKeyCol: "id"},
@@ -61,9 +62,22 @@ func TestInsertConflictGetRequiresExactlyOneCandidate(t *testing.T) {
 		t.Fatalf("unexpected missing-target error: %v", err)
 	}
 
-	_, err = compiler.Compile([]byte(`mutation { users(insert: { id: 1, email: "ada@example.com" }, on_conflict: get) { id } }`), nil, "")
+	_, err = compiler.Compile([]byte(`mutation { users(insert: { email: "ada@example.com", handle: "ada" }, on_conflict: get) { id } }`), nil, "")
 	if err == nil || !strings.Contains(err.Error(), "is ambiguous") {
 		t.Fatalf("unexpected ambiguous-target error: %v", err)
+	}
+}
+
+// A supplied primary key is the conflict target, whatever other unique keys
+// the payload also supplies: the insert means "the row with this id".
+func TestInsertConflictGetPrefersSuppliedPrimaryKey(t *testing.T) {
+	compiler := conflictGetCompiler(t, false)
+	qc, err := compiler.Compile([]byte(`mutation { users(insert: { id: 1, email: "ada@example.com", handle: "ada" }, on_conflict: get) { id } }`), nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cols := qc.Mutates[0].ConflictCols; len(cols) != 1 || cols[0].Col.Name != "id" {
+		t.Fatalf("expected the primary key as the conflict target, got %#v", cols)
 	}
 }
 

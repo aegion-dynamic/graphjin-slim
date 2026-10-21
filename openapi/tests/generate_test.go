@@ -228,3 +228,68 @@ func TestResponseSchemaMatchesTheBridge(t *testing.T) {
 		t.Errorf("errors type = %q, want array", errs.Type)
 	}
 }
+
+// TestTypesAreTightEnoughForGeneratedClients pins the types a generated
+// client is built from: variables typed from their declared GraphQL type,
+// required variables listed, nullable ones allowed to be null, and response
+// fields required, nullable only where the column may be null.
+func TestTypesAreTightEnoughForGeneratedClients(t *testing.T) {
+	inputs := testInputs(t)
+	inputs.Queries = append(inputs.Queries,
+		allow.Item{
+			Name: "updateUser",
+			Query: []byte(`mutation updateUser($id: UUID!, $user_id: UUID!, $n: Int!, $j: JSON!, $at: Time!, $phone: String) {
+				users(update: { phone: $phone }, where: { id: { eq: $id } }) { id phone }
+			}`),
+		},
+		allow.Item{
+			Name:  "countUsers",
+			Query: []byte(`query countUsers { users { count_id } }`),
+		},
+	)
+	doc, err := openapi.Generate(inputs, openapi.Config{ServerVars: []string{"user_id"}})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	body := doc.Paths["/updateUser"].Post.RequestBody.Content["application/json"].Schema
+	want := map[string]string{"id": "string", "n": "integer", "at": "string", "phone": "string"}
+	for name, typ := range want {
+		if got := body.Properties[name].Type; got != typ {
+			t.Errorf("variable %s type = %q, want %q", name, got, typ)
+		}
+	}
+	if s := body.Properties["j"]; s.Type != "" {
+		t.Errorf("JSON variable should accept any value, got type %q", s.Type)
+	}
+	if f := body.Properties["id"].Format; f != "uuid" {
+		t.Errorf("UUID variable format = %q, want uuid", f)
+	}
+	if !body.Properties["phone"].Nullable || body.Properties["id"].Nullable {
+		t.Errorf("only the optional variable is nullable: %+v", body.Properties)
+	}
+	if _, ok := body.Properties["user_id"]; ok {
+		t.Errorf("a server variable is not part of the request")
+	}
+	if got := strings.Join(body.Required, ","); got != "at,id,j,n" {
+		t.Errorf("required = %q, want at,id,j,n", got)
+	}
+
+	row := doc.Paths["/updateUser"].Post.Responses["200"].Content["application/json"].Schema.
+		Properties["data"].Properties["users"].Items
+	if got := strings.Join(row.Required, ","); got != "id,phone" {
+		t.Errorf("response required = %q, want id,phone", got)
+	}
+	if row.Properties["id"].Nullable || !row.Properties["phone"].Nullable {
+		t.Errorf("only the nullable column is nullable: %+v", row.Properties)
+	}
+	if typ := row.Properties["id"].Type; typ != "integer" {
+		t.Errorf("bigint primary key type = %q, want integer", typ)
+	}
+
+	agg := doc.Paths["/countUsers"].Get.Responses["200"].Content["application/json"].Schema.
+		Properties["data"].Properties["users"].Items.Properties["count_id"]
+	if agg.Type != "integer" {
+		t.Errorf("count_id type = %q, want integer", agg.Type)
+	}
+}

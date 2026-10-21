@@ -3,6 +3,7 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -25,6 +26,11 @@ type Config struct {
 	Description string
 	Version     string // default "1.0.0"
 	ServerURL   string // default "/api/v1/rest"
+
+	// ServerVars are the variables the server fills itself, such as a
+	// user_id taken from the caller's token. They are left out of the
+	// request, because a caller does not send them.
+	ServerVars []string
 
 	// Logger, when set, is told about every operation that could not be
 	// described. An operation that cannot be described is left out of the
@@ -88,7 +94,7 @@ func Generate(inputs core.OpenAPIInputs, cfg Config) (*Document, error) {
 	generateComponents(doc.Components, inputs)
 
 	for _, item := range inputs.Queries {
-		pathItem, ok := generatePathItem(qcc, item, cfg.Logger, inputs)
+		pathItem, ok := generatePathItem(qcc, item, cfg, inputs)
 		if !ok {
 			continue
 		}
@@ -271,9 +277,10 @@ type queryAnalysis struct {
 // needs the value of that variable to know its columns, and a description has
 // no value to give. Compiling for shape keeps the operation in the
 // specification instead of dropping it.
-func analyzeQuery(qcc langadapter.Language, item allow.Item, logger Logger,
+func analyzeQuery(qcc langadapter.Language, item allow.Item, cfg Config,
 	inputs core.OpenAPIInputs,
 ) (*queryAnalysis, bool) {
+	logger := cfg.Logger
 	qc, err := qcc.Compile(item.Query, nil, langadapter.CompileOptions{
 		Namespace: item.Namespace,
 		ShapeOnly: true,
@@ -289,8 +296,12 @@ func analyzeQuery(qcc langadapter.Language, item allow.Item, logger Logger,
 	if pd, ok := qcc.(langadapter.ParameterDescriber); ok {
 		listed, perr := pd.QueryParameters(item.Query)
 		if perr == nil {
-			ps = listed
-			params = parametersFrom(ps)
+			for _, p := range listed {
+				if !slices.Contains(cfg.ServerVars, p.Name) {
+					ps = append(ps, p)
+				}
+			}
+			params = parametersFrom(ps, inputs)
 		}
 	}
 	a := &queryAnalysis{
@@ -310,6 +321,7 @@ func analyzeQuery(qcc langadapter.Language, item allow.Item, logger Logger,
 				continue
 			}
 			a.payloadSchema = payloadSchema(ps[i].Type, a.payloadComponent)
+			a.payloadSchema.Nullable = !ps[i].Required
 		}
 		for i := range a.parameters {
 			if a.parameters[i].Name == a.payloadVar {
@@ -333,53 +345,66 @@ func payloadSchema(varType, component string) Schema {
 // parametersFrom maps seam-level parameter metadata onto OpenAPI
 // parameters. Variable declarations use the frontend's own syntax; the
 // type label arrives already normalized by the language.
-func parametersFrom(ps []langadapter.Parameter) []Parameter {
+func parametersFrom(ps []langadapter.Parameter, inputs core.OpenAPIInputs) []Parameter {
 	var params []Parameter
 	for _, p := range ps {
 		typeName := p.Type
 		if typeName == "" {
 			typeName = "String"
 		}
+		s := graphQLTypeToSchema(typeName, inputs)
+		// A variable that is not required may be sent as null.
+		s.Nullable = !p.Required
 		params = append(params, Parameter{
 			Name:        p.Name,
 			In:          "query",
 			Description: fmt.Sprintf("Variable: %s", p.Name),
 			Required:    p.Required,
-			Schema:      graphQLTypeToSchema(typeName),
+			Schema:      s,
 		})
 	}
 	return params
 }
 
-// graphQLTypeToSchema maps a GraphQL scalar type to an OpenAPI schema.
-func graphQLTypeToSchema(graphQLType string) Schema {
-	gqlType, isList := schema.ColumnScalarType(graphQLType)
+// graphQLTypeToSchema maps the declared GraphQL type of a variable to an
+// OpenAPI schema: a scalar, an input object of a table, or a list of either.
+//
+// The type is a GraphQL type and not a column type, so it is read as one:
+// reading Int as a column type made every variable a string.
+func graphQLTypeToSchema(graphQLType string, inputs core.OpenAPIInputs) Schema {
+	t := strings.TrimSuffix(strings.TrimSpace(graphQLType), "!")
+	if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
+		inner := strings.TrimSpace(t[1 : len(t)-1])
+		items := graphQLTypeToSchema(inner, inputs)
+		items.Nullable = !strings.HasSuffix(inner, "!")
+		return Schema{Type: "array", Items: &items}
+	}
 
-	baseType, format := "string", ""
-	description := ""
-	switch gqlType {
+	switch t {
 	case "String":
-		baseType = "string"
+		return Schema{Type: "string"}
 	case "ID":
-		baseType = "string"
-		description = "Unique identifier"
+		return Schema{Type: "string", Description: "Unique identifier"}
+	case "UUID":
+		return Schema{Type: "string", Format: "uuid"}
+	case "Time", "DateTime", "Timestamp":
+		return Schema{Type: "string", Format: "date-time"}
+	case "Date":
+		return Schema{Type: "string", Format: "date"}
 	case "Int":
-		baseType, format = "integer", "int32"
+		return Schema{Type: "integer", Format: "int32"}
 	case "Float":
-		baseType, format = "number", "float"
+		return Schema{Type: "number", Format: "float"}
 	case "Boolean":
-		baseType = "boolean"
+		return Schema{Type: "boolean"}
 	case "JSON":
-		return Schema{Type: "object", AdditionalProperties: true}
-	default:
-		description = fmt.Sprintf("Custom type: %s", gqlType)
+		// Any JSON value: an object, a list, a string, a number or a bool.
+		return Schema{Description: "Any JSON value"}
 	}
-
-	if isList {
-		inner := Schema{Type: baseType, Format: format}
-		return Schema{Type: "array", Items: &inner, Description: description}
+	if table, ok := strings.CutSuffix(t, "Input"); ok {
+		return Schema{Ref: "#/components/schemas/" + componentName(table, inputs) + "Input"}
 	}
-	return Schema{Type: baseType, Format: format, Description: description}
+	return Schema{Type: "string", Description: fmt.Sprintf("Custom type: %s", t)}
 }
 
 // responseSchemaFromQCode builds the response schema from compiled IR.
@@ -397,11 +422,15 @@ func responseSchemaFromQCode(qc *qcode.QCode) Schema {
 		}
 		ss := selectSchema(qc, sel)
 		if sel.Singular {
+			// A single row may not be found.
+			ss.Nullable = true
 			data.Properties[sel.FieldName] = ss
 		} else {
 			data.Properties[sel.FieldName] = Schema{Type: "array", Items: &ss}
 		}
+		data.Required = append(data.Required, sel.FieldName)
 	}
+	sort.Strings(data.Required)
 
 	return Schema{
 		Type: "object",
@@ -423,12 +452,18 @@ func selectSchema(qc *qcode.QCode, sel *qcode.Select) Schema {
 			// The engine's own tracking columns are not part of the answer.
 			continue
 		}
+		// Every field the operation selects is in the answer. A column
+		// that may be null says so.
+		obj.Required = append(obj.Required, name)
 		switch f.Type {
 		case qcode.FieldTypeCol:
-			obj.Properties[name] = columnToSchema(f.Col)
+			cs := columnToSchema(f.Col)
+			cs.Nullable = !f.Col.NotNull && !f.Col.PrimaryKey
+			obj.Properties[name] = cs
+		case qcode.FieldTypeFunc:
+			obj.Properties[name] = funcSchema(f.Func)
 		default:
-			obj.Properties[name] = Schema{Type: "object", AdditionalProperties: true,
-				Description: "Computed value"}
+			obj.Properties[name] = Schema{Description: "Computed value"}
 		}
 	}
 
@@ -439,13 +474,45 @@ func selectSchema(qc *qcode.QCode, sel *qcode.Select) Schema {
 		}
 		cs := selectSchema(qc, child)
 		if child.Singular {
+			// A related row is there when the foreign key that points to
+			// it cannot be null.
+			cs.Nullable = !relationRequired(sel, child)
 			obj.Properties[child.FieldName] = cs
 		} else {
+			// A list is always there, and empty when nothing is related.
 			obj.Properties[child.FieldName] = Schema{Type: "array", Items: &cs}
 		}
+		obj.Required = append(obj.Required, child.FieldName)
 	}
 
+	sort.Strings(obj.Required)
 	return obj
+}
+
+// relationRequired reports whether the selection always has the related row:
+// when the selection holds the foreign key to it and the key is not null.
+func relationRequired(parent, child *qcode.Select) bool {
+	for _, c := range []sdata.DBColumn{child.Rel.Left.Col, child.Rel.Right.Col} {
+		if c.Table == parent.Ti.Name && c.FKeyTable != "" && c.NotNull {
+			return true
+		}
+	}
+	return false
+}
+
+// funcSchema types the value of a function field, such as an aggregate. A
+// count is a whole number; other functions are typed from what they return.
+func funcSchema(fn sdata.DBFunction) Schema {
+	if fn.Name == "count" {
+		return Schema{Type: "integer", Format: "int64"}
+	}
+	switch gqlType, _ := schema.ColumnScalarType(fn.Type); gqlType {
+	case "Int":
+		return Schema{Type: "integer", Format: "int64", Nullable: true}
+	case "Float":
+		return Schema{Type: "number", Nullable: true}
+	}
+	return Schema{Description: "Computed value", Nullable: true}
 }
 
 // httpMethodsFor determines appropriate HTTP methods for the operation.
@@ -473,10 +540,10 @@ func httpMethodsFor(opType, subType qcode.QType) []string {
 
 // generatePathItem creates the OpenAPI path item for a saved query. The
 // second return value is false when the query could not be analyzed.
-func generatePathItem(qcc langadapter.Language, item allow.Item, logger Logger,
+func generatePathItem(qcc langadapter.Language, item allow.Item, cfg Config,
 	inputs core.OpenAPIInputs,
 ) (PathItem, bool) {
-	a, ok := analyzeQuery(qcc, item, logger, inputs)
+	a, ok := analyzeQuery(qcc, item, cfg, inputs)
 	if !ok {
 		return PathItem{}, false
 	}
@@ -519,7 +586,11 @@ func generatePathItem(qcc langadapter.Language, item allow.Item, logger Logger,
 			}
 			for _, param := range a.parameters {
 				varsSchema.Properties[param.Name] = param.Schema
+				if param.Required {
+					varsSchema.Required = append(varsSchema.Required, param.Name)
+				}
 			}
+			sort.Strings(varsSchema.Required)
 			operation.RequestBody = &RequestBody{
 				Description: "GraphQL variables as JSON object",
 				Content: map[string]MediaType{
@@ -549,37 +620,39 @@ func columnToSchema(col sdata.DBColumn) Schema {
 	description := col.Comment
 
 	if col.PrimaryKey {
-		format = "uuid"
 		description = "Primary key"
-	} else {
-		gqlType, _ := schema.ColumnScalarType(col.Type)
-		sqlType := strings.ToLower(col.Type)
+	}
+	gqlType, _ := schema.ColumnScalarType(col.Type)
+	sqlType := strings.ToLower(col.Type)
 
-		switch gqlType {
-		case "String":
-			baseType = "string"
-			switch {
-			case strings.Contains(sqlType, "timestamp") || strings.Contains(sqlType, "date"):
-				format = "date-time"
-			case strings.Contains(sqlType, "time"):
-				format = "time"
-			case strings.Contains(sqlType, "uuid"):
-				format = "uuid"
-			}
-		case "Int":
-			baseType = "integer"
-			if strings.Contains(sqlType, "big") {
-				format = "int64"
-			} else {
-				format = "int32"
-			}
-		case "Float":
-			baseType, format = "number", "float"
-		case "Boolean":
-			baseType = "boolean"
-		case "JSON":
-			return Schema{Type: "object", AdditionalProperties: true, Description: description}
-		default:
+	switch gqlType {
+	case "String":
+		baseType = "string"
+		switch {
+		case strings.Contains(sqlType, "timestamp") || strings.Contains(sqlType, "date"):
+			format = "date-time"
+		case strings.Contains(sqlType, "time"):
+			format = "time"
+		case strings.Contains(sqlType, "uuid"):
+			format = "uuid"
+		}
+	case "Int":
+		baseType = "integer"
+		if strings.Contains(sqlType, "big") {
+			format = "int64"
+		} else {
+			format = "int32"
+		}
+	case "Float":
+		baseType, format = "number", "float"
+	case "Boolean":
+		baseType = "boolean"
+	case "JSON":
+		// A json column holds any JSON value, a list as much as an
+		// object.
+		return Schema{Description: description}
+	default:
+		if description == "" {
 			description = fmt.Sprintf("Unknown SQL type: %s", col.Type)
 		}
 	}

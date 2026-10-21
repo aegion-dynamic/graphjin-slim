@@ -80,6 +80,7 @@ type MediaType struct {
 type Schema struct {
 	Type                 string            `json:"type,omitempty"`
 	Format               string            `json:"format,omitempty"`
+	Nullable             bool              `json:"nullable,omitempty"`
 	Properties           map[string]Schema `json:"properties,omitempty"`
 	Items                *Schema           `json:"items,omitempty"`
 	Required             []string          `json:"required,omitempty"`

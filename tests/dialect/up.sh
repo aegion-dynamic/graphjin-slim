@@ -87,6 +87,6 @@ log "running the dialect corpus"
 cd "${ROOT}"
 GJ_TEST_PG="$DSN" go run ./tests/dialect/executor -dir tests/dialect
 
-# 6. discovery-cache regression tests (need the seeded postgres above)
-log "running discovery-cache pg regression tests"
-GJ_TEST_PG="$DSN" go test ./tests/ -run 'TestPgEnumDiscoveryCacheRoundTrip'
+# 6. pg regression tests (need the seeded postgres above)
+log "running pg regression tests"
+GJ_TEST_PG="$DSN" go test ./tests/ -run 'TestPgEnumDiscoveryCacheRoundTrip|TestPgNestedListVarsBoundPerRequest'

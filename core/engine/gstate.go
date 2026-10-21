@@ -48,6 +48,10 @@ type gstate struct {
 	skipCache      bool      // True if caching should be skipped for this query
 	fragmentHits   atomic.Int64
 	fragmentMisses atomic.Int64
+
+	// perRequest compiles with the request's own variables, for a
+	// statement whose shape depends on them (qcode.QCode.PerRequest).
+	perRequest bool
 }
 
 type cstate struct {
@@ -203,6 +207,14 @@ func (s *gstate) compileQueryOnce() (err error) {
 	})
 
 	err = cs.err
+	if err == nil && cs.st.qc != nil && cs.st.qc.PerRequest {
+		// The statement's shape came from another request's variables, so
+		// it is not this request's and is not kept for the next one.
+		s.gj.queries.CompareAndDelete(s.key(), cs)
+		s.cs = nil
+		s.perRequest = true
+		err = s.compileQuery()
+	}
 	return
 }
 
@@ -210,7 +222,7 @@ func (s *gstate) compileQuery() (err error) {
 	st := stmt{}
 
 	var vars map[string]json.RawMessage
-	if len(s.r.aschema) != 0 { // compile in prod (once)
+	if len(s.r.aschema) != 0 && !s.perRequest { // compile in prod (once)
 		vars = s.r.aschema
 	} else { // compiling in dev
 		vars = s.vmap

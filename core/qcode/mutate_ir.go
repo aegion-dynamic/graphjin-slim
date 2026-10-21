@@ -55,6 +55,13 @@ type Mutate struct {
 	IsJSON bool
 	Array  bool
 
+	// Var is the variable that holds this mutation's payload, when the
+	// payload is a variable of its own and not part of the operation's
+	// payload: a nested list bound to a variable, or a root of a mutation
+	// with several roots. Its value is bound per request like any other
+	// variable, and Path is relative to it.
+	Var string
+
 	// ColVals maps column names to their payload values in neutral
 	// form. Populated by frontends; backends bind arguments from it.
 	ColVals map[string]ColVal

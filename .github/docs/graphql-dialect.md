@@ -577,6 +577,13 @@ mutation ($slug: String!, $regs: [registrationsInput!]!) {
 }
 ```
 
+The rows are read from the variable and bound per request, never compiled
+into the statement. The columns are the keys the elements of the list
+have, so a statement with a list bound to a variable is compiled for each
+request. One insert may hold several lists, empty or not. The payload of
+one root among the several roots of a mutation is read from its variable
+the same way.
+
 A bulk insert with an empty list inserts nothing and returns an empty
 list.
 

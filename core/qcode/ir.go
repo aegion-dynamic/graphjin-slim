@@ -76,6 +76,11 @@ type QCode struct {
 	// InsertConflictFallback is set by the SQL compiler when the selected
 	// backend needs the retryable select-after-insert fallback.
 	InsertConflictFallback bool
+	// PerRequest is set when the statement's shape comes from the values
+	// of the request's variables: the columns of a payload that is a
+	// variable of its own (see Mutate.Var). Such a statement is compiled
+	// for every request with that request's variables and never reused.
+	PerRequest bool
 }
 
 type Fragment struct {

@@ -813,7 +813,13 @@ func (d *PostgresDialect) RenderMutationInput(ctx Context, qc *qcode.QCode) {
 	ctx.WriteString(`WITH `)
 	ctx.Quote("_sg_input")
 	ctx.WriteString(` AS (SELECT `)
-	ctx.AddParam(Param{Name: qc.ActionVar, Type: "json"})
+	if qc.ActionVar == "" {
+		// The operation's payload is inline and only a nested payload is a
+		// variable, which is read from its own parameter.
+		ctx.WriteString(`NULL`)
+	} else {
+		ctx.AddParam(Param{Name: qc.ActionVar, Type: "json"})
+	}
 	ctx.WriteString(` :: json AS j)`)
 }
 

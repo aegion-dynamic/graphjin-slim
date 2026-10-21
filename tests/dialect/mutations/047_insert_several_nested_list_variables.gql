@@ -1,0 +1,28 @@
+# Several nested lists bound to variables, one of them empty. Each list is
+# read from its own variable, so the rows are bound per request and never
+# compiled into the statement.
+#
+# vars: {"slug": "probe-several-list-vars", "regs": [{"name": "Probe Var", "email": "var@example.org"}], "ff": []}
+# expect: "registrations": [{"name": "Probe Var"}]
+mutation ($slug: String!, $regs: [registrationsInput!]!, $ff: [form_fieldsInput!]!) {
+  events(
+    insert: {
+      slug: $slug
+      title: "Probe several list variables"
+      host_user_id: "11111111-1111-1111-1111-000000000001"
+      status: "draft"
+      format: "in_person"
+      participation_type: "open"
+      registrations: $regs
+      form_fields: $ff
+    }
+  ) {
+    slug
+    registrations {
+      name
+    }
+    form_fields {
+      label
+    }
+  }
+}

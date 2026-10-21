@@ -268,6 +268,10 @@ func (co *Compiler) compileMutation(scr *mutState, qc *qcode.QCode,
 		}
 		mi.IsJSON = mi.md.IsJSON
 		mi.Array = mi.md.Array
+		mi.Var = mi.md.Var
+		if mi.Var != "" {
+			qc.PerRequest = true
+		}
 		mi.ColVals = co.colValsFromNode(mi.Ti, mi.md.Data)
 		qc.Mutates = append(qc.Mutates, mi.Mutate)
 	}
@@ -434,6 +438,9 @@ type mData struct {
 	Data   *graph.Node
 	IsJSON bool
 	Array  bool
+	// Var is the variable the payload is read from, when it is not the
+	// operation's payload variable. See qcode.Mutate.Var.
+	Var string
 }
 
 func parseDataValue(qc *qcode.QCode, actionVal *graph.Node, isJSON bool) (mData, error) {
@@ -528,10 +535,12 @@ func (co *Compiler) parseMutationDataFromArg(scr *mutState, qc *qcode.QCode, key
 		if err != nil {
 			return md, err
 		}
-		// For multi-root mutations, each root must use its own inline data
-		// rather than the shared _sg_input CTE which only binds one ActionVar.
-		if !multiRoot {
-			md.IsJSON = true
+		md.IsJSON = true
+		// A mutation with several roots has a payload variable per root, so
+		// each root reads its own. The values are bound, never inlined: the
+		// statement is compiled once and reused for every request.
+		if multiRoot {
+			md.Var = av.Val
 		}
 
 	default:
@@ -719,6 +728,9 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 		if md, err = parseDataValue(ms.qc, v, m.md.IsJSON); err != nil {
 			return nil, err
 		}
+		md.Var = m.md.Var
+		// A full slice expression, so siblings never share a backing array.
+		path := append(m.Path[:len(m.Path):len(m.Path)], co.ParseName(v.Name))
 
 		if md.Data.Type == graph.NodeVar {
 			// A payload key bound to a variable: the value says what the key
@@ -728,8 +740,13 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 			if !ok {
 				continue
 			}
+			// The value only gives the payload its shape. The rows are read
+			// from the variable itself, so every request writes its own:
+			// the statement is compiled once and reused.
+			md.Var = md.Data.Val
 			md.Data = resolved
-			md.IsJSON = false
+			md.IsJSON = true
+			path = nil
 		}
 
 		if md.Data.Type != graph.NodeObj && md.Data.Type != graph.NodeList {
@@ -844,7 +861,7 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 			ParentID: m.ID,
 			Type:     ty,
 			Key:      k,
-			Path:     append(m.Path, k),
+			Path:     path,
 			Rel:      rel,
 			Ti:       ti,
 		}, md: md}
@@ -941,7 +958,7 @@ func (co *Compiler) processList(m mutItem) []mutItem {
 			m.md.Data = co.emptyPayloadNode(m.Ti)
 			return []mutItem{m}
 		}
-		m.md.Data = m.md.Data.Children[0]
+		m.md.Data = unionOfElements(m.md.Data)
 		return []mutItem{m}
 	}
 
@@ -961,6 +978,23 @@ func (co *Compiler) processList(m mutItem) []mutItem {
 		mList = append(mList, m1)
 	}
 	return mList
+}
+
+// unionOfElements is the payload of a list of rows as one row: every key that
+// any element has, so the recordset reads a value an element leaves out as
+// null and never drops one that only a later element has.
+func unionOfElements(list *graph.Node) *graph.Node {
+	n := &graph.Node{Type: graph.NodeObj, CMap: map[string]*graph.Node{}}
+	for _, el := range list.Children {
+		for _, c := range el.Children {
+			if _, ok := n.CMap[c.Name]; ok {
+				continue
+			}
+			n.CMap[c.Name] = c
+			n.Children = append(n.Children, c)
+		}
+	}
+	return n
 }
 
 // emptyPayloadNode builds the payload of a bulk insert that has no rows.

@@ -22,7 +22,7 @@ func (co *Compiler) compileMutation(
 		md:       md,
 		w:        w,
 		qc:       qc,
-		isJSON:   qc.Mutates[0].IsJSON,
+		isJSON:   anyJSONMutate(qc),
 		Compiler: co,
 	}
 	if qc.InsertConflictAction == qcode.ConflictGet {
@@ -1099,16 +1099,36 @@ func (c *compilerContext) renderInsertWhere(m qcode.Mutate) {
 
 func (c *compilerContext) renderMutateToRecordSet(m qcode.Mutate, n int) {
 	c.dialect.RenderMutateToRecordSet(c, &m, n, func() {
-		if c.dialect.SupportsLinearExecution() {
+		switch {
+		case c.dialect.SupportsLinearExecution():
 			if m.IsJSON { // should be true here anyway
+				name := c.qc.ActionVar
+				if m.Var != "" {
+					name = m.Var
+				}
 				// MySQL/MariaDB need JSON wrapped in array for JSON_TABLE '$[*]' path
 				wrapInArray := c.dialect.Name() == "mysql" || c.dialect.Name() == "mariadb"
-				c.renderParam(Param{Name: c.qc.ActionVar, Type: "json", WrapInArray: wrapInArray})
+				c.renderParam(Param{Name: name, Type: "json", WrapInArray: wrapInArray})
 			}
-		} else {
+		case m.Var != "":
+			// The payload is a variable of its own, so it is read from its
+			// own parameter and not from the operation's payload.
+			c.renderParam(Param{Name: m.Var, Type: "json"})
+		default:
 			c.w.WriteString("i.j")
 		}
 	})
+}
+
+// anyJSONMutate reports whether a mutation reads a payload from a variable,
+// which is when the payload input is rendered.
+func anyJSONMutate(qc *qcode.QCode) bool {
+	for _, m := range qc.Mutates {
+		if m.IsJSON {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *compilerContext) renderReturning(m qcode.Mutate) {

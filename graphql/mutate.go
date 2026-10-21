@@ -869,6 +869,12 @@ func (co *Compiler) processNestedMutations(ms *mState, m *mutItem, data *graph.N
 
 		if md.Data.Type == graph.NodeList {
 			ml = co.processList(mi)
+			// Every element of an inline list is its own mutation with an id
+			// of its own, so the next sibling starts after all of them.
+			// Sharing an id would give two mutations the same name.
+			if len(ml) > 1 {
+				ms.id += int32(len(ml) - 1)
+			}
 		} else {
 			// A single nested object must produce its mutate too; leaving
 			// ml nil here silently dropped the child row entirely.

@@ -667,6 +667,43 @@ table "event_cohosts" {
   }
 }
 
+# A child of events whose primary key is its two foreign keys, so a nested
+# list insert has a child with a composite key next to children keyed by id.
+table "event_term_links" {
+  schema = schema.application
+
+  column "event_id" {
+    null = false
+    type = uuid
+  }
+  column "term_id" {
+    null = false
+    type = uuid
+  }
+  column "note" {
+    null = true
+    type = text
+  }
+
+  primary_key {
+    columns = [column.event_id, column.term_id]
+  }
+
+  foreign_key "event_term_links_event_id_fkey" {
+    columns     = [column.event_id]
+    ref_columns = [table.events.column.id]
+    on_update   = NO_ACTION
+    on_delete   = CASCADE
+  }
+
+  foreign_key "event_term_links_term_id_fkey" {
+    columns     = [column.term_id]
+    ref_columns = [table.taxonomy_terms.column.id]
+    on_update   = NO_ACTION
+    on_delete   = NO_ACTION
+  }
+}
+
 # ── Dynamic Registration Form Fields ─────────────────────────────────────────
 # EAV-style field definitions backing the drag-and-drop form builder. Option lists
 # for choice fields are stored as a JSON array on `options`.

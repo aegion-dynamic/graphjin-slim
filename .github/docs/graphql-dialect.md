@@ -723,7 +723,8 @@ mutation {
 ```
 
 Each root reads back the rows it wrote. Two roots that write the same
-table do not share a result set, so each one returns its own rows.
+table do not share a result set, so each one returns its own rows. This
+holds for several `delete` roots as well.
 
 ### 6.6 Known-broken mutation shapes
 

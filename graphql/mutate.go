@@ -118,6 +118,9 @@ func (co *Compiler) compileMutation(scr *mutState, qc *qcode.QCode,
 		if mi.Type == qcode.MTDelete {
 			mi.render = true
 			st.Push(mi)
+			// Each root is its own mutation. Sharing an id would give two
+			// deletes the same result set.
+			nextID++
 			continue
 		}
 

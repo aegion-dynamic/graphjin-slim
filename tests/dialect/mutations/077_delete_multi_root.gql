@@ -1,0 +1,17 @@
+# Two delete roots in one mutation, each with a result set of its own.
+#
+# Before the fix both roots had the same id, so the second root's rows were
+# also named after the first root's table:
+#
+#     ERROR: WITH query name "form_fields" specified more than once
+#
+# vars: {"id": "44444444-4444-4444-4444-000000000003"}
+# expect: "registrations": [{"event_id": "44444444-4444-4444-4444-000000000003"}, {"event_id": "44444444-4444-4444-4444-000000000003"}]
+mutation ($id: UUID!) {
+  form_fields(delete: true, where: { event_id: { eq: $id } }) {
+    event_id
+  }
+  registrations(delete: true, where: { event_id: { eq: $id } }) {
+    event_id
+  }
+}

@@ -42,23 +42,31 @@ type compilerContext struct {
 type Variables map[string]json.RawMessage
 
 type Config struct {
-	Vars            map[string]string
-	DBType          string
-	DBVersion       int
-	SecPrefix       []byte
-	EnableCamelcase bool
+	Vars                   map[string]string
+	DBType                 string
+	DBVersion              int
+	SecPrefix              []byte
+	EnableCamelcase        bool
+	CaptureMutationChanges bool
 }
 
 type Compiler struct {
-	svars           map[string]string
-	dialect         dialect.Dialect
-	cv              int    // db version
-	pf              []byte // security prefix
-	enableCamelcase bool
+	svars                  map[string]string
+	dialect                dialect.Dialect
+	cv                     int    // db version
+	pf                     []byte // security prefix
+	enableCamelcase        bool
+	captureMutationChanges bool
 }
 
 func (c *Compiler) GetDialect() dialect.Dialect {
 	return c.dialect
+}
+
+// CapturesMutationChanges reports whether compiled mutations include the
+// engine's old/new row envelope.
+func (c *Compiler) CapturesMutationChanges() bool {
+	return c != nil && c.captureMutationChanges
 }
 
 // SetSchemaInfo passes table metadata to the dialect for identifier mapping.
@@ -82,11 +90,12 @@ func NewCompiler(conf Config) *Compiler {
 	}
 
 	return &Compiler{
-		svars:           conf.Vars,
-		dialect:         d,
-		cv:              conf.DBVersion,
-		pf:              conf.SecPrefix,
-		enableCamelcase: conf.EnableCamelcase,
+		svars:                  conf.Vars,
+		dialect:                d,
+		cv:                     conf.DBVersion,
+		pf:                     conf.SecPrefix,
+		enableCamelcase:        conf.EnableCamelcase,
+		captureMutationChanges: conf.CaptureMutationChanges,
 	}
 }
 
@@ -207,6 +216,20 @@ func (co *Compiler) CompileQuery(
 	if qc.Typename {
 		c.dialect.RenderJSONRootField(c, "__typename", func() {
 			c.squoted(qc.Name)
+		})
+		i++
+	}
+
+	if qc.Type == qcode.QTMutation && c.Compiler.captureMutationChanges && c.dialect.Name() == "postgres" {
+		if i != 0 {
+			c.w.WriteString(`, `)
+		}
+		c.dialect.RenderJSONRootField(c, mutationAuditField, func() {
+			c.w.WriteString(`(SELECT `)
+			c.quoted("data")
+			c.w.WriteString(` FROM `)
+			c.quoted(mutationAuditField)
+			c.w.WriteString(`)`)
 		})
 		i++
 	}

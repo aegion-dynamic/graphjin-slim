@@ -85,7 +85,7 @@ func (c *compilerContext) renderUpdateStmt(m qcode.Mutate, embedded bool) {
 		})
 
 		if !embedded {
-			c.dialect.RenderReturning(c, &m)
+			c.renderReturning(m)
 		}
 	})
 }

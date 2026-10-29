@@ -78,6 +78,7 @@ type graphjinEngine struct {
 	trace                      Tracer
 	allowList                  *allow.List
 	savedQuerySaveHook         SavedQuerySaveHook
+	mutationHook               MutationHook
 	encryptionKey              [32]byte
 	encryptionKeySet           bool
 	cache                      Cache
@@ -158,6 +159,32 @@ type SavedQuerySaveRequest struct {
 // saves. Returning handled=false preserves the default filesystem allow-list
 // behavior.
 type SavedQuerySaveHook func(context.Context, SavedQuerySaveRequest) (handled bool, err error)
+
+// Change is one row written by a mutation. It is deliberately neutral: the
+// engine captures it but does not know what the embedding service will do with
+// it.
+type Change struct {
+	Schema   string          `json:"schema"`
+	Table    string          `json:"table"`
+	Action   string          `json:"action"` // INSERT, UPDATE, DELETE
+	RecordID *string         `json:"record_id"`
+	Old      json.RawMessage `json:"old"` // full pre-image, nil for INSERT
+	New      json.RawMessage `json:"new"` // full post-image, nil for DELETE
+}
+
+// MutationEvent is the set of row changes produced by one mutation against one
+// database.
+type MutationEvent struct {
+	Name     string
+	Database string
+	Vars     json.RawMessage
+	Changes  []Change
+}
+
+// MutationHook is called inside the mutation transaction after the DML has run
+// and before the transaction is committed. Returning an error rolls the
+// mutation back when the engine owns the transaction.
+type MutationHook func(ctx context.Context, tx *sql.Tx, ev MutationEvent) error
 
 // OnSchemaChange registers a callback that fires when the database schema changes.
 // The callback receives the database name and a hex-encoded hash of the schema.
@@ -411,6 +438,16 @@ func OptionSetFS(fs FS) Option {
 func OptionSetSavedQuerySaveHook(h SavedQuerySaveHook) Option {
 	return func(s *graphjinEngine) error {
 		s.savedQuerySaveHook = h
+		return nil
+	}
+}
+
+// OptionSetMutationHook installs a hook that receives the transaction and the
+// row changes for every mutation. The hook is only invoked for PostgreSQL,
+// which is the dialect that provides old/new row images.
+func OptionSetMutationHook(h MutationHook) Option {
+	return func(s *graphjinEngine) error {
+		s.mutationHook = h
 		return nil
 	}
 }

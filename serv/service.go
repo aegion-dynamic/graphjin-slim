@@ -477,6 +477,15 @@ func OptionDisableQueryLearning() Option {
 	}
 }
 
+// OptionSetMutationHook installs a hook that receives the open mutation
+// transaction and the row changes captured by the engine.
+func OptionSetMutationHook(h core.MutationHook) Option {
+	return func(s *graphjinService) error {
+		s.coreOptions = append(s.coreOptions, core.OptionSetMutationHook(h))
+		return nil
+	}
+}
+
 // OptionSetZapLogger sets service structured logger
 func OptionSetZapLogger(zlog *zap.Logger) Option {
 	return func(s *graphjinService) error {

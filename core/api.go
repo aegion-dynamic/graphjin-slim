@@ -35,6 +35,9 @@ type (
 	SavedQuerySaveHook    = engine.SavedQuerySaveHook
 	SavedQuerySaveRequest = engine.SavedQuerySaveRequest
 	SavedQueryFragment    = engine.SavedQueryFragment
+	MutationHook          = engine.MutationHook
+	MutationEvent         = engine.MutationEvent
+	Change                = engine.Change
 	SchemaCallbacks       = engine.SchemaCallbacks
 	Lifecycle             = engine.Lifecycle
 	Member                = engine.Member
@@ -62,6 +65,7 @@ var (
 	OptionSetFS                         = engine.OptionSetFS
 	OptionSetDatabases                  = engine.OptionSetDatabases
 	OptionSetSavedQuerySaveHook         = engine.OptionSetSavedQuerySaveHook
+	OptionSetMutationHook               = engine.OptionSetMutationHook
 	OptionSetRuntimeSchemaDDLDir        = engine.OptionSetRuntimeSchemaDDLDir
 	OptionSetRuntimeSchemaCacheFirst    = engine.OptionSetRuntimeSchemaCacheFirst
 	OptionSetRuntimeSchemaCacheRequired = engine.OptionSetRuntimeSchemaCacheRequired

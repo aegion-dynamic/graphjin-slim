@@ -40,18 +40,19 @@ func (c *compilerContext) renderInsertStmt(m qcode.Mutate, embedded bool) {
 	}
 
 	c.dialect.RenderMutationCTE(c, &m, func() {
-
-		c.dialect.RenderInsert(c, &m, func() {
-			n := c.renderInsertUpdateColumns(m)
-			c.renderNestedRelColumns(m, false, false, n)
-		})
-
-		c.renderValues(m, false)
-
+		c.renderInsertBody(m)
 		if !embedded {
-			c.dialect.RenderReturning(c, &m)
+			c.renderReturning(m)
 		}
 	})
+}
+
+func (c *compilerContext) renderInsertBody(m qcode.Mutate) {
+	c.dialect.RenderInsert(c, &m, func() {
+		n := c.renderInsertUpdateColumns(m)
+		c.renderNestedRelColumns(m, false, false, n)
+	})
+	c.renderValues(m, false)
 }
 
 func (c *compilerContext) renderInsertConflictGet(m qcode.Mutate) {
@@ -68,7 +69,7 @@ func (c *compilerContext) renderInsertConflictGet(m qcode.Mutate) {
 		})
 		c.renderValues(m, false)
 		renderer.RenderInsertConflictGetClause(c, &m)
-		c.dialect.RenderReturning(c, &m)
+		c.renderReturning(m)
 	}
 
 	if renderer.InsertConflictGetMode() == dialect.InsertConflictGetNative {
@@ -90,7 +91,14 @@ func (c *compilerContext) renderInsertConflictGet(m qcode.Mutate) {
 	c.renderCteName(m)
 	c.w.WriteString(` AS (SELECT * FROM `)
 	c.quoted(inserted)
-	c.w.WriteString(` UNION ALL SELECT * FROM `)
+	c.w.WriteString(` UNION ALL SELECT *`)
+	if c.captureMutationChanges && c.dialect.Name() == "postgres" {
+		c.w.WriteString(`, NULL::jsonb AS `)
+		c.quoted(mutationAuditOld)
+		c.w.WriteString(`, NULL::jsonb AS `)
+		c.quoted(mutationAuditNew)
+	}
+	c.w.WriteString(` FROM `)
 	c.colWithTable(m.Ti.Schema, m.Ti.Name)
 	c.w.WriteString(` AS `)
 	c.quoted("_gj_existing")

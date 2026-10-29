@@ -13,6 +13,12 @@ import (
 	"github.com/aegion-dynamic/graphjin-slim/core/v3/sdata"
 )
 
+const (
+	mutationAuditField = "__gj_audit"
+	mutationAuditOld   = "__gj_old"
+	mutationAuditNew   = "__gj_new"
+)
+
 func (co *Compiler) compileMutation(
 	w *bytes.Buffer,
 	qc *qcode.QCode,
@@ -83,6 +89,9 @@ func (co *Compiler) compileMutation(
 	}
 
 	co.dialect.RenderMutationPostamble(&c, qc)
+	if co.captureMutationChanges && co.dialect.Name() == "postgres" {
+		c.renderMutationAuditCTE()
+	}
 	c.w.WriteString(` `)
 	co.CompileQuery(w, qc, c.md)
 	return c.err
@@ -780,20 +789,42 @@ func (c *compilerContext) renderNestedRelTables(m qcode.Mutate, prefix bool, n i
 func (c *compilerContext) renderUpsert() {
 	m := c.qc.Mutates[0]
 
-	c.dialect.RenderUpsert(c, &m, func() {
-		c.renderInsert()
-	}, func() {
-		for i, col := range m.Cols {
-			if i != 0 {
-				c.w.WriteString(`, `)
-			}
-			c.dialect.RenderAssign(c, col.Col.Name, "EXCLUDED."+col.Col.Name)
+	// The upsert's own CTE has to stay open across ON CONFLICT, the
+	// conflict update, and RETURNING. Render it in its original position,
+	// then render the nested mutations that depend on it.
+	c.renderUpsertStmt(m)
+	for _, dep := range c.qc.Mutates {
+		if dep.ID == m.ID {
+			continue
 		}
-	})
+		switch dep.Type {
+		case qcode.MTInsert:
+			c.w.WriteString(`, `)
+			c.renderInsertStmt(dep, false)
+		case qcode.MTUpsert:
+			c.w.WriteString(`, `)
+			c.renderUpsertStmt(dep)
+		}
+	}
+}
 
-	c.w.WriteString(` WHERE `)
-	c.renderExp(m.Ti, c.qc.Selects[m.SelID].Where.Exp, false)
-	c.dialect.RenderReturning(c, &m)
+func (c *compilerContext) renderUpsertStmt(m qcode.Mutate) {
+	c.dialect.RenderMutationCTE(c, &m, func() {
+		c.dialect.RenderUpsert(c, &m, func() {
+			c.renderInsertBody(m)
+		}, func() {
+			for i, col := range m.Cols {
+				if i != 0 {
+					c.w.WriteString(`, `)
+				}
+				c.dialect.RenderAssign(c, col.Col.Name, "EXCLUDED."+col.Col.Name)
+			}
+		})
+
+		c.w.WriteString(` WHERE `)
+		c.renderExp(m.Ti, c.qc.Selects[m.SelID].Where.Exp, false)
+		c.renderReturning(m)
+	})
 }
 
 func (c *compilerContext) renderDelete() {
@@ -818,7 +849,7 @@ func (c *compilerContext) renderDelete() {
 		c.dialect.RenderDelete(c, &m, func() {
 			c.renderExp(sel.Ti, sel.Where.Exp, false)
 		})
-		c.dialect.RenderReturning(c, &m)
+		c.renderReturning(m)
 		c.w.WriteString(`)`)
 		deleteCount++
 	}
@@ -1133,6 +1164,112 @@ func anyJSONMutate(qc *qcode.QCode) bool {
 
 func (c *compilerContext) renderReturning(m qcode.Mutate) {
 	c.dialect.RenderReturning(c, &m)
+	if c.captureMutationChanges && c.dialect.Name() == "postgres" {
+		c.w.WriteString(`, to_jsonb(old) AS `)
+		c.quoted(mutationAuditOld)
+		c.w.WriteString(`, to_jsonb(new) AS `)
+		c.quoted(mutationAuditNew)
+	}
+}
+
+// renderMutationAuditCTE aggregates the old and new row images captured by the
+// individual mutation CTEs into one JSON array. The array is returned as a
+// reserved root field and stripped from the response by the engine.
+func (c *compilerContext) renderMutationAuditCTE() {
+	var auditable []qcode.Mutate
+	for _, m := range c.qc.Mutates {
+		switch m.Type {
+		case qcode.MTInsert, qcode.MTUpdate, qcode.MTUpsert, qcode.MTDelete:
+			auditable = append(auditable, m)
+		case qcode.MTConnect, qcode.MTDisconnect:
+			// One-to-one connect and disconnect are updates. One-to-many
+			// connect and disconnect are lookups and have no captured rows.
+			if m.Rel.Type == sdata.RelOneToOne {
+				auditable = append(auditable, m)
+			}
+		}
+	}
+	c.w.WriteString(`, `)
+	c.quoted(mutationAuditField)
+	if len(auditable) == 0 {
+		c.w.WriteString(` AS (SELECT '[]'::jsonb AS `)
+		c.quoted("data")
+		c.w.WriteString(`)`)
+		return
+	}
+
+	c.w.WriteString(` AS (SELECT COALESCE(jsonb_agg(`)
+	c.quoted("__gj_change")
+	c.w.WriteString(`), '[]'::jsonb) AS `)
+	c.quoted("data")
+	c.w.WriteString(` FROM (`)
+
+	for i, m := range auditable {
+		if i != 0 {
+			c.w.WriteString(` UNION ALL `)
+		}
+		c.w.WriteString(`SELECT jsonb_build_object('schema', `)
+		c.squoted(m.Ti.Schema)
+		c.w.WriteString(`, 'table', `)
+		c.squoted(m.Ti.Name)
+		c.w.WriteString(`, 'action', `)
+		c.renderMutationAuditAction(m)
+		c.w.WriteString(`, 'record_id', `)
+		c.renderMutationAuditRecordID(m)
+		c.w.WriteString(`, 'old', `)
+		c.quoted(mutationAuditOld)
+		c.w.WriteString(`, 'new', `)
+		c.quoted(mutationAuditNew)
+		c.w.WriteString(`) AS `)
+		c.quoted("__gj_change")
+		c.w.WriteString(` FROM `)
+		c.quoted(mutationAuditCTEName(m))
+		c.w.WriteString(` WHERE `)
+		c.quoted(mutationAuditOld)
+		c.w.WriteString(` IS NOT NULL OR `)
+		c.quoted(mutationAuditNew)
+		c.w.WriteString(` IS NOT NULL`)
+	}
+
+	c.w.WriteString(`) `)
+	c.quoted("__gj_changes")
+	c.w.WriteString(`)`)
+}
+
+func (c *compilerContext) renderMutationAuditAction(m qcode.Mutate) {
+	switch m.Type {
+	case qcode.MTInsert:
+		c.w.WriteString(`'INSERT'`)
+	case qcode.MTDelete:
+		c.w.WriteString(`'DELETE'`)
+	case qcode.MTUpsert:
+		c.w.WriteString(`CASE WHEN `)
+		c.quoted(mutationAuditOld)
+		c.w.WriteString(` IS NULL THEN 'INSERT' ELSE 'UPDATE' END`)
+	default:
+		c.w.WriteString(`'UPDATE'`)
+	}
+}
+
+func (c *compilerContext) renderMutationAuditRecordID(m qcode.Mutate) {
+	if len(m.Ti.PrimaryCols) != 1 {
+		c.w.WriteString(`NULL`)
+		return
+	}
+	c.w.WriteString(`(COALESCE(`)
+	c.quoted(mutationAuditNew)
+	c.w.WriteString(`, `)
+	c.quoted(mutationAuditOld)
+	c.w.WriteString(`)->>`)
+	c.squoted(m.Ti.PrimaryCols[0].Name)
+	c.w.WriteString(`)`)
+}
+
+func mutationAuditCTEName(m qcode.Mutate) string {
+	if m.Multi || m.Type == qcode.MTConnect || m.Type == qcode.MTDisconnect {
+		return m.Ti.Name + "_" + strconv.FormatInt(int64(m.ID), 10)
+	}
+	return m.Ti.Name
 }
 
 func (c *compilerContext) renderComma(i int) int {

@@ -52,6 +52,12 @@ type gstate struct {
 	// perRequest compiles with the request's own variables, for a
 	// statement whose shape depends on them (qcode.QCode.PerRequest).
 	perRequest bool
+
+	// auditChanges holds the row changes captured from the mutation's
+	// __gj_audit envelope until the hook has run. auditCaptured records
+	// that the envelope was present even when it contained zero changes.
+	auditChanges  []Change
+	auditCaptured bool
 }
 
 type cstate struct {
@@ -507,6 +513,21 @@ func (s *gstate) compileAndExecute(c context.Context) (err error) {
 	// set default variables
 	s.setDefaultVars()
 
+	// Mutations with a hook need a transaction so the hook can write its
+	// audit rows atomically with the data. A caller-supplied transaction is
+	// used as-is and remains owned by the caller.
+	ownTx, err := s.beginMutationTx(c)
+	if err != nil {
+		return
+	}
+	if ownTx {
+		defer func() {
+			if err != nil {
+				_ = s.tx().Rollback()
+			}
+		}()
+	}
+
 	var conn *sql.Conn
 
 	if s.tx() == nil {
@@ -545,13 +566,85 @@ func (s *gstate) compileAndExecute(c context.Context) (err error) {
 		return
 	}
 
+	if s.r.operation == qcode.QTMutation && s.gj.mutationHook != nil && !s.auditCaptured {
+		err = errors.New("mutation audit: no changes were captured for the mutation")
+		return
+	}
+
+	if err = s.runMutationHook(c); err != nil {
+		return
+	}
+
 	// Mixed-roots: SQL output has only the real-table roots; inject
 	// markers for the top-level remote roots so execRemoteJoin can
 	// resolve them.
 	if qc := s.cs.st.qc; qc != nil && qc.Remotes > 0 {
 		s.data = injectRemoteMarkers(s.data, qc)
 	}
+
+	if ownTx {
+		if err = s.tx().Commit(); err != nil {
+			return
+		}
+		if s.r.requestconfig != nil {
+			s.r.requestconfig.Tx = nil
+		}
+	}
 	return
+}
+
+// beginMutationTx starts a transaction for a mutation when a mutation hook is
+// installed and the caller did not supply one. It returns true when the engine
+// owns the transaction.
+func (s *gstate) beginMutationTx(c context.Context) (bool, error) {
+	if s.r.operation != qcode.QTMutation || s.gj.mutationHook == nil {
+		return false, nil
+	}
+	dbCtx := s.getTargetDBCtx()
+	if dbCtx == nil || dbCtx.db == nil {
+		return false, errors.New("mutation hook: target database is not available")
+	}
+	if dbCtx.dbtype != "" && dbCtx.dbtype != "postgres" {
+		return false, fmt.Errorf("mutation hook is not supported for database type %s", dbCtx.dbtype)
+	}
+	if dbCtx.sqlgenCompiler == nil || !dbCtx.sqlgenCompiler.CapturesMutationChanges() {
+		return false, errors.New("mutation hook: mutation capture is not enabled for the target database")
+	}
+	if s.tx() != nil {
+		return false, nil
+	}
+	tx, err := dbCtx.db.BeginTx(c, nil)
+	if err != nil {
+		return false, err
+	}
+	if s.r.requestconfig == nil {
+		s.r.requestconfig = &RequestConfig{}
+	}
+	s.r.requestconfig.Tx = tx
+	return true, nil
+}
+
+// runMutationHook passes the captured row changes to the host hook while the
+// transaction is still open.
+func (s *gstate) runMutationHook(c context.Context) (err error) {
+	if s.r.operation != qcode.QTMutation || s.gj.mutationHook == nil || len(s.auditChanges) == 0 {
+		return nil
+	}
+	tx := s.tx()
+	if tx == nil {
+		return errors.New("mutation hook requires a transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("mutation hook panic: %v", r)
+		}
+	}()
+	return s.gj.mutationHook(c, tx, MutationEvent{
+		Name:     s.r.name,
+		Database: s.getTargetDBCtx().name,
+		Vars:     s.r.vars,
+		Changes:  s.auditChanges,
+	})
 }
 
 func (s *gstate) sourceModeAuthorizeCompileError(err error) error {
@@ -832,6 +925,15 @@ func (s *gstate) executeSingle(c context.Context, conn *sql.Conn, args args) (er
 		}
 		if err != nil {
 			return nil, [sha256.Size]byte{}, err
+		}
+		if cs.st.qc.Type == qcode.QTMutation && s.getTargetSQLGenCompiler().CapturesMutationChanges() {
+			var changes []Change
+			raw, changes, err = extractMutationAudit(raw)
+			if err != nil {
+				return nil, [sha256.Size]byte{}, err
+			}
+			s.auditChanges = changes
+			s.auditCaptured = true
 		}
 		if cs.st.qc.InsertConflictAction == qcode.ConflictGet && insertConflictGetResultEmpty(raw, cs.st.qc) {
 			if cs.st.qc.InsertConflictFallback {

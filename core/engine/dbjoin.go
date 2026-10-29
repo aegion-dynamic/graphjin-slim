@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -279,6 +280,9 @@ func (s *gstate) executeParallelRoots(c context.Context) error {
 	if !s.multiDB || len(s.dbGroups) == 0 {
 		return fmt.Errorf("executeParallelRoots called without multi-DB configuration")
 	}
+	if s.r.operation == qcode.QTMutation && s.tx() != nil {
+		return errors.New("multi-database mutations cannot use a caller-supplied transaction")
+	}
 
 	var wg sync.WaitGroup
 	results := make([]dbjoin.DBResult, len(s.dbGroups))
@@ -328,7 +332,7 @@ func (s *gstate) executeParallelRoots(c context.Context) error {
 	return nil
 }
 
-func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, rootFields []string) (json.RawMessage, error) {
+func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, rootFields []string) (out json.RawMessage, err error) {
 	dbCtx, ok := s.gj.GetDatabase(dbName)
 	if !ok {
 		return nil, fmt.Errorf("database not found: %s", dbName)
@@ -338,6 +342,18 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 		if dbConf, ok := s.gj.conf.Databases[dbName]; ok && dbConf.ReadOnly {
 			return nil, fmt.Errorf("mutations blocked: database %s is read-only", dbName)
 		}
+	}
+
+	ownTx, err := s.beginMutationTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if ownTx {
+		defer func() {
+			if err != nil {
+				_ = s.tx().Rollback()
+			}
+		}()
 	}
 
 	subQuery, err := dbjoin.BuildDatabaseQuery(s.r.query, rootFields)
@@ -367,11 +383,14 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 		return nil, fmt.Errorf("sql compile failed for %s: %w", dbName, err)
 	}
 
-	conn, err := dbCtx.db.Conn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get connection for %s: %w", dbName, err)
+	var conn *sql.Conn
+	if s.tx() == nil {
+		conn, err = dbCtx.db.Conn(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get connection for %s: %w", dbName, err)
+		}
+		defer conn.Close() //nolint:errcheck
 	}
-	defer conn.Close()
 
 	args, err := s.gj.argList(ctx, md, vars, s.r.requestconfig, false, dbCtx.sqlgenCompiler)
 	if err != nil {
@@ -385,12 +404,21 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 
 	cacheKey := s.dbFragmentKey(ctx, fragmentKindDBRoot, dbName, querySQL, queryArgs, qc)
 	produce := func(c context.Context, useConn *sql.Conn) ([]byte, error) {
-		raw, err := scanJSONRow(c, dbCtx.dbtype, useConn, nil, querySQL, queryArgs)
+		raw, err := scanJSONRow(c, dbCtx.dbtype, useConn, s.tx(), querySQL, queryArgs)
 		if err == sql.ErrNoRows {
 			return json.RawMessage(`{}`), nil
 		}
 		if err != nil {
 			return nil, fmt.Errorf("query execution failed for %s: %w", dbName, err)
+		}
+		if qc.Type == qcode.QTMutation && dbCtx.sqlgenCompiler.CapturesMutationChanges() {
+			var changes []Change
+			raw, changes, err = extractMutationAudit(raw)
+			if err != nil {
+				return nil, fmt.Errorf("audit capture failed for %s: %w", dbName, err)
+			}
+			s.auditChanges = changes
+			s.auditCaptured = true
 		}
 		encrypted, _, err := encryptResultFragment(raw, s.gj.printFormat, s.gj.encryptionKey)
 		if err != nil {
@@ -421,6 +449,20 @@ func (s *gstate) executeForDatabaseRoots(ctx context.Context, dbName string, roo
 	data, err := produce(ctx, conn)
 	if err != nil {
 		return nil, err
+	}
+	if ownTx {
+		if !s.auditCaptured {
+			return nil, errors.New("mutation audit: no changes were captured for the mutation")
+		}
+		if err = s.runMutationHook(ctx); err != nil {
+			return nil, err
+		}
+		if err = s.tx().Commit(); err != nil {
+			return nil, err
+		}
+		if s.r.requestconfig != nil {
+			s.r.requestconfig.Tx = nil
+		}
 	}
 	if cachedData, refs, perr := s.processDBFragmentForCache(dbName, qc, data); perr == nil {
 		s.fragmentCacheSet(ctx, cacheKey, cachedData, refs, start, CacheEntryOptions{})

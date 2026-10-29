@@ -32,7 +32,7 @@ func forceLiveDiscovery() bool {
 
 // discoverAllDatabases runs Phase 1: schema discovery for all databases.
 // This populates ctx.dbinfo for each database context.
-func (gj *graphjinEngine) discoverAllDatabases() error {	// Discover sources concurrently — each writes only its own ctx.dbinfo, so
+func (gj *graphjinEngine) discoverAllDatabases() error { // Discover sources concurrently — each writes only its own ctx.dbinfo, so
 	// there is no shared state to race on. Bounded so a config with many sources
 	// doesn't open a large number of connections at once.
 	var g errgroup.Group
@@ -353,11 +353,12 @@ func (gj *graphjinEngine) finalizeDatabaseSchema(ctx *dbContext) error {
 
 	// Create SQL compiler for this database's dialect
 	ctx.sqlgenCompiler = sqlgen.NewCompiler(sqlgen.Config{
-		Vars:            gj.conf.Vars,
-		DBType:          ctx.schema.DBType(),
-		DBVersion:       ctx.schema.DBVersion(),
-		SecPrefix:       gj.printFormat,
-		EnableCamelcase: gj.conf.EnableCamelcase,
+		Vars:                   gj.conf.Vars,
+		DBType:                 ctx.schema.DBType(),
+		DBVersion:              ctx.schema.DBVersion(),
+		SecPrefix:              gj.printFormat,
+		EnableCamelcase:        gj.conf.EnableCamelcase,
+		CaptureMutationChanges: gj.mutationHook != nil && ctx.dbtype == "postgres",
 	})
 	ctx.sqlgenCompiler.SetSchemaInfo(ctx.schema.GetTables())
 

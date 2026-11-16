@@ -143,7 +143,13 @@ func parseVarVal(v json.RawMessage) interface{} {
 		return v
 
 	case '"':
-		return string(v[1 : len(v)-1])
+		// Decode JSON escapes: slicing off the quotes left "\n" as a literal
+		// backslash and n, and doubled every backslash on each re-save.
+		var s string
+		if err := json.Unmarshal(v, &s); err != nil {
+			return string(v[1 : len(v)-1])
+		}
+		return s
 
 	case 't', 'T':
 		return true

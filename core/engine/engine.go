@@ -79,6 +79,7 @@ type graphjinEngine struct {
 	allowList                  *allow.List
 	savedQuerySaveHook         SavedQuerySaveHook
 	mutationHook               MutationHook
+	queryPolicyHook            QueryPolicyHook
 	encryptionKey              [32]byte
 	encryptionKeySet           bool
 	cache                      Cache
@@ -185,6 +186,16 @@ type MutationEvent struct {
 // and before the transaction is committed. Returning an error rolls the
 // mutation back when the engine owns the transaction.
 type MutationHook func(ctx context.Context, tx *sql.Tx, ev MutationEvent) error
+
+// QueryPolicyHook can add request-specific authorization constraints to a
+// compiled query before SQL generation. The hook receives the request context
+// and mutable query IR; it may add trusted bind values to RequestConfig.Vars.
+// Returning an error aborts the request before SQL is generated or executed.
+//
+// The hook runs for every compilation. When installed, production compiled
+// query caching is bypassed so request-specific policy changes can never leak
+// through shared cached query state.
+type QueryPolicyHook func(ctx context.Context, qc *qcode.QCode, rc *RequestConfig) error
 
 // OnSchemaChange registers a callback that fires when the database schema changes.
 // The callback receives the database name and a hex-encoded hash of the schema.
@@ -452,6 +463,17 @@ func OptionSetMutationHook(h MutationHook) Option {
 	}
 }
 
+// OptionSetQueryPolicyHook installs a request-scoped hook that can constrain
+// compiled query IR before SQL generation. The embedding application is
+// responsible for deriving policy only from trusted request context and for
+// applying the appropriate read and write rules to every relevant IR node.
+func OptionSetQueryPolicyHook(h QueryPolicyHook) Option {
+	return func(s *graphjinEngine) error {
+		s.queryPolicyHook = h
+		return nil
+	}
+}
+
 // OptionSetRuntimeSchemaDDLDir overrides where generated schema restart
 // snapshots are read from and written to. Relative and absolute paths are
 // passed through to the configured filesystem implementation unchanged.
@@ -530,6 +552,8 @@ type RequestConfig struct {
 	APQKey string
 
 	// Pass additional variables complex variables such as functions that return string values.
+	// QueryPolicyHook may add trusted policy bind values here; do not populate
+	// authorization values from untrusted input.
 	Vars map[string]interface{}
 
 	// Execute this query as part of a transaction

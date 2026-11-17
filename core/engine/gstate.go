@@ -21,9 +21,10 @@ import (
 )
 
 type gstate struct {
-	gj *graphjinEngine
-	r  GraphqlReq
-	cs *cstate
+	gj  *graphjinEngine
+	r   GraphqlReq
+	ctx context.Context
+	cs  *cstate
 	// compileFn defaults to compileQuery; tests override it to exercise
 	// the negative-cache mechanics without a registered language.
 	compileFn func() error
@@ -76,6 +77,7 @@ type stmt struct {
 func newGState(c context.Context, gj *graphjinEngine, r GraphqlReq) (s gstate, err error) {
 	s.gj = gj
 	s.r = r
+	s.ctx = c
 
 	// convert variable json to a go map also decrypted encrypted values
 	if len(r.vars) != 0 {
@@ -97,6 +99,7 @@ func (s *gstate) cloneForDatabaseRoot(dbName string) gstate {
 	return gstate{
 		gj:        s.gj,
 		r:         cloneGraphqlReq(s.r),
+		ctx:       s.ctx,
 		vmap:      cloneRawMessageMap(s.vmap),
 		database:  dbName,
 		skipCache: s.skipCache,
@@ -107,6 +110,7 @@ func (s *gstate) pollGState(vmap map[string]json.RawMessage) gstate {
 	return gstate{
 		gj:        s.gj,
 		r:         cloneGraphqlReq(s.r),
+		ctx:       s.ctx,
 		cs:        s.cs,
 		vmap:      cloneRawMessageMap(vmap),
 		database:  s.database,
@@ -162,6 +166,16 @@ func cloneBytes(in []byte) []byte {
 }
 
 func (s *gstate) compile() (err error) {
+	// A policy hook may specialize the query IR using this request's trusted
+	// context. Never store that request-specific IR in the shared production
+	// compilation cache.
+	if s.gj.queryPolicyHook != nil {
+		if s.compileFn != nil {
+			return s.compileFn()
+		}
+		return s.compileQuery()
+	}
+
 	if !s.gj.prodSec {
 		err = s.compileQuery()
 		return
@@ -292,6 +306,9 @@ func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, 
 		langadapter.CompileOptions{Namespace: s.r.namespace}); err != nil {
 		return
 	}
+	if err = s.applyQueryPolicy(st.qc); err != nil {
+		return err
+	}
 
 	var w bytes.Buffer
 	if st.md, err = dbCtx.sqlgenCompiler.Compile(&w, st.qc); err != nil {
@@ -308,6 +325,22 @@ func (s *gstate) compileWithCompilers(st stmt, vars map[string]json.RawMessage, 
 	}
 
 	return
+}
+
+func (s *gstate) applyQueryPolicy(qc *qcode.QCode) error {
+	if s.gj.queryPolicyHook == nil {
+		return nil
+	}
+	if s.r.requestconfig == nil {
+		s.r.requestconfig = &RequestConfig{}
+	}
+	if s.r.requestconfig.Vars == nil {
+		s.r.requestconfig.Vars = make(map[string]interface{})
+	}
+	if err := s.gj.queryPolicyHook(s.ctx, qc, s.r.requestconfig); err != nil {
+		return fmt.Errorf("query policy: %w", err)
+	}
+	return nil
 }
 
 // extractAllRootFields parses the GraphQL query to extract all root field names

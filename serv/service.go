@@ -486,6 +486,15 @@ func OptionSetMutationHook(h core.MutationHook) Option {
 	}
 }
 
+// OptionSetQueryPolicyHook installs a request-scoped policy hook that can
+// constrain compiled query IR before SQL generation.
+func OptionSetQueryPolicyHook(h core.QueryPolicyHook) Option {
+	return func(s *graphjinService) error {
+		s.coreOptions = append(s.coreOptions, core.OptionSetQueryPolicyHook(h))
+		return nil
+	}
+}
+
 // OptionSetZapLogger sets service structured logger
 func OptionSetZapLogger(zlog *zap.Logger) Option {
 	return func(s *graphjinService) error {

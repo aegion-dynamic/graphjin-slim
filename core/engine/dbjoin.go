@@ -484,6 +484,7 @@ func (s *gstate) resolveDatabaseRootRemotes(
 	sub := gstate{
 		gj:        s.gj,
 		r:         cloneGraphqlReq(s.r),
+		ctx:       ctx,
 		cs:        &cstate{st: stmt{qc: qc}},
 		data:      injectRemoteMarkers(data, qc),
 		database:  dbName,

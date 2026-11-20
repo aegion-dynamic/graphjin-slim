@@ -1001,8 +1001,11 @@ func (ast *aexpst) processNestedTable(av aexp, ex *qcode.Exp, node *graph.Node) 
 		}
 	}
 
+	// The walk starts from the table this filter sits on. The edge name only
+	// stands for the root table: a relation nested under another relation
+	// (inside and/or, or beside other conditions) joins from that relation.
 	var prev, curr string
-	if ast.edge == "" {
+	if ast.edge == "" || ti.Name != ast.ti.Name {
 		prev = ti.Name
 	} else {
 		prev = ast.edge
